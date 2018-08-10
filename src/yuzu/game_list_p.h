@@ -5,11 +5,13 @@
 #pragma once
 
 #include <atomic>
+#include <utility>
 #include <QImage>
 #include <QRunnable>
 #include <QStandardItem>
 #include <QString>
 #include "common/string_util.h"
+#include "ui_settings.h"
 #include "yuzu/util/util.h"
 
 /**
@@ -17,8 +19,7 @@
  * @param large If true, returns large icon (48x48), otherwise returns small icon (24x24)
  * @return QPixmap default icon
  */
-static QPixmap GetDefaultIcon(bool large) {
-    int size = large ? 48 : 24;
+static QPixmap GetDefaultIcon(u32 size) {
     QPixmap icon(size, size);
     icon.fill(Qt::transparent);
     return icon;
@@ -27,9 +28,8 @@ static QPixmap GetDefaultIcon(bool large) {
 class GameListItem : public QStandardItem {
 
 public:
-    GameListItem() : QStandardItem() {}
-    GameListItem(const QString& string) : QStandardItem(string) {}
-    virtual ~GameListItem() override {}
+    GameListItem() = default;
+    explicit GameListItem(const QString& string) : QStandardItem(string) {}
 };
 
 /**
@@ -44,12 +44,25 @@ public:
     static const int FullPathRole = Qt::UserRole + 1;
     static const int TitleRole = Qt::UserRole + 2;
     static const int ProgramIdRole = Qt::UserRole + 3;
+    static const int FileTypeRole = Qt::UserRole + 4;
 
-    GameListItemPath() : GameListItem() {}
-    GameListItemPath(const QString& game_path, const std::vector<u8>& smdh_data, u64 program_id)
+    GameListItemPath() = default;
+    GameListItemPath(const QString& game_path, const std::vector<u8>& picture_data,
+                     const QString& game_name, const QString& game_type, u64 program_id)
         : GameListItem() {
         setData(game_path, FullPathRole);
+        setData(game_name, TitleRole);
         setData(qulonglong(program_id), ProgramIdRole);
+        setData(game_type, FileTypeRole);
+
+        QPixmap picture;
+        u32 size = UISettings::values.icon_size;
+        if (!picture.loadFromData(picture_data.data(), picture_data.size()))
+            picture = GetDefaultIcon(size);
+
+        picture = picture.scaled(size, size);
+
+        setData(picture, Qt::DecorationRole);
     }
 
     QVariant data(int role) const override {
@@ -58,7 +71,23 @@ public:
             Common::SplitPath(data(FullPathRole).toString().toStdString(), nullptr, &filename,
                               nullptr);
             QString title = data(TitleRole).toString();
-            return QString::fromStdString(filename) + (title.isEmpty() ? "" : "\n    " + title);
+
+            std::vector<QString> row_data{
+                QString::fromStdString(filename),
+                data(FileTypeRole).toString(),
+                QString::fromStdString(fmt::format("0x{:016X}", data(ProgramIdRole).toULongLong())),
+                data(TitleRole).toString(),
+            };
+
+            auto row1 = row_data.at(UISettings::values.row_1_text_id);
+            auto row2 = row_data.at(UISettings::values.row_2_text_id);
+
+            if (row1.isEmpty() || row1 == row2)
+                return row2;
+            if (row2.isEmpty())
+                return row1;
+
+            return row1 + "\n    " + row2;
         } else {
             return GameListItem::data(role);
         }
@@ -75,8 +104,8 @@ class GameListItemSize : public GameListItem {
 public:
     static const int SizeRole = Qt::UserRole + 1;
 
-    GameListItemSize() : GameListItem() {}
-    GameListItemSize(const qulonglong size_bytes) : GameListItem() {
+    GameListItemSize() = default;
+    explicit GameListItemSize(const qulonglong size_bytes) {
         setData(size_bytes, SizeRole);
     }
 
@@ -110,8 +139,8 @@ class GameListWorker : public QObject, public QRunnable {
     Q_OBJECT
 
 public:
-    GameListWorker(QString dir_path, bool deep_scan)
-        : QObject(), QRunnable(), dir_path(dir_path), deep_scan(deep_scan) {}
+    GameListWorker(FileSys::VirtualFilesystem vfs, QString dir_path, bool deep_scan)
+        : vfs(std::move(vfs)), dir_path(std::move(dir_path)), deep_scan(deep_scan) {}
 
 public slots:
     /// Starts the processing of directory tree information.
@@ -134,6 +163,7 @@ signals:
     void Finished(QStringList watch_list);
 
 private:
+    FileSys::VirtualFilesystem vfs;
     QStringList watch_list;
     QString dir_path;
     bool deep_scan;
