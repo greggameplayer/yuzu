@@ -190,12 +190,6 @@ void Module::Interface::InitializeApplicationInfo(Kernel::HLERequestContext& ctx
     rb.Push(RESULT_SUCCESS);
 }
 
-void Module::Interface::IsUserRegistrationRequestPermitted(Kernel::HLERequestContext& ctx) {
-    LOG_WARNING(Service_ACC, "(STUBBED called");
-    IPC::ResponseBuilder rb{ctx, 3};
-    rb.Push(RESULT_SUCCESS);
-    rb.Push(true);
-}
 void Module::Interface::GetBaasAccountManagerForApplication(Kernel::HLERequestContext& ctx) {
     IPC::ResponseBuilder rb{ctx, 2, 0, 1};
     rb.Push(RESULT_SUCCESS);

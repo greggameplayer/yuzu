@@ -22,7 +22,6 @@ public:
         void GetLastOpenedUser(Kernel::HLERequestContext& ctx);
         void GetProfile(Kernel::HLERequestContext& ctx);
         void InitializeApplicationInfo(Kernel::HLERequestContext& ctx);
-        void IsUserRegistrationRequestPermitted(Kernel::HLERequestContext& ctx);
         void GetBaasAccountManagerForApplication(Kernel::HLERequestContext& ctx);
         void IsUserRegistrationRequestPermitted(Kernel::HLERequestContext& ctx);
 
