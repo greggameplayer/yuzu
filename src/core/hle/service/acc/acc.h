@@ -5,6 +5,7 @@
 #pragma once
 
 #include "core/hle/service/service.h"
+#include "profile_manager.h"
 
 namespace Service::Account {
 
@@ -22,6 +23,10 @@ public:
         void GetProfile(Kernel::HLERequestContext& ctx);
         void InitializeApplicationInfo(Kernel::HLERequestContext& ctx);
         void GetBaasAccountManagerForApplication(Kernel::HLERequestContext& ctx);
+        void IsUserRegistrationRequestPermitted(Kernel::HLERequestContext& ctx);
+
+    private:
+        std::unique_ptr<ProfileManager> profile_manager{};
 
     protected:
         std::shared_ptr<Module> module;
