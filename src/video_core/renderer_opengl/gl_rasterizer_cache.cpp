@@ -116,6 +116,7 @@ static constexpr std::array<FormatTuple, SurfaceParams::MaxPixelFormat> tex_form
     {GL_COMPRESSED_RGBA_BPTC_UNORM_ARB, GL_RGB, GL_UNSIGNED_INT_8_8_8_8, ComponentType::UNorm,
      true},                                                                    // BC7U
     {GL_RGBA8, GL_RGBA, GL_UNSIGNED_BYTE, ComponentType::UNorm, false},        // ASTC_2D_4X4
+    {GL_RGBA8, GL_RGBA, GL_UNSIGNED_BYTE, ComponentType::UNorm, false},        // ASTC_2D_5X5
     {GL_RG8, GL_RG, GL_UNSIGNED_BYTE, ComponentType::UNorm, false},            // G8R8
     {GL_RGBA8, GL_BGRA, GL_UNSIGNED_BYTE, ComponentType::UNorm, false},        // BGRA8
     {GL_RGBA32F, GL_RGBA, GL_FLOAT, ComponentType::Float, false},              // RGBA32F
@@ -163,6 +164,7 @@ VAddr SurfaceParams::GetCpuAddr() const {
 static bool IsPixelFormatASTC(PixelFormat format) {
     switch (format) {
     case PixelFormat::ASTC_2D_4X4:
+    case PixelFormat::ASTC_2D_5X5:
         return true;
     default:
         return false;
@@ -173,6 +175,8 @@ static std::pair<u32, u32> GetASTCBlockSize(PixelFormat format) {
     switch (format) {
     case PixelFormat::ASTC_2D_4X4:
         return {4, 4};
+    case PixelFormat::ASTC_2D_5X5:
+        return {5, 5};
     default:
         LOG_CRITICAL(HW_GPU, "Unhandled format: {}", static_cast<u32>(format));
         UNREACHABLE();
@@ -241,18 +245,19 @@ static constexpr std::array<void (*)(u32, u32, u32, std::vector<u8>&, Tegra::GPU
         MortonCopy<true, PixelFormat::DXT23>,       MortonCopy<true, PixelFormat::DXT45>,
         MortonCopy<true, PixelFormat::DXN1>,        MortonCopy<true, PixelFormat::DXN2UNORM>,
         MortonCopy<true, PixelFormat::DXN2SNORM>,   MortonCopy<true, PixelFormat::BC7U>,
-        MortonCopy<true, PixelFormat::ASTC_2D_4X4>, MortonCopy<true, PixelFormat::G8R8>,
-        MortonCopy<true, PixelFormat::BGRA8>,       MortonCopy<true, PixelFormat::RGBA32F>,
-        MortonCopy<true, PixelFormat::RG32F>,       MortonCopy<true, PixelFormat::R32F>,
-        MortonCopy<true, PixelFormat::R16F>,        MortonCopy<true, PixelFormat::R16UNORM>,
-        MortonCopy<true, PixelFormat::R16S>,        MortonCopy<true, PixelFormat::R16UI>,
-        MortonCopy<true, PixelFormat::R16I>,        MortonCopy<true, PixelFormat::RG16>,
-        MortonCopy<true, PixelFormat::RG16F>,       MortonCopy<true, PixelFormat::RG16UI>,
-        MortonCopy<true, PixelFormat::RG16I>,       MortonCopy<true, PixelFormat::RG16S>,
-        MortonCopy<true, PixelFormat::RGB32F>,      MortonCopy<true, PixelFormat::SRGBA8>,
-        MortonCopy<true, PixelFormat::RG8S>,        MortonCopy<true, PixelFormat::Z24S8>,
-        MortonCopy<true, PixelFormat::S8Z24>,       MortonCopy<true, PixelFormat::Z32F>,
-        MortonCopy<true, PixelFormat::Z16>,         MortonCopy<true, PixelFormat::Z32FS8>,
+        MortonCopy<true, PixelFormat::ASTC_2D_4X4>, MortonCopy<true, PixelFormat::ASTC_2D_5X5>,
+        MortonCopy<true, PixelFormat::G8R8>,        MortonCopy<true, PixelFormat::BGRA8>,
+        MortonCopy<true, PixelFormat::RGBA32F>,     MortonCopy<true, PixelFormat::RG32F>,
+        MortonCopy<true, PixelFormat::R32F>,        MortonCopy<true, PixelFormat::R16F>,
+        MortonCopy<true, PixelFormat::R16UNORM>,    MortonCopy<true, PixelFormat::R16S>,
+        MortonCopy<true, PixelFormat::R16UI>,       MortonCopy<true, PixelFormat::R16I>,
+        MortonCopy<true, PixelFormat::RG16>,        MortonCopy<true, PixelFormat::RG16F>,
+        MortonCopy<true, PixelFormat::RG16UI>,      MortonCopy<true, PixelFormat::RG16I>,
+        MortonCopy<true, PixelFormat::RG16S>,       MortonCopy<true, PixelFormat::RGB32F>,
+        MortonCopy<true, PixelFormat::SRGBA8>,      MortonCopy<true, PixelFormat::RG8S>,
+        MortonCopy<true, PixelFormat::Z24S8>,       MortonCopy<true, PixelFormat::S8Z24>,
+        MortonCopy<true, PixelFormat::Z32F>,        MortonCopy<true, PixelFormat::Z16>,
+        MortonCopy<true, PixelFormat::Z32FS8>,
 };
 
 static constexpr std::array<void (*)(u32, u32, u32, std::vector<u8>&, Tegra::GPUVAddr),
@@ -267,8 +272,9 @@ static constexpr std::array<void (*)(u32, u32, u32, std::vector<u8>&, Tegra::GPU
         MortonCopy<false, PixelFormat::RGBA16F>,
         MortonCopy<false, PixelFormat::R11FG11FB10F>,
         MortonCopy<false, PixelFormat::RGBA32UI>,
-        // TODO(Subv): Swizzling DXT1/DXT23/DXT45/DXN1/DXN2/BC7U/ASTC_2D_4X4 formats is not
+        // TODO(Subv): Swizzling DXT1/DXT23/DXT45/DXN1/DXN2/BC7U/ASTC_2D_4X4/ASTC_2D_5X5 formats is not
         // supported
+        nullptr,
         nullptr,
         nullptr,
         nullptr,
@@ -438,6 +444,7 @@ static void ConvertG8R8ToR8G8(std::vector<u8>& data, u32 width, u32 height) {
 static void ConvertFormatAsNeeded_LoadGLBuffer(std::vector<u8>& data, PixelFormat pixel_format,
                                                u32 width, u32 height) {
     switch (pixel_format) {
+    case PixelFormat::ASTC_2D_5X5:
     case PixelFormat::ASTC_2D_4X4: {
         // Convert ASTC pixel formats to RGBA8, as most desktop GPUs do not support ASTC.
         u32 block_width{};
@@ -467,6 +474,7 @@ static void ConvertFormatAsNeeded_FlushGLBuffer(std::vector<u8>& /*data*/, Pixel
                                                 u32 /*width*/, u32 /*height*/) {
     switch (pixel_format) {
     case PixelFormat::ASTC_2D_4X4:
+    case PixelFormat::ASTC_2D_5X5:
     case PixelFormat::S8Z24:
         LOG_CRITICAL(Render_OpenGL, "Unimplemented pixel_format={}",
                      static_cast<u32>(pixel_format));

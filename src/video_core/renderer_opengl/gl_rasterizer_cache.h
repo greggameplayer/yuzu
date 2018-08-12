@@ -40,33 +40,34 @@ struct SurfaceParams {
         DXN2SNORM = 14,
         BC7U = 15,
         ASTC_2D_4X4 = 16,
-        G8R8 = 17,
-        BGRA8 = 18,
-        RGBA32F = 19,
-        RG32F = 20,
-        R32F = 21,
-        R16F = 22,
-        R16UNORM = 23,
-        R16S = 24,
-        R16UI = 25,
-        R16I = 26,
-        RG16 = 27,
-        RG16F = 28,
-        RG16UI = 29,
-        RG16I = 30,
-        RG16S = 31,
-        RGB32F = 32,
-        SRGBA8 = 33,
-        RG8S = 34,
+        ASTC_2D_5X5 = 17,
+        G8R8 = 18,
+        BGRA8 = 19,
+        RGBA32F = 20,
+        RG32F = 21,
+        R32F = 22,
+        R16F = 23,
+        R16UNORM = 24,
+        R16S = 25,
+        R16UI = 26,
+        R16I = 27,
+        RG16 = 28,
+        RG16F = 29,
+        RG16UI = 30,
+        RG16I = 31,
+        RG16S = 32,
+        RGB32F = 33,
+        SRGBA8 = 34,
+        RG8S = 35,
 
         MaxColorFormat,
 
         // DepthStencil formats
-        Z24S8 = 35,
-        S8Z24 = 36,
-        Z32F = 37,
-        Z16 = 38,
-        Z32FS8 = 39,
+        Z24S8 = 36,
+        S8Z24 = 37,
+        Z32F = 38,
+        Z16 = 39,
+        Z32FS8 = 40,
 
         MaxDepthStencilFormat,
 
@@ -121,6 +122,7 @@ struct SurfaceParams {
             4, // DXN2SNORM
             4, // BC7U
             4, // ASTC_2D_4X4
+            4, // ASTC_2D_5X5
             1, // G8R8
             1, // BGRA8
             1, // RGBA32F
@@ -172,6 +174,7 @@ struct SurfaceParams {
             128, // DXN2SNORM
             128, // BC7U
             32,  // ASTC_2D_4X4
+            32,  // ASTC_2D_5X5
             16,  // G8R8
             32,  // BGRA8
             128, // RGBA32F
@@ -366,6 +369,8 @@ struct SurfaceParams {
             return PixelFormat::BC7U;
         case Tegra::Texture::TextureFormat::ASTC_2D_4X4:
             return PixelFormat::ASTC_2D_4X4;
+        case Tegra::Texture::TextureFormat::ASTC_2D_5X5:
+            return PixelFormat::ASTC_2D_5X5;
         case Tegra::Texture::TextureFormat::R16_G16:
             switch (component_type) {
             case Tegra::Texture::ComponentType::FLOAT:
