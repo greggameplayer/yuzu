@@ -38,6 +38,16 @@ u32 nvhost_gpu::ioctl(Ioctl command, const std::vector<u8>& input, std::vector<u
         return GetWaitbase(input, output);
     case IoctlCommand::IocChannelSetTimeoutCommand:
         return ChannelSetTimeout(input, output);
+    case IoctlCommand::IocChannelGetSyncPoint:
+        return GetSyncPoint(input, output);
+    case IoctlCommand::IocChannelSetTimeoutEx:
+        return SetTimeoutEx(input, output);
+    case IoctlCommand::IocChannelSetSubmitTimeout:
+        return SetSubmitTimeout(input, output);
+    case IoctlCommand::IocChannelSetClkRate:
+        return SetClkRate(input, output);
+    case IoctlCommand::IocChannelGetClkRate:
+        return GetClkRate(input, output);
     }
 
     if (command.group == NVGPU_IOCTL_MAGIC) {
@@ -52,6 +62,39 @@ u32 nvhost_gpu::ioctl(Ioctl command, const std::vector<u8>& input, std::vector<u
     UNIMPLEMENTED_MSG("Unimplemented ioctl");
     return 0;
 };
+
+u32 nvhost_gpu::GetClkRate(const std::vector<u8>& input, std::vector<u8>& output) {
+    LOG_DEBUG(Service_NVDRV, "called");
+    IoctlChannelClkRate params{};
+    std::memcpy(&params, input.data(), input.size());
+    params.clk_rate = clk_rate;
+    std::memcpy(output.data(), &params, output.size());
+    return 0;
+}
+
+u32 nvhost_gpu::SetClkRate(const std::vector<u8>& input, std::vector<u8>& output) {
+    IoctlChannelClkRate params{};
+    std::memcpy(&params, input.data(), sizeof(IoctlChannelClkRate));
+    LOG_DEBUG(Service_NVDRV, "called, fd={}", params.clk_rate);
+    clk_rate = params.clk_rate;
+    return 0;
+}
+
+u32 nvhost_gpu::SetSubmitTimeout(const std::vector<u8>& input, std::vector<u8>& output) {
+    IoctlChannelSetSubmitTimeout params{};
+    std::memcpy(&params, input.data(), sizeof(IoctlChannelSetSubmitTimeout));
+    LOG_DEBUG(Service_NVDRV, "called, fd={}", params.timeout);
+    submit_timeout = params.timeout;
+    return 0;
+}
+
+u32 nvhost_gpu::SetTimeoutEx(const std::vector<u8>& input, std::vector<u8>& output) {
+    IoctlChannelSetTimeoutEx params{};
+    std::memcpy(&params, input.data(), sizeof(IoctlChannelSetTimeoutEx));
+    LOG_DEBUG(Service_NVDRV, "called, fd={}", params.timeout);
+    timeout_ex = params.timeout;
+    return 0;
+}
 
 u32 nvhost_gpu::SetNVMAPfd(const std::vector<u8>& input, std::vector<u8>& output) {
     IoctlSetNvmapFD params{};
@@ -74,6 +117,15 @@ u32 nvhost_gpu::GetClientData(const std::vector<u8>& input, std::vector<u8>& out
     IoctlClientData params{};
     std::memcpy(&params, input.data(), input.size());
     params.data = user_data;
+    std::memcpy(output.data(), &params, output.size());
+    return 0;
+}
+
+u32 nvhost_gpu::GetSyncPoint(const std::vector<u8>& input, std::vector<u8>& output) {
+    LOG_DEBUG(Service_NVDRV, "called");
+    IoctlChannelGetSyncPoint params{};
+    std::memcpy(&params, input.data(), input.size());
+    params.SyncPoint = 0;
     std::memcpy(output.data(), &params, output.size());
     return 0;
 }

@@ -46,6 +46,11 @@ private:
         IocAllocObjCtxCommand = 0xC0104809,
         IocChannelGetWaitbaseCommand = 0xC0080003,
         IocChannelSetTimeoutCommand = 0x40044803,
+        IocChannelGetSyncPoint = 0xC0080002,
+        IocChannelSetTimeoutEx = 0xC0080004,
+        IocChannelSetSubmitTimeout = 0x40040007,
+        IocChannelSetClkRate = 0x40080008,
+        IocChannelGetClkRate = 0xC0080014,
     };
 
     enum class CtxObjects : u32_le {
@@ -56,6 +61,28 @@ private:
         CtxDMA = 0xB0B5,
         CtxChannelGPFIFO = 0xB06F,
     };
+
+    struct IoctlChannelClkRate {
+        u64_le clk_rate;
+    };
+    static_assert(sizeof(IoctlChannelClkRate) == 8, "IoctlChannelSetClkRate is incorrect size");
+
+    struct IoctlChannelSetSubmitTimeout {
+        u32_le timeout;
+    };
+    static_assert(sizeof(IoctlChannelSetSubmitTimeout) == 4, "IoctlChannelSetSubmitTimeout is incorrect size");
+
+    struct IoctlChannelSetTimeoutEx {
+        u64_le timeout;
+    };
+    static_assert(sizeof(IoctlChannelSetTimeoutEx) == 8,
+                  "IoctlChannelSetTimeoutEx is incorrect size");
+
+    struct IoctlChannelGetSyncPoint {
+        u64_le SyncPoint;
+    };
+    static_assert(sizeof(IoctlChannelGetSyncPoint) == 8,
+                  "IoctlChannelGetSyncPoint is incorrect size");
 
     struct IoctlSetNvmapFD {
         u32_le nvmap_fd;
@@ -184,8 +211,11 @@ private:
 
     u32_le nvmap_fd{};
     u64_le user_data{};
+    u64_le timeout_ex{};
+    u64_le clk_rate{};
     IoctlZCullBind zcull_params{};
     u32_le channel_priority{};
+    u32_le submit_timeout{};
 
     u32 SetNVMAPfd(const std::vector<u8>& input, std::vector<u8>& output);
     u32 SetClientData(const std::vector<u8>& input, std::vector<u8>& output);
@@ -199,6 +229,11 @@ private:
     u32 KickoffPB(const std::vector<u8>& input, std::vector<u8>& output);
     u32 GetWaitbase(const std::vector<u8>& input, std::vector<u8>& output);
     u32 ChannelSetTimeout(const std::vector<u8>& input, std::vector<u8>& output);
+    u32 GetSyncPoint(const std::vector<u8>& input, std::vector<u8>& output);
+    u32 SetTimeoutEx(const std::vector<u8>& input, std::vector<u8>& output);
+    u32 SetSubmitTimeout(const std::vector<u8>& input, std::vector<u8>& output);
+    u32 SetClkRate(const std::vector<u8>& input, std::vector<u8>& output);
+    u32 GetClkRate(const std::vector<u8>& input, std::vector<u8>& output);
 
     std::shared_ptr<nvmap> nvmap_dev;
 };
