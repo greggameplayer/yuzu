@@ -60,6 +60,9 @@ static VAddr TryGetCpuAddr(Tegra::GPUVAddr gpu_addr) {
     case SurfaceTarget::Texture2D:
         params.depth = 1;
         break;
+    case SurfaceTarget::TextureCubemap:
+        params.depth = config.tic.Depth() * 6;
+        break;
     case SurfaceTarget::Texture3D:
         params.depth = config.tic.Depth();
         break;
@@ -556,6 +559,7 @@ CachedSurface::CachedSurface(const SurfaceParams& params)
                            rect.GetWidth());
             break;
         case SurfaceParams::SurfaceTarget::Texture2D:
+        case SurfaceParams::SurfaceTarget::TextureCubemap:
             glTexStorage2D(SurfaceTargetToGL(params.target), 1, format_tuple.internal_format,
                            rect.GetWidth(), rect.GetHeight());
             break;
@@ -670,6 +674,7 @@ void CachedSurface::LoadGLBuffer() {
             // Pass impl. to the fallback code below
             break;
         case SurfaceParams::SurfaceTarget::Texture2DArray:
+        case SurfaceParams::SurfaceTarget::TextureCubemap:
             for (size_t index = 0; index < params.depth; ++index) {
                 const size_t offset{index * copy_size};
                 morton_to_gl_fns[static_cast<size_t>(params.pixel_format)](
@@ -714,7 +719,7 @@ void CachedSurface::UploadGLTexture(GLuint read_fb_handle, GLuint draw_fb_handle
     // Load data from memory to the surface
     const GLint x0 = static_cast<GLint>(rect.left);
     const GLint y0 = static_cast<GLint>(rect.bottom);
-    const size_t buffer_offset =
+    size_t buffer_offset =
         static_cast<size_t>(static_cast<size_t>(y0) * params.width + static_cast<size_t>(x0)) *
         GetGLBytesPerPixel(params.pixel_format);
 
@@ -752,6 +757,16 @@ void CachedSurface::UploadGLTexture(GLuint read_fb_handle, GLuint draw_fb_handle
                 static_cast<GLsizei>(params.depth), 0,
                 static_cast<GLsizei>(params.size_in_bytes_total), &gl_buffer[buffer_offset]);
             break;
+        case SurfaceParams::SurfaceTarget::TextureCubemap:
+            for (size_t face = 0; face < params.depth; ++face) {
+                glCompressedTexImage2D(static_cast<GLenum>(GL_TEXTURE_CUBE_MAP_POSITIVE_X + face),
+                                       0, tuple.internal_format, static_cast<GLsizei>(params.width),
+                                       static_cast<GLsizei>(params.height), 0,
+                                       static_cast<GLsizei>(params.size_in_bytes_2d),
+                                       &gl_buffer[buffer_offset]);
+                buffer_offset += params.size_in_bytes_2d;
+            }
+            break;
         default:
             LOG_CRITICAL(Render_OpenGL, "Unimplemented surface target={}",
                          static_cast<u32>(params.target));
@@ -781,6 +796,15 @@ void CachedSurface::UploadGLTexture(GLuint read_fb_handle, GLuint draw_fb_handle
                             static_cast<GLsizei>(rect.GetWidth()),
                             static_cast<GLsizei>(rect.GetHeight()), params.depth, tuple.format,
                             tuple.type, &gl_buffer[buffer_offset]);
+            break;
+        case SurfaceParams::SurfaceTarget::TextureCubemap:
+            for (size_t face = 0; face < params.depth; ++face) {
+                glTexSubImage2D(static_cast<GLenum>(GL_TEXTURE_CUBE_MAP_POSITIVE_X + face), 0, x0,
+                                y0, static_cast<GLsizei>(rect.GetWidth()),
+                                static_cast<GLsizei>(rect.GetHeight()), tuple.format, tuple.type,
+                                &gl_buffer[buffer_offset]);
+                buffer_offset += params.size_in_bytes_2d;
+            }
             break;
         default:
             LOG_CRITICAL(Render_OpenGL, "Unimplemented surface target={}",
@@ -976,6 +1000,15 @@ Surface RasterizerCacheOpenGL::RecreateSurface(const Surface& old_surface,
                                     static_cast<GLsizei>(dest_rect.GetHeight()),
                                     static_cast<GLsizei>(new_params.depth), dest_format.format,
                                     dest_format.type, nullptr);
+                break;
+            case SurfaceParams::SurfaceTarget::TextureCubemap:
+                for (size_t face = 0; face < new_params.depth; ++face) {
+                    glTextureSubImage3D(
+                        new_surface->Texture().handle, 0, 0, 0, static_cast<GLint>(face),
+                        static_cast<GLsizei>(dest_rect.GetWidth()),
+                        static_cast<GLsizei>(dest_rect.GetHeight()), static_cast<GLsizei>(1),
+                        dest_format.format, dest_format.type, nullptr);
+                }
                 break;
             default:
                 LOG_CRITICAL(Render_OpenGL, "Unimplemented surface target={}",
