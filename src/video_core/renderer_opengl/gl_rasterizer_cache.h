@@ -15,6 +15,7 @@
 #include "video_core/engines/maxwell_3d.h"
 #include "video_core/rasterizer_cache.h"
 #include "video_core/renderer_opengl/gl_resource_manager.h"
+#include "video_core/renderer_opengl/gl_shader_gen.h"
 #include "video_core/textures/texture.h"
 
 namespace OpenGL {
@@ -673,7 +674,8 @@ struct SurfaceParams {
     }
 
     /// Creates SurfaceParams from a texture configuration
-    static SurfaceParams CreateForTexture(const Tegra::Texture::FullTextureInfo& config);
+    static SurfaceParams CreateForTexture(const Tegra::Texture::FullTextureInfo& config,
+                                          const GLShader::SamplerEntry& entry);
 
     /// Creates SurfaceParams from a framebuffer configuration
     static SurfaceParams CreateForFramebuffer(size_t index);
@@ -775,7 +777,8 @@ public:
     RasterizerCacheOpenGL();
 
     /// Get a surface based on the texture configuration
-    Surface GetTextureSurface(const Tegra::Texture::FullTextureInfo& config);
+    Surface GetTextureSurface(const Tegra::Texture::FullTextureInfo& config,
+                              const GLShader::SamplerEntry& entry);
 
     /// Get the depth surface based on the framebuffer configuration
     Surface GetDepthBufferSurface(bool preserve_contents);
