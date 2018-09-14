@@ -929,7 +929,31 @@ Surface RasterizerCacheOpenGL::RecreateSurface(const Surface& old_surface,
         // using PBOs. The is also likely less accurate, as textures will be converted rather than
         // reinterpreted.
 
-        BlitSurface(old_surface, new_surface, read_framebuffer.handle, draw_framebuffer.handle);
+        switch (new_params.target) {
+        case SurfaceParams::SurfaceTarget::Texture2D:
+            BlitSurface(old_surface, new_surface, read_framebuffer.handle, draw_framebuffer.handle);
+            break;
+        case SurfaceParams::SurfaceTarget::TextureCubemap:
+            // This seems to be used for render-to-cubemap texture
+            ASSERT_MSG(old_params.target == SurfaceParams::SurfaceTarget::Texture2D, "Unexpected");
+            ASSERT_MSG(old_params.pixel_format == new_params.pixel_format, "Unexpected");
+            ASSERT_MSG(old_params.width == new_params.width, "Unexpected");
+            ASSERT_MSG(old_params.height == new_params.height, "Unexpected");
+
+            // TODO(bunnei): This copies the old surface to all faces of the new cubemap surface.
+            // This is likely incorrect, but we do not know how this works yet. I suspect there
+            // should be something (either in texture configuration or render target configuration)
+            // that controls which cubemap face this should go do.
+            for (size_t index = 0; index < new_params.depth; ++index) {
+                BlitSurface(old_surface, new_surface, read_framebuffer.handle,
+                            draw_framebuffer.handle, index);
+            }
+            break;
+        default:
+            LOG_CRITICAL(Render_OpenGL, "Unimplemented surface target={}",
+                         static_cast<u32>(new_params.target));
+            UNREACHABLE();
+        }
     } else {
         // When use_accurate_framebuffers setting is enabled, perform a more accurate surface copy,
         // where pixels are reinterpreted as a new format (without conversion). This code path uses
