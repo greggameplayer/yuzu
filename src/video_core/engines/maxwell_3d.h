@@ -5,6 +5,7 @@
 #pragma once
 
 #include <array>
+#include <set>
 #include <unordered_map>
 #include <vector>
 #include "common/assert.h"
@@ -977,6 +978,8 @@ public:
 
         std::array<ShaderStageInfo, Regs::MaxShaderStage> shader_stages;
         u32 current_instance = 0; ///< Current instance to be used to simulate instanced rendering.
+
+        std::set<std::pair<u64, u64>> global_memory_uniforms;
     };
 
     State state{};
@@ -993,6 +996,9 @@ public:
 
     /// Returns the texture information for a specific texture in a specific shader stage.
     Texture::FullTextureInfo GetStageTexture(Regs::ShaderStage stage, std::size_t offset) const;
+
+    std::string CreateGlobalMemoryRegion(std::tuple<u64, u64, u64> iadd_data);
+    std::set<std::pair<u64, u64>> ListGlobalMemoryRegions() const;
 
 private:
     void InitializeRegisterDefaults();
