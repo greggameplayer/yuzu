@@ -553,8 +553,8 @@ void RasterizerOpenGL::DrawArrays() {
     SyncBlendState();
     SyncLogicOpState();
     SyncCullMode();
-    SyncAlphaTest();
     SyncScissorTest();
+    // Alpha Testing is synced on shaders.
     SyncTransformFeedback();
     SyncPointState();
 
@@ -853,7 +853,7 @@ void RasterizerOpenGL::SetupAlphaTesting(Shader& shader) {
     const auto& regs = Core::System::GetInstance().GPU().Maxwell3D().regs;
 
     glProgramUniform1ui(shader->GetProgramHandle(), shader->GetAlphaTestingEnableLocation(),
-                       regs.alpha_test_enabled);
+                        regs.alpha_test_enabled);
     glProgramUniform1f(shader->GetProgramHandle(), shader->GetAlphaTestingRefLocation(),
                        regs.alpha_test_ref);
 
@@ -993,6 +993,7 @@ void RasterizerOpenGL::SyncLogicOpState() {
     state.logic_op.operation = MaxwellToGL::LogicOp(regs.logic_op.operation);
 }
 
+<<<<<<< HEAD
 void RasterizerOpenGL::SyncAlphaTest() {
     const auto& regs = Core::System::GetInstance().GPU().Maxwell3D().regs;
 
@@ -1020,6 +1021,8 @@ void RasterizerOpenGL::SyncScissorTest() {
     }
 }
 
+=======
+>>>>>>> Remove SyncAlphaTest and clang format
 void RasterizerOpenGL::SyncTransformFeedback() {
     const auto& regs = Core::System::GetInstance().GPU().Maxwell3D().regs;
 
