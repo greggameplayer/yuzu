@@ -122,6 +122,13 @@ struct SurfaceParams {
         TextureCubemap,
     };
 
+    enum class SurfaceClass {
+        Uploaded,
+        RenderTarget,
+        DepthBuffer,
+        Copy,
+    };
+
     static SurfaceTarget SurfaceTargetFromTextureType(Tegra::Texture::TextureType texture_type) {
         switch (texture_type) {
         case Tegra::Texture::TextureType::Texture1D:
@@ -139,27 +146,6 @@ struct SurfaceParams {
             LOG_CRITICAL(HW_GPU, "Unimplemented texture_type={}", static_cast<u32>(texture_type));
             UNREACHABLE();
             return SurfaceTarget::Texture2D;
-        }
-    }
-
-    static std::string SurfaceTargetName(SurfaceTarget target) {
-        switch (target) {
-        case SurfaceTarget::Texture1D:
-            return "Texture1D";
-        case SurfaceTarget::Texture2D:
-            return "Texture2D";
-        case SurfaceTarget::Texture3D:
-            return "Texture3D";
-        case SurfaceTarget::Texture1DArray:
-            return "Texture1DArray";
-        case SurfaceTarget::Texture2DArray:
-            return "Texture2DArray";
-        case SurfaceTarget::TextureCubemap:
-            return "TextureCubemap";
-        default:
-            LOG_CRITICAL(HW_GPU, "Unimplemented surface_target={}", static_cast<u32>(target));
-            UNREACHABLE();
-            return fmt::format("TextureUnknown({})", static_cast<u32>(target));
         }
     }
 
@@ -732,6 +718,48 @@ struct SurfaceParams {
                         other.depth);
     }
 
+    std::string TargetName() const {
+        switch (target) {
+        case SurfaceTarget::Texture1D:
+            return "1D";
+        case SurfaceTarget::Texture2D:
+            return "2D";
+        case SurfaceTarget::Texture3D:
+            return "3D";
+        case SurfaceTarget::Texture1DArray:
+            return "1DArray";
+        case SurfaceTarget::Texture2DArray:
+            return "2DArray";
+        case SurfaceTarget::TextureCubemap:
+            return "Cube";
+        default:
+            LOG_CRITICAL(HW_GPU, "Unimplemented surface_target={}", static_cast<u32>(target));
+            UNREACHABLE();
+            return fmt::format("TUK({})", static_cast<u32>(target));
+        }
+    }
+
+    std::string ClassName() const {
+        switch (identity) {
+        case SurfaceClass::Uploaded:
+            return "UP";
+        case SurfaceClass::RenderTarget:
+            return "RT";
+        case SurfaceClass::DepthBuffer:
+            return "DB";
+        case SurfaceClass::Copy:
+            return "CP";
+        default:
+            LOG_CRITICAL(HW_GPU, "Unimplemented surface_class={}", static_cast<u32>(identity));
+            UNREACHABLE();
+            return fmt::format("CUK({})", static_cast<u32>(identity));
+        }
+    }
+
+    std::string IdentityString() const {
+        return ClassName() + '_' + TargetName();
+    }
+
     VAddr addr;
     bool is_tiled;
     u32 block_width;
@@ -747,6 +775,7 @@ struct SurfaceParams {
     std::size_t size_in_bytes_total;
     std::size_t size_in_bytes_2d;
     SurfaceTarget target;
+    SurfaceClass identity;
     u32 max_mip_level;
 
     // Render target specific parameters, not used in caching

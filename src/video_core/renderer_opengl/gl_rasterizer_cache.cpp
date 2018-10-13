@@ -22,6 +22,7 @@
 
 namespace OpenGL {
 
+using SurfaceClass = SurfaceParams::SurfaceClass;
 using SurfaceType = SurfaceParams::SurfaceType;
 using PixelFormat = SurfaceParams::PixelFormat;
 using ComponentType = SurfaceParams::ComponentType;
@@ -56,6 +57,7 @@ static VAddr TryGetCpuAddr(Tegra::GPUVAddr gpu_addr) {
     params.height = Common::AlignUp(config.tic.Height(), GetCompressionFactor(params.pixel_format));
     params.unaligned_height = config.tic.Height();
     params.target = SurfaceTargetFromTextureType(config.tic.texture_type);
+    params.identity = SurfaceClass::Uploaded;
 
     switch (params.target) {
     case SurfaceTarget::Texture1D:
@@ -111,6 +113,7 @@ static VAddr TryGetCpuAddr(Tegra::GPUVAddr gpu_addr) {
     params.height = config.height;
     params.unaligned_height = config.height;
     params.target = SurfaceTarget::Texture2D;
+    params.identity = SurfaceClass::RenderTarget;
     params.depth = 1;
     params.size_in_bytes_total = params.SizeInBytesTotal();
     params.size_in_bytes_2d = params.SizeInBytes2D();
@@ -142,6 +145,7 @@ static VAddr TryGetCpuAddr(Tegra::GPUVAddr gpu_addr) {
     params.height = zeta_height;
     params.unaligned_height = zeta_height;
     params.target = SurfaceTarget::Texture2D;
+    params.identity = SurfaceClass::DepthBuffer;
     params.depth = 1;
     params.size_in_bytes_total = params.SizeInBytesTotal();
     params.size_in_bytes_2d = params.SizeInBytes2D();
@@ -166,6 +170,7 @@ static VAddr TryGetCpuAddr(Tegra::GPUVAddr gpu_addr) {
     params.height = config.height;
     params.unaligned_height = config.height;
     params.target = SurfaceTarget::Texture2D;
+    params.identity = SurfaceClass::Copy;
     params.depth = 1;
     params.size_in_bytes_total = params.SizeInBytesTotal();
     params.size_in_bytes_2d = params.SizeInBytes2D();
@@ -738,8 +743,7 @@ CachedSurface::CachedSurface(const SurfaceParams& params)
     glTexParameteri(SurfaceTargetToGL(params.target), GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
     glTexParameteri(SurfaceTargetToGL(params.target), GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 
-    VideoCore::LabelGLObject(GL_TEXTURE, texture.handle, params.addr,
-                             SurfaceParams::SurfaceTargetName(params.target));
+    VideoCore::LabelGLObject(GL_TEXTURE, texture.handle, params.addr, params.IdentityString());
 }
 
 static void ConvertS8Z24ToZ24S8(std::vector<u8>& data, u32 width, u32 height) {
