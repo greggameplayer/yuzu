@@ -1122,42 +1122,44 @@ void RasterizerCacheOpenGL::ReinterpretSurface(const Surface& src_surface,
         dst_params.is_tiled, dst_bytes_per_pixel, dst_params.width, dst_params.height,
         dst_params.depth, dst_params.block_height, dst_params.block_depth);
 
+    // We obtain all the surfaces in the memory range: (source adress, dst_size).
     std::vector<Surface> surfaces = GetInRange(src_params.addr, dst_size);
 
-    std::sort(surfaces.begin(), surfaces.end(), [](const Surface& a, const Surface& b) -> bool {
-        return a->GetAddr() > b->GetAddr();
-    });
+    std::sort(surfaces.begin(), surfaces.end(),
+              [](const Surface& a, const Surface& b) { return a->GetAddr() > b->GetAddr(); });
 
-    std::vector<u8> tmp_buffer(dst_size);
+    // Temporal counter measure for bug in the cache.
+    std::vector<u8> tmp_buffer(2 * dst_size);
     std::vector<u8> gl_buffer(dst_size);
 
+    // TODO(Blinkhawk): rewrite this to use the flushing engine in the future
     for (auto& s : surfaces) {
         const auto& params{s->GetSurfaceParams()};
         u64 offset = s->GetAddr() - src_params.addr;
         const u32 bpp = src_params.GetFormatBpp() / 8;
         auto source_format = GetFormatTuple(params.pixel_format, params.component_type);
-        glGetTextureImage(s->Texture().handle, 0, source_format.format,
-                          source_format.type, static_cast<GLsizei>(params.size_in_bytes_total),
-                          gl_buffer.data());
-        Tegra::Texture::CopySwizzledData(params.width, params.height, params.depth,
-                                         bpp, bpp,
+        glGetTextureImage(s->Texture().handle, 0, source_format.format, source_format.type,
+                          static_cast<GLsizei>(params.size_in_bytes_total), gl_buffer.data());
+        Tegra::Texture::CopySwizzledData(params.width, params.height, params.depth, bpp, bpp,
                                          tmp_buffer.data() + offset, gl_buffer.data(), false,
                                          params.block_height, params.block_depth);
     }
 
+    surfaces.clear();
+
     Tegra::Texture::CopySwizzledData(dst_params.width, dst_params.height, dst_params.depth,
-                                     dst_bytes_per_pixel, dst_bytes_per_pixel,
-                                     tmp_buffer.data(), gl_buffer.data(), true,
-                                     dst_params.block_height, dst_params.block_depth);
+                                     dst_bytes_per_pixel, dst_bytes_per_pixel, tmp_buffer.data(),
+                                     gl_buffer.data(), true, dst_params.block_height,
+                                     dst_params.block_depth);
 
     glBindBuffer(GL_PIXEL_PACK_BUFFER, 0);
     glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
 
-    const GLsizei width{static_cast<GLsizei>(dst_params.GetRect().GetWidth())};
-    const GLsizei height{static_cast<GLsizei>(dst_params.GetRect().GetHeight())};
+    const auto width{static_cast<GLsizei>(dst_params.GetRect().GetWidth())};
+    const auto height{static_cast<GLsizei>(dst_params.GetRect().GetHeight())};
 
     if (dest_format.compressed) {
-        LOG_CRITICAL(HW_GPU, "Compressed copy is unimplemented!");
+        UNIMPLEMENTED_MSG("Compressed copy is unimplemented!");
         UNREACHABLE();
     } else {
         switch (dst_params.target) {
@@ -1175,9 +1177,19 @@ void RasterizerCacheOpenGL::ReinterpretSurface(const Surface& src_surface,
                                 static_cast<GLsizei>(dst_params.depth), dest_format.format,
                                 dest_format.type, gl_buffer.data());
             break;
+        case SurfaceParams::SurfaceTarget::TextureCubemap: {
+            u64 buffer_offset = 0;
+            for (std::size_t face = 0; face < dst_params.depth; ++face) {
+                glTexSubImage2D(static_cast<GLenum>(GL_TEXTURE_CUBE_MAP_POSITIVE_X + face), 0, 0, 0,
+                                width, height, dest_format.format, dest_format.type,
+                                &gl_buffer[buffer_offset]);
+                buffer_offset += dst_params.size_in_bytes_2d;
+            }
+            break;
+        }
         default:
-            LOG_CRITICAL(Render_OpenGL, "Unimplemented surface target={}",
-                         static_cast<u32>(dst_params.target));
+            UNIMPLEMENTED_MSG("Unimplemented surface target={}",
+                              static_cast<u32>(dst_params.target));
             UNREACHABLE();
         }
     }
