@@ -25,7 +25,7 @@ CachedGlobalRegion::CachedGlobalRegion(VAddr addr, u32 size) : addr{addr}, size{
 }
 
 GlobalRegion GlobalRegionCacheOpenGL::GetGlobalRegion(
-    Tegra::Engines::Maxwell3D::GlobalMemoryDescriptor global_region,
+    const Tegra::Engines::Maxwell3D::GlobalMemoryDescriptor& global_region,
     Tegra::Engines::Maxwell3D::Regs::ShaderStage stage) {
     auto& gpu{Core::System::GetInstance().GPU()};
     const auto cbufs = gpu.Maxwell3D().state.shader_stages[static_cast<u64>(stage)];
