@@ -86,19 +86,21 @@ struct SurfaceParams {
         ASTC_2D_8X8_SRGB = 54,
         ASTC_2D_8X5_SRGB = 55,
         ASTC_2D_5X4_SRGB = 56,
+        ASTC_2D_5X5 = 57,
+        ASTC_2D_5X5_SRGB = 58,
 
         MaxColorFormat,
 
         // Depth formats
-        Z32F = 57,
-        Z16 = 58,
+        Z32F = 59,
+        Z16 = 60,
 
         MaxDepthFormat,
 
         // DepthStencil formats
-        Z24S8 = 59,
-        S8Z24 = 60,
-        Z32FS8 = 61,
+        Z24S8 = 61,
+        S8Z24 = 62,
+        Z32FS8 = 63,
 
         MaxDepthStencilFormat,
 
@@ -262,6 +264,8 @@ struct SurfaceParams {
             4, // ASTC_2D_8X8_SRGB
             4, // ASTC_2D_8X5_SRGB
             4, // ASTC_2D_5X4_SRGB
+            4, // ASTC_2D_5X5
+            4, // ASTC_2D_5X5_SRGB
             1, // Z32F
             1, // Z16
             1, // Z24S8
@@ -334,6 +338,8 @@ struct SurfaceParams {
             8, // ASTC_2D_8X8_SRGB
             5, // ASTC_2D_8X5_SRGB
             4, // ASTC_2D_5X4_SRGB
+            5, // ASTC_2D_5X5
+            5, // ASTC_2D_5X5_SRGB
             1, // Z32F
             1, // Z16
             1, // Z24S8
@@ -406,6 +412,8 @@ struct SurfaceParams {
             16,  // ASTC_2D_8X8_SRGB
             16,  // ASTC_2D_8X5_SRGB
             32,  // ASTC_2D_5X4_SRGB
+            16,  // ASTC_2D_5X5
+            16,  // ASTC_2D_5X5_SRGB
             32,  // Z32F
             16,  // Z16
             32,  // Z24S8
@@ -683,6 +691,8 @@ struct SurfaceParams {
             return PixelFormat::BC6H_SF16;
         case Tegra::Texture::TextureFormat::ASTC_2D_4X4:
             return is_srgb ? PixelFormat::ASTC_2D_4X4_SRGB : PixelFormat::ASTC_2D_4X4;
+        case Tegra::Texture::TextureFormat::ASTC_2D_5X5:
+            return is_srgb ? PixelFormat::ASTC_2D_5X5_SRGB : PixelFormat::ASTC_2D_5X5;
         case Tegra::Texture::TextureFormat::ASTC_2D_5X4:
             return is_srgb ? PixelFormat::ASTC_2D_5X4_SRGB : PixelFormat::ASTC_2D_5X4;
         case Tegra::Texture::TextureFormat::ASTC_2D_8X8:

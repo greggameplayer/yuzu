@@ -61,6 +61,8 @@ static std::pair<u32, u32> GetASTCBlockSize(PixelFormat format) {
         return {8, 8};
     case PixelFormat::ASTC_2D_8X5:
         return {8, 5};
+    case PixelFormat::ASTC_2D_5X5:
+        return {5, 5};
     case PixelFormat::ASTC_2D_4X4_SRGB:
         return {4, 4};
     case PixelFormat::ASTC_2D_5X4_SRGB:
@@ -69,6 +71,8 @@ static std::pair<u32, u32> GetASTCBlockSize(PixelFormat format) {
         return {8, 8};
     case PixelFormat::ASTC_2D_8X5_SRGB:
         return {8, 5};
+    case PixelFormat::ASTC_2D_5X5_SRGB:
+        return {5, 5};
     default:
         LOG_CRITICAL(HW_GPU, "Unhandled format: {}", static_cast<u32>(format));
         UNREACHABLE();
@@ -340,6 +344,8 @@ static constexpr std::array<FormatTuple, SurfaceParams::MaxPixelFormat> tex_form
     {GL_SRGB8_ALPHA8, GL_RGBA, GL_UNSIGNED_BYTE, ComponentType::UNorm, false}, // ASTC_2D_8X8_SRGB
     {GL_SRGB8_ALPHA8, GL_RGBA, GL_UNSIGNED_BYTE, ComponentType::UNorm, false}, // ASTC_2D_8X5_SRGB
     {GL_SRGB8_ALPHA8, GL_RGBA, GL_UNSIGNED_BYTE, ComponentType::UNorm, false}, // ASTC_2D_5X4_SRGB
+    {GL_RGBA8, GL_RGBA, GL_UNSIGNED_BYTE, ComponentType::UNorm, false},        // ASTC_2D_5X5
+    {GL_SRGB8_ALPHA8, GL_RGBA, GL_UNSIGNED_BYTE, ComponentType::UNorm, false}, // ASTC_2D_5X5_SRGB
 
     // Depth formats
     {GL_DEPTH_COMPONENT32F, GL_DEPTH_COMPONENT, GL_FLOAT, ComponentType::Float, false}, // Z32F
@@ -959,10 +965,12 @@ static void ConvertFormatAsNeeded_LoadGLBuffer(std::vector<u8>& data, PixelForma
     case PixelFormat::ASTC_2D_8X8:
     case PixelFormat::ASTC_2D_8X5:
     case PixelFormat::ASTC_2D_5X4:
+    case PixelFormat::ASTC_2D_5X5:
     case PixelFormat::ASTC_2D_4X4_SRGB:
     case PixelFormat::ASTC_2D_8X8_SRGB:
     case PixelFormat::ASTC_2D_8X5_SRGB:
-    case PixelFormat::ASTC_2D_5X4_SRGB: {
+    case PixelFormat::ASTC_2D_5X4_SRGB:
+    case PixelFormat::ASTC_2D_5X5_SRGB: {
         // Convert ASTC pixel formats to RGBA8, as most desktop GPUs do not support ASTC.
         u32 block_width{};
         u32 block_height{};
