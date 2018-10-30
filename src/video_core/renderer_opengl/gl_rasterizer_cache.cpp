@@ -42,11 +42,13 @@ static bool IsPixelFormatASTC(PixelFormat format) {
     case PixelFormat::ASTC_2D_8X8:
     case PixelFormat::ASTC_2D_8X5:
     case PixelFormat::ASTC_2D_5X5:
+    case PixelFormat::ASTC_2D_10X8:
     case PixelFormat::ASTC_2D_4X4_SRGB:
     case PixelFormat::ASTC_2D_5X4_SRGB:
     case PixelFormat::ASTC_2D_8X8_SRGB:
     case PixelFormat::ASTC_2D_8X5_SRGB:
     case PixelFormat::ASTC_2D_5X5_SRGB:
+    case PixelFormat::ASTC_2D_10X8_SRGB:
         return true;
     default:
         return false;
@@ -330,6 +332,8 @@ static constexpr std::array<FormatTuple, SurfaceParams::MaxPixelFormat> tex_form
     {GL_SRGB8_ALPHA8, GL_RGBA, GL_UNSIGNED_BYTE, ComponentType::UNorm, false}, // ASTC_2D_5X4_SRGB
     {GL_RGBA8, GL_RGBA, GL_UNSIGNED_BYTE, ComponentType::UNorm, false},        // ASTC_2D_5X5
     {GL_SRGB8_ALPHA8, GL_RGBA, GL_UNSIGNED_BYTE, ComponentType::UNorm, false}, // ASTC_2D_5X5_SRGB
+    {GL_RGBA8, GL_RGBA, GL_UNSIGNED_BYTE, ComponentType::UNorm, false},        // ASTC_2D_10X8
+    {GL_SRGB8_ALPHA8, GL_RGBA, GL_UNSIGNED_BYTE, ComponentType::UNorm, false}, // ASTC_2D_10X8_SRGB
 
     // Depth formats
     {GL_DEPTH_COMPONENT32F, GL_DEPTH_COMPONENT, GL_FLOAT, ComponentType::Float, false}, // Z32F
@@ -493,6 +497,8 @@ static constexpr GLConversionArray morton_to_gl_fns = {
         MortonCopy<true, PixelFormat::ASTC_2D_5X4_SRGB>,
         MortonCopy<true, PixelFormat::ASTC_2D_5X5>,
         MortonCopy<true, PixelFormat::ASTC_2D_5X5_SRGB>,
+        MortonCopy<true, PixelFormat::ASTC_2D_10X8>,
+        MortonCopy<true, PixelFormat::ASTC_2D_10X8_SRGB>,
         MortonCopy<true, PixelFormat::Z32F>,
         MortonCopy<true, PixelFormat::Z16>,
         MortonCopy<true, PixelFormat::Z24S8>,
@@ -557,6 +563,8 @@ static constexpr GLConversionArray gl_to_morton_fns = {
         MortonCopy<false, PixelFormat::DXT23_SRGB>,
         MortonCopy<false, PixelFormat::DXT45_SRGB>,
         MortonCopy<false, PixelFormat::BC7U_SRGB>,
+        nullptr,
+        nullptr,
         nullptr,
         nullptr,
         nullptr,
@@ -965,7 +973,9 @@ static void ConvertFormatAsNeeded_LoadGLBuffer(std::vector<u8>& data, PixelForma
     case PixelFormat::ASTC_2D_8X8_SRGB:
     case PixelFormat::ASTC_2D_8X5_SRGB:
     case PixelFormat::ASTC_2D_5X4_SRGB:
-    case PixelFormat::ASTC_2D_5X5_SRGB: {
+    case PixelFormat::ASTC_2D_5X5_SRGB:
+    case PixelFormat::ASTC_2D_10X8:
+    case PixelFormat::ASTC_2D_10X8_SRGB: {
         // Convert ASTC pixel formats to RGBA8, as most desktop GPUs do not support ASTC.
         u32 block_width{};
         u32 block_height{};

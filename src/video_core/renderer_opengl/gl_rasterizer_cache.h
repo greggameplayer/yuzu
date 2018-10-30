@@ -88,19 +88,21 @@ struct SurfaceParams {
         ASTC_2D_5X4_SRGB = 56,
         ASTC_2D_5X5 = 57,
         ASTC_2D_5X5_SRGB = 58,
+        ASTC_2D_10X8 = 59,
+        ASTC_2D_10X8_SRGB = 60,
 
         MaxColorFormat,
 
         // Depth formats
-        Z32F = 59,
-        Z16 = 60,
+        Z32F = 61,
+        Z16 = 62,
 
         MaxDepthFormat,
 
         // DepthStencil formats
-        Z24S8 = 61,
-        S8Z24 = 62,
-        Z32FS8 = 63,
+        Z24S8 = 63,
+        S8Z24 = 64,
+        Z32FS8 = 65,
 
         MaxDepthStencilFormat,
 
@@ -272,6 +274,8 @@ struct SurfaceParams {
             4, // ASTC_2D_5X4_SRGB
             4, // ASTC_2D_5X5
             4, // ASTC_2D_5X5_SRGB
+            4, // ASTC_2D_10X8
+            4, // ASTC_2D_10X8_SRGB
             1, // Z32F
             1, // Z16
             1, // Z24S8
@@ -346,6 +350,8 @@ struct SurfaceParams {
             5, // ASTC_2D_5X4_SRGB
             5, // ASTC_2D_5X5
             5, // ASTC_2D_5X5_SRGB
+            10, // ASTC_2D_10X8
+            10, // ASTC_2D_10X8_SRGB
             1, // Z32F
             1, // Z16
             1, // Z24S8
@@ -419,6 +425,8 @@ struct SurfaceParams {
             4, // ASTC_2D_5X4_SRGB
             5, // ASTC_2D_5X5
             5, // ASTC_2D_5X5_SRGB
+            8, // ASTC_2D_10X8
+            8, // ASTC_2D_10X8_SRGB
             1, // Z32F
             1, // Z16
             1, // Z24S8
@@ -493,6 +501,8 @@ struct SurfaceParams {
             128, // ASTC_2D_5X4_SRGB
             128, // ASTC_2D_5X5
             128, // ASTC_2D_5X5_SRGB
+            128, // ASTC_2D_10X8
+            128, // ASTC_2D_10X8_SRGB
             32,  // Z32F
             16,  // Z16
             32,  // Z24S8
@@ -778,6 +788,8 @@ struct SurfaceParams {
             return is_srgb ? PixelFormat::ASTC_2D_8X8_SRGB : PixelFormat::ASTC_2D_8X8;
         case Tegra::Texture::TextureFormat::ASTC_2D_8X5:
             return is_srgb ? PixelFormat::ASTC_2D_8X5_SRGB : PixelFormat::ASTC_2D_8X5;
+        case Tegra::Texture::TextureFormat::ASTC_2D_10X8:
+            return is_srgb ? PixelFormat::ASTC_2D_10X8_SRGB : PixelFormat::ASTC_2D_10X8;
         case Tegra::Texture::TextureFormat::R16_G16:
             switch (component_type) {
             case Tegra::Texture::ComponentType::FLOAT:
