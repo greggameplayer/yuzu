@@ -54,31 +54,8 @@ static bool IsPixelFormatASTC(PixelFormat format) {
 }
 
 static std::pair<u32, u32> GetASTCBlockSize(PixelFormat format) {
-    switch (format) {
-    case PixelFormat::ASTC_2D_4X4:
-        return {4, 4};
-    case PixelFormat::ASTC_2D_5X4:
-        return {5, 4};
-    case PixelFormat::ASTC_2D_8X8:
-        return {8, 8};
-    case PixelFormat::ASTC_2D_8X5:
-        return {8, 5};
-    case PixelFormat::ASTC_2D_5X5:
-        return {5, 5};
-    case PixelFormat::ASTC_2D_4X4_SRGB:
-        return {4, 4};
-    case PixelFormat::ASTC_2D_5X4_SRGB:
-        return {5, 4};
-    case PixelFormat::ASTC_2D_8X8_SRGB:
-        return {8, 8};
-    case PixelFormat::ASTC_2D_8X5_SRGB:
-        return {8, 5};
-    case PixelFormat::ASTC_2D_5X5_SRGB:
-        return {5, 5};
-    default:
-        LOG_CRITICAL(HW_GPU, "Unhandled format: {}", static_cast<u32>(format));
-        UNREACHABLE();
-    }
+    return {SurfaceParams::GetDefaultBlockWidth(format),
+            SurfaceParams::GetDefaultBlockHeight(format)};
 }
 
 void SurfaceParams::InitCacheParameters(Tegra::GPUVAddr gpu_addr_) {
@@ -99,16 +76,14 @@ void SurfaceParams::InitCacheParameters(Tegra::GPUVAddr gpu_addr_) {
 
 std::size_t SurfaceParams::InnerMipmapMemorySize(u32 mip_level, bool force_gl, bool layer_only,
                                                  bool uncompressed) const {
-    const u32 compression_factor{GetCompressionFactor(pixel_format)};
+    const u32 tile_x{GetDefaultBlockWidth(pixel_format)};
+    const u32 tile_y{GetDefaultBlockHeight(pixel_format)};
     const u32 bytes_per_pixel{GetBytesPerPixel(pixel_format)};
     u32 m_depth = (layer_only ? 1U : depth);
     u32 m_width = MipWidth(mip_level);
     u32 m_height = MipHeight(mip_level);
-    m_width = uncompressed ? m_width
-                           : std::max(1U, (m_width + compression_factor - 1) / compression_factor);
-    m_height = uncompressed
-                   ? m_height
-                   : std::max(1U, (m_height + compression_factor - 1) / compression_factor);
+    m_width = uncompressed ? m_width : std::max(1U, (m_width + tile_x - 1) / tile_x);
+    m_height = uncompressed ? m_height : std::max(1U, (m_height + tile_y - 1) / tile_y);
     m_depth = std::max(1U, m_depth >> mip_level);
     u32 m_block_height = MipBlockHeight(mip_level);
     u32 m_block_depth = MipBlockDepth(mip_level);
@@ -968,7 +943,7 @@ static void ConvertG8R8ToR8G8(std::vector<u8>& data, u32 width, u32 height) {
  * typical desktop GPUs.
  */
 static void ConvertFormatAsNeeded_LoadGLBuffer(std::vector<u8>& data, PixelFormat pixel_format,
-                                               u32 width, u32 height) {
+                                               u32 width, u32 height, u32 depth) {
     switch (pixel_format) {
     case PixelFormat::ASTC_2D_4X4:
     case PixelFormat::ASTC_2D_8X8:
@@ -984,7 +959,8 @@ static void ConvertFormatAsNeeded_LoadGLBuffer(std::vector<u8>& data, PixelForma
         u32 block_width{};
         u32 block_height{};
         std::tie(block_width, block_height) = GetASTCBlockSize(pixel_format);
-        data = Tegra::Texture::ASTC::Decompress(data, width, height, block_width, block_height);
+        data =
+            Tegra::Texture::ASTC::Decompress(data, width, height, depth, block_width, block_height);
         break;
     }
     case PixelFormat::S8Z24:
@@ -1044,7 +1020,7 @@ void CachedSurface::LoadGLBuffer() {
     }
     for (u32 i = 0; i < params.max_mip_level; i++)
         ConvertFormatAsNeeded_LoadGLBuffer(gl_buffer[i], params.pixel_format, params.MipWidth(i),
-                                           params.MipHeight(i));
+                                           params.MipHeight(i), params.MipDepth(i));
 }
 
 MICROPROFILE_DEFINE(OpenGL_SurfaceFlush, "OpenGL", "Surface Flush", MP_RGB(128, 192, 64));
