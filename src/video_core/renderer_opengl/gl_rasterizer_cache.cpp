@@ -375,8 +375,8 @@ void MortonCopy(u32 stride, u32 block_height, u32 height, u32 block_depth, u32 d
 
     // With the BCn formats (DXT and DXN), each 4x4 tile is swizzled instead of just individual
     // pixel values.
-    const u32 tile_size_x{SurfaceParams::GetDefaultBlockWidth(format)};
-    const u32 tile_size_y{SurfaceParams::GetDefaultBlockHeight(format)};
+    const u32 tile_size_x{GetDefaultBlockWidth(format)};
+    const u32 tile_size_y{GetDefaultBlockHeight(format)};
 
     if (morton_to_gl) {
         const std::vector<u8> data =
