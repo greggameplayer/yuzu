@@ -301,6 +301,8 @@ PixelFormat PixelFormatFromTextureFormat(Tegra::Texture::TextureFormat format,
         return is_srgb ? PixelFormat::ASTC_2D_8X8_SRGB : PixelFormat::ASTC_2D_8X8;
     case Tegra::Texture::TextureFormat::ASTC_2D_8X5:
         return is_srgb ? PixelFormat::ASTC_2D_8X5_SRGB : PixelFormat::ASTC_2D_8X5;
+    case Tegra::Texture::TextureFormat::ASTC_2D_10X8:
+        return is_srgb ? PixelFormat::ASTC_2D_10X8_SRGB : PixelFormat::ASTC_2D_10X8;
     case Tegra::Texture::TextureFormat::R16_G16:
         switch (component_type) {
         case Tegra::Texture::ComponentType::FLOAT:
@@ -446,6 +448,8 @@ bool IsPixelFormatASTC(PixelFormat format) {
     case PixelFormat::ASTC_2D_5X4_SRGB:
     case PixelFormat::ASTC_2D_8X8_SRGB:
     case PixelFormat::ASTC_2D_8X5_SRGB:
+    case PixelFormat::ASTC_2D_10X8_SRGB:
+    case PixelFormat::ASTC_2D_10X8:
         return true;
     default:
         return false;
@@ -470,6 +474,10 @@ std::pair<u32, u32> GetASTCBlockSize(PixelFormat format) {
         return {8, 8};
     case PixelFormat::ASTC_2D_8X5_SRGB:
         return {8, 5};
+    case PixelFormat::ASTC_2D_10X8:
+        return {10, 8};
+    case PixelFormat::ASTC_2D_10X8_SRGB:
+        return {10, 8};
     default:
         LOG_CRITICAL(HW_GPU, "Unhandled format: {}", static_cast<u32>(format));
         UNREACHABLE();
