@@ -343,7 +343,7 @@ static GLenum SurfaceTargetToGL(SurfaceTarget target) {
         return GL_TEXTURE_2D_ARRAY;
     case SurfaceTarget::TextureCubemap:
         return GL_TEXTURE_CUBE_MAP;
-    case SurfaceParams::SurfaceTarget::TextureCubeArray:
+    case SurfaceTarget::TextureCubeArray:
         return GL_TEXTURE_CUBE_MAP_ARRAY_ARB;
     }
     LOG_CRITICAL(Render_OpenGL, "Unimplemented texture target={}", static_cast<u32>(target));
@@ -776,6 +776,7 @@ static void CopySurface(const Surface& src_surface, const Surface& dst_surface,
             break;
         case SurfaceTarget::Texture3D:
         case SurfaceTarget::Texture2DArray:
+        case SurfaceTarget::TextureCubeArray:
             glTextureSubImage3D(dst_surface->Texture().handle, 0, 0, 0, 0, width, height,
                                 static_cast<GLsizei>(dst_params.depth), dest_format.format,
                                 dest_format.type, nullptr);
@@ -828,6 +829,7 @@ CachedSurface::CachedSurface(const SurfaceParams& params)
             break;
         case SurfaceTarget::Texture3D:
         case SurfaceTarget::Texture2DArray:
+        case SurfaceTarget::TextureCubeArray:
             glTexStorage3D(SurfaceTargetToGL(params.target), params.max_mip_level,
                            format_tuple.internal_format, rect.GetWidth(), rect.GetHeight(),
                            params.depth);
@@ -1082,6 +1084,7 @@ void CachedSurface::UploadGLMipmapTexture(u32 mip_map, GLuint read_fb_handle,
                                    &gl_buffer[mip_map][buffer_offset]);
             break;
         case SurfaceTarget::Texture2DArray:
+        case SurfaceTarget::TextureCubeArray:
             glCompressedTexImage3D(SurfaceTargetToGL(params.target), mip_map, tuple.internal_format,
                                    static_cast<GLsizei>(params.MipWidth(mip_map)),
                                    static_cast<GLsizei>(params.MipHeight(mip_map)),
@@ -1131,6 +1134,7 @@ void CachedSurface::UploadGLMipmapTexture(u32 mip_map, GLuint read_fb_handle,
                             tuple.format, tuple.type, &gl_buffer[mip_map][buffer_offset]);
             break;
         case SurfaceTarget::Texture2DArray:
+        case SurfaceTarget::TextureCubeArray:
             glTexSubImage3D(SurfaceTargetToGL(params.target), mip_map, x0, y0, 0,
                             static_cast<GLsizei>(rect.GetWidth()),
                             static_cast<GLsizei>(rect.GetHeight()), params.depth, tuple.format,
@@ -1333,6 +1337,7 @@ Surface RasterizerCacheOpenGL::RecreateSurface(const Surface& old_surface,
         break;
     case SurfaceTarget::TextureCubemap:
     case SurfaceTarget::Texture3D:
+    case SurfaceTarget::TextureCubeArray:
         AccurateCopySurface(old_surface, new_surface);
         break;
     default:
