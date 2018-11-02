@@ -95,7 +95,7 @@ void OpenGLState::ApplyDefaultState() {
     glDisable(GL_DEPTH_TEST);
     glDisable(GL_PRIMITIVE_RESTART);
     glDisable(GL_STENCIL_TEST);
-    glDisable(GL_BLEND);
+    glEnable(GL_BLEND);
     glDisable(GL_COLOR_LOGIC_OP);
     glDisable(GL_SCISSOR_TEST);
 }

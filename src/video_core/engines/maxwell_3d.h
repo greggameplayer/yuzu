@@ -1018,11 +1018,8 @@ private:
 
     VideoCore::RasterizerInterface& rasterizer;
 
-    static constexpr std::size_t MACRO_COUNT{0x80};
-    static constexpr std::size_t MACRO_MASK{MACRO_COUNT - 1};
-
     /// Start offsets of each macro in macro_memory
-    std::array<u32, MACRO_COUNT> macro_offsets;
+    std::unordered_map<u32, u32> macro_offsets;
 
     /// Memory for macro code
     MacroMemory macro_memory;
