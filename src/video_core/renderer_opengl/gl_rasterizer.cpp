@@ -1026,34 +1026,29 @@ void RasterizerOpenGL::SyncBlendState() {
     state.blend_color.blue = regs.blend_color.b;
     state.blend_color.alpha = regs.blend_color.a;
 
+    state.independant_blend.enabled = regs.independent_blend_enable;
+    if (!state.independant_blend.enabled) {
+        auto& blend = state.blend[0];
+        blend.separate_alpha = regs.blend.separate_alpha;
+        blend.rgb_equation = MaxwellToGL::BlendEquation(regs.blend.equation_rgb);
+        blend.src_rgb_func = MaxwellToGL::BlendFunc(regs.blend.factor_source_rgb);
+        blend.dst_rgb_func = MaxwellToGL::BlendFunc(regs.blend.factor_dest_rgb);
+        if (blend.separate_alpha) {
+            blend.a_equation = MaxwellToGL::BlendEquation(regs.blend.equation_a);
+            blend.src_a_func = MaxwellToGL::BlendFunc(regs.blend.factor_source_a);
+            blend.dst_a_func = MaxwellToGL::BlendFunc(regs.blend.factor_dest_a);
+        }
+        for (size_t i = 1; i < Tegra::Engines::Maxwell3D::Regs::NumRenderTargets; i++) {
+            state.blend[i].enabled = false;
+        }
+        return;
+    }
+
     for (size_t i = 0; i < Tegra::Engines::Maxwell3D::Regs::NumRenderTargets; i++) {
         auto& blend = state.blend[i];
         blend.enabled = regs.blend.enable[i] != 0;
-
         if (!blend.enabled)
             continue;
-        state.independant_blend.enabled = regs.independent_blend_enable;
-        if (i == 0) {
-            ASSERT_MSG(regs.logic_op.enable == 0,
-                       "Blending and logic op can't be enabled at the same time.");
-            if (!regs.independent_blend_enable) {
-                blend.separate_alpha = regs.blend.separate_alpha;
-                blend.rgb_equation = MaxwellToGL::BlendEquation(regs.blend.equation_rgb);
-                blend.src_rgb_func = MaxwellToGL::BlendFunc(regs.blend.factor_source_rgb);
-                blend.dst_rgb_func = MaxwellToGL::BlendFunc(regs.blend.factor_dest_rgb);
-                if (blend.separate_alpha) {
-                    blend.a_equation = MaxwellToGL::BlendEquation(regs.blend.equation_a);
-                    blend.src_a_func = MaxwellToGL::BlendFunc(regs.blend.factor_source_a);
-                    blend.dst_a_func = MaxwellToGL::BlendFunc(regs.blend.factor_dest_a);
-                }
-                continue;
-            }
-        }
-        blend.enabled &= regs.independent_blend_enable;
-
-        if (!blend.enabled)
-            continue;
-
         blend.separate_alpha = regs.independent_blend[i].separate_alpha;
         blend.rgb_equation = MaxwellToGL::BlendEquation(regs.independent_blend[i].equation_rgb);
         blend.src_rgb_func = MaxwellToGL::BlendFunc(regs.independent_blend[i].factor_source_rgb);
