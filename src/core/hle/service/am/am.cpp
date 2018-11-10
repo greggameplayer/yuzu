@@ -60,7 +60,7 @@ void IWindowController::GetAppletResourceUserId(Kernel::HLERequestContext& ctx) 
     LOG_WARNING(Service_AM, "(STUBBED) called");
     IPC::ResponseBuilder rb{ctx, 4};
     rb.Push(RESULT_SUCCESS);
-    rb.Push<u64>(0);
+    rb.Push<u64>(applet_resource_user_id);
 }
 
 void IWindowController::AcquireForegroundRights(Kernel::HLERequestContext& ctx) {

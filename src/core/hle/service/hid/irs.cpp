@@ -160,7 +160,7 @@ IRS::~IRS() = default;
 IRS_SYS::IRS_SYS() : ServiceFramework{"irs:sys"} {
     // clang-format off
     static const FunctionInfo functions[] = {
-        {500, nullptr, "SetAppletResourceUserId"},
+        {500, &IRS_SYS::SetAppletResourceUserId, "SetAppletResourceUserId"},
         {501, nullptr, "RegisterAppletResourceUserId"},
         {502, nullptr, "UnregisterAppletResourceUserId"},
         {503, nullptr, "EnableAppletToGetInput"},
@@ -168,6 +168,15 @@ IRS_SYS::IRS_SYS() : ServiceFramework{"irs:sys"} {
     // clang-format on
 
     RegisterHandlers(functions);
+}
+AM::IWindowController IWindowController;
+
+void IRS_SYS::SetAppletResourceUserId(Kernel::HLERequestContext& ctx) {
+    IPC::RequestParser rp{ctx};
+    IWindowController.applet_resource_user_id = rp.Pop<u64>();
+    IPC::ResponseBuilder rb{ctx, 2};
+    rb.Push(RESULT_SUCCESS);
+    LOG_DEBUG(Service_IRS, "called");
 }
 
 IRS_SYS::~IRS_SYS() = default;

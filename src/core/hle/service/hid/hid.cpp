@@ -30,6 +30,7 @@
 #include "core/hle/service/hid/controllers/stubbed.h"
 #include "core/hle/service/hid/controllers/touchscreen.h"
 #include "core/hle/service/hid/controllers/xpad.h"
+#include "core/hle/service/am/am.h"
 
 namespace Service::HID {
 
@@ -715,7 +716,7 @@ public:
             {321, nullptr, "GetUniquePadsFromNpad"},
             {322, nullptr, "GetIrSensorState"},
             {323, nullptr, "GetXcdHandleForNpadWithIrSensor"},
-            {500, nullptr, "SetAppletResourceUserId"},
+            {500, &HidSys::SetAppletResourceUserId, "SetAppletResourceUserId"},
             {501, nullptr, "RegisterAppletResourceUserId"},
             {502, nullptr, "UnregisterAppletResourceUserId"},
             {503, nullptr, "EnableAppletToGetInput"},
@@ -795,6 +796,17 @@ public:
         // clang-format on
 
         RegisterHandlers(functions);
+    }
+
+private:
+    AM::IWindowController IWindowController;
+
+       void SetAppletResourceUserId(Kernel::HLERequestContext& ctx) {
+        IPC::RequestParser rp{ctx};
+        IWindowController.applet_resource_user_id = rp.Pop<u64>();
+        IPC::ResponseBuilder rb{ctx, 2};
+        rb.Push(RESULT_SUCCESS);
+        LOG_DEBUG(Service_HID, "called");
     }
 };
 

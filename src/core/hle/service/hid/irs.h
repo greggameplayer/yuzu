@@ -45,6 +45,9 @@ class IRS_SYS final : public ServiceFramework<IRS_SYS> {
 public:
     explicit IRS_SYS();
     ~IRS_SYS() override;
+
+private:
+    void SetAppletResourceUserId(Kernel::HLERequestContext& ctx);
 };
 
 } // namespace Service::HID

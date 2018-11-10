@@ -43,6 +43,7 @@ class IWindowController final : public ServiceFramework<IWindowController> {
 public:
     IWindowController();
     ~IWindowController() override;
+    u64 applet_resource_user_id = 0;
 
 private:
     void GetAppletResourceUserId(Kernel::HLERequestContext& ctx);
