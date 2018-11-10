@@ -180,6 +180,9 @@ private:
     /// Syncs the point state to match the guest state
     void SyncPointState();
 
+    /// Syncs Color Mask
+    void SyncColorMask();
+
     /// Check asserts for alpha testing.
     void CheckAlphaTests();
 
