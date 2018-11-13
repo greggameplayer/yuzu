@@ -1048,6 +1048,9 @@ public:
         return macro_memory;
     }
 
+    std::string CreateGlobalMemoryRegion(std::tuple<u64, u64, u64> iadd_data);
+    std::set<std::pair<u64, u64>> ListGlobalMemoryRegions() const;
+
 private:
     void InitializeRegisterDefaults();
 
