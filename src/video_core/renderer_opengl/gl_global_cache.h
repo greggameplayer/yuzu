@@ -15,6 +15,7 @@
 
 namespace OpenGL {
 
+class RasterizerOpenGL;
 class CachedGlobalRegion;
 using GlobalRegion = std::shared_ptr<CachedGlobalRegion>;
 
@@ -70,6 +71,8 @@ private:
 
 class GlobalRegionCacheOpenGL final : public RasterizerCache<GlobalRegion> {
 public:
+    explicit GlobalRegionCacheOpenGL(RasterizerOpenGL& rasterizer);
+
     /// Gets the current specified shader stage program
     GlobalRegion GetGlobalRegion(
         const Tegra::Engines::Maxwell3D::GlobalMemoryDescriptor& descriptor,

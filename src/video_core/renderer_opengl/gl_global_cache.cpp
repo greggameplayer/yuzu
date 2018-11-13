@@ -7,6 +7,7 @@
 #include "core/memory.h"
 #include "video_core/engines/maxwell_3d.h"
 #include "video_core/renderer_opengl/gl_global_cache.h"
+#include "video_core/renderer_opengl/gl_rasterizer.h"
 #include "video_core/renderer_opengl/gl_shader_cache.h"
 #include "video_core/renderer_opengl/gl_shader_manager.h"
 #include "video_core/renderer_opengl/utils.h"
@@ -61,6 +62,9 @@ GlobalRegion GlobalRegionCacheOpenGL::GetUncachedGlobalRegion(VAddr addr, u32 si
 void GlobalRegionCacheOpenGL::ReserveGlobalRegion(const GlobalRegion& region) {
     reserve[region->GetAddr()] = region;
 }
+
+GlobalRegionCacheOpenGL::GlobalRegionCacheOpenGL(RasterizerOpenGL& rasterizer)
+    : RasterizerCache{rasterizer} {}
 
 GlobalRegion GlobalRegionCacheOpenGL::GetGlobalRegion(
     const Tegra::Engines::Maxwell3D::GlobalMemoryDescriptor& global_region,
