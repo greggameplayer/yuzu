@@ -53,6 +53,19 @@ void Maxwell3D::InitializeRegisterDefaults() {
         regs.independent_blend[blend_index].factor_source_a = Regs::Blend::Factor::One;
         regs.independent_blend[blend_index].factor_dest_a = Regs::Blend::Factor::Zero;
     }
+    regs.stencil_front_op_fail = Regs::StencilOp::Keep;
+    regs.stencil_front_op_zfail = Regs::StencilOp::Keep;
+    regs.stencil_front_op_zpass = Regs::StencilOp::Keep;
+    regs.stencil_front_func_func = Regs::ComparisonOp::Always;
+    regs.stencil_front_func_mask = 0xFFFFFFFF;
+    regs.stencil_front_mask = 0xFFFFFFFF;
+    regs.stencil_two_side_enable = 1;
+    regs.stencil_back_op_fail = Regs::StencilOp::Keep;
+    regs.stencil_back_op_zfail = Regs::StencilOp::Keep;
+    regs.stencil_back_op_zpass = Regs::StencilOp::Keep;
+    regs.stencil_back_func_func = Regs::ComparisonOp::Always;
+    regs.stencil_back_func_mask = 0xFFFFFFFF;
+    regs.stencil_back_mask = 0xFFFFFFFF;
 }
 
 void Maxwell3D::CallMacroMethod(u32 method, std::vector<u32> parameters) {
@@ -108,7 +121,15 @@ void Maxwell3D::WriteReg(u32 method, u32 value, u32 remaining_params) {
         debug_context->OnEvent(Tegra::DebugContext::Event::MaxwellCommandLoaded, nullptr);
     }
 
+    u32 old = regs.reg_array[method];
     regs.reg_array[method] = value;
+
+    if (value != old) {
+        if (method >= MAXWELL3D_REG_INDEX(vertex_attrib_format) &&
+            method < MAXWELL3D_REG_INDEX(vertex_attrib_format) + regs.vertex_attrib_format.size()) {
+            dirty_flags.vertex_attrib_format = true;
+        }
+    }
 
     switch (method) {
     case MAXWELL3D_REG_INDEX(macros.data): {

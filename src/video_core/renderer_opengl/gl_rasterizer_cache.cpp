@@ -15,6 +15,7 @@
 #include "core/memory.h"
 #include "core/settings.h"
 #include "video_core/engines/maxwell_3d.h"
+#include "video_core/renderer_opengl/gl_rasterizer.h"
 #include "video_core/renderer_opengl/gl_rasterizer_cache.h"
 #include "video_core/renderer_opengl/gl_state.h"
 #include "video_core/renderer_opengl/utils.h"
@@ -585,7 +586,7 @@ static bool BlitSurface(const Surface& src_surface, const Surface& dst_surface,
     state.draw.draw_framebuffer = draw_fb_handle;
     // Set sRGB enabled if the destination surfaces need it
     state.framebuffer_srgb.enabled = dst_params.srgb_conversion;
-    state.Apply();
+    state.ApplyFramebufferState();
 
     u32 buffers{};
 
@@ -974,7 +975,11 @@ static void ConvertFormatAsNeeded_FlushGLBuffer(std::vector<u8>& data, PixelForm
     case PixelFormat::ASTC_2D_4X4:
     case PixelFormat::ASTC_2D_8X8:
     case PixelFormat::ASTC_2D_4X4_SRGB:
-    case PixelFormat::ASTC_2D_8X8_SRGB: {
+    case PixelFormat::ASTC_2D_8X8_SRGB:
+    case PixelFormat::ASTC_2D_5X5:
+    case PixelFormat::ASTC_2D_5X5_SRGB:
+    case PixelFormat::ASTC_2D_10X8:
+    case PixelFormat::ASTC_2D_10X8_SRGB: {
         LOG_CRITICAL(HW_GPU, "Conversion of format {} after texture flushing is not implemented",
                      static_cast<u32>(pixel_format));
         UNREACHABLE();
@@ -1180,7 +1185,8 @@ void CachedSurface::UploadGLTexture(GLuint read_fb_handle, GLuint draw_fb_handle
         UploadGLMipmapTexture(i, read_fb_handle, draw_fb_handle);
 }
 
-RasterizerCacheOpenGL::RasterizerCacheOpenGL() {
+RasterizerCacheOpenGL::RasterizerCacheOpenGL(RasterizerOpenGL& rasterizer)
+    : RasterizerCache{rasterizer} {
     read_framebuffer.Create();
     draw_framebuffer.Create();
     copy_pbo.Create();
@@ -1342,6 +1348,7 @@ Surface RasterizerCacheOpenGL::RecreateSurface(const Surface& old_surface,
         break;
     case SurfaceTarget::TextureCubemap:
     case SurfaceTarget::Texture3D:
+    case SurfaceTarget::Texture2DArray:
     case SurfaceTarget::TextureCubeArray:
         AccurateCopySurface(old_surface, new_surface);
         break;

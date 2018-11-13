@@ -89,7 +89,7 @@ private:
         /// SamplerInfo struct.
         void Create();
         /// Syncs the sampler object with the config, updating any necessary state.
-        void SyncWithConfig(const Tegra::Texture::TSCEntry& config);
+        void SyncWithConfig(const Tegra::Texture::FullTextureInfo& info);
 
     private:
         Tegra::Texture::TextureFilter mag_filter;
@@ -110,8 +110,8 @@ private:
      * @param preserve_contents If true, tries to preserve data from a previously used framebuffer.
      * @param single_color_target Specifies if a single color buffer target should be used.
      */
-    void ConfigureFramebuffers(bool use_color_fb = true, bool using_depth_fb = true,
-                               bool preserve_contents = true,
+    void ConfigureFramebuffers(OpenGLState& current_state, bool use_color_fb = true,
+                               bool using_depth_fb = true, bool preserve_contents = true,
                                std::optional<std::size_t> single_color_target = {});
 
     /**
@@ -145,7 +145,7 @@ private:
                       GLenum primitive_mode, u32 current_unit);
 
     /// Syncs the viewport and depth range to match the guest state
-    void SyncViewport();
+    void SyncViewport(OpenGLState& current_state);
 
     /// Syncs the clip enabled status to match the guest state
     void SyncClipEnabled();
@@ -219,7 +219,8 @@ private:
 
     std::size_t CalculateIndexBufferSize() const;
 
-    void SetupVertexArrays();
+    void SetupVertexFormat();
+    void SetupVertexBuffer();
 
     DrawParameters SetupDraw();
 

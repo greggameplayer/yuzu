@@ -495,10 +495,10 @@ public:
             // instruction for now.
             if (stage == Maxwell3D::Regs::ShaderStage::Geometry) {
                 // TODO(Rodrigo): nouveau sets some attributes after setting emitting a geometry
-                // shader. These instructions use a dirty register as buffer index. To avoid some
-                // drivers from complaining for the out of boundary writes, guard them.
-                const std::string buf_index{"min(" + GetRegisterAsInteger(buf_reg) + ", " +
-                                            std::to_string(MAX_GEOMETRY_BUFFERS - 1) + ')'};
+                // shader. These instructions use a dirty register as buffer index, to avoid some
+                // drivers from complaining about out of boundary writes, guard them.
+                const std::string buf_index{"((" + GetRegisterAsInteger(buf_reg) + ") % " +
+                                            std::to_string(MAX_GEOMETRY_BUFFERS) + ')'};
                 shader.AddLine("amem[" + buf_index + "][" +
                                std::to_string(static_cast<u32>(attribute)) + ']' +
                                GetSwizzle(elem) + " = " + src + ';');
@@ -828,7 +828,11 @@ private:
                                   std::optional<Register> vertex = {}) {
         auto GeometryPass = [&](const std::string& name) {
             if (stage == Maxwell3D::Regs::ShaderStage::Geometry && vertex) {
-                return "gs_" + name + '[' + GetRegisterAsInteger(*vertex, 0, false) + ']';
+                // TODO(Rodrigo): Guard geometry inputs against out of bound reads. Some games set
+                // an 0x80000000 index for those and the shader fails to build. Find out why this
+                // happens and what's its intent.
+                return "gs_" + name + '[' + GetRegisterAsInteger(*vertex, 0, false) +
+                       " % MAX_VERTEX_INPUT]";
             }
             return name;
         };
@@ -2764,12 +2768,12 @@ private:
                 }
                 case 3: {
                     if (is_array) {
-                        UNIMPLEMENTED_MSG("3-coordinate arrays not fully implemented");
-                        const std::string x = regs.GetRegisterAsFloat(instr.gpr8);
-                        const std::string y = regs.GetRegisterAsFloat(instr.gpr20);
-                        coord = "vec2 coords = vec2(" + x + ", " + y + ");";
-                        texture_type = Tegra::Shader::TextureType::Texture2D;
-                        is_array = false;
+                        const std::string index = regs.GetRegisterAsInteger(instr.gpr8);
+                        const std::string x = regs.GetRegisterAsFloat(instr.gpr8.Value() + 1);
+                        const std::string y = regs.GetRegisterAsFloat(instr.gpr8.Value() + 2);
+                        const std::string z = regs.GetRegisterAsFloat(instr.gpr20);
+                        coord =
+                            "vec4 coords = vec4(" + x + ", " + y + ", " + z + ", " + index + ");";
                     } else {
                         const std::string x = regs.GetRegisterAsFloat(instr.gpr8);
                         const std::string y = regs.GetRegisterAsFloat(instr.gpr8.Value() + 1);
@@ -2799,7 +2803,11 @@ private:
                     break;
                 }
                 case Tegra::Shader::TextureProcessMode::LZ: {
-                    texture = "textureLod(" + sampler + ", coords, 0.0)";
+                    if (depth_compare && is_array) {
+                        texture = "texture(" + sampler + ", coords)";
+                    } else {
+                        texture = "textureLod(" + sampler + ", coords, 0.0)";
+                    }
                     break;
                 }
                 case Tegra::Shader::TextureProcessMode::LL: {

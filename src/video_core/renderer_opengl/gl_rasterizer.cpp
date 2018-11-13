@@ -33,7 +33,8 @@ using Maxwell = Tegra::Engines::Maxwell3D::Regs;
 using PixelFormat = VideoCore::Surface::PixelFormat;
 using SurfaceType = VideoCore::Surface::SurfaceType;
 
-MICROPROFILE_DEFINE(OpenGL_VAO, "OpenGL", "Vertex Array Setup", MP_RGB(128, 128, 192));
+MICROPROFILE_DEFINE(OpenGL_VAO, "OpenGL", "Vertex Format Setup", MP_RGB(128, 128, 192));
+MICROPROFILE_DEFINE(OpenGL_VB, "OpenGL", "Vertex Buffer Setup", MP_RGB(128, 128, 192));
 MICROPROFILE_DEFINE(OpenGL_Shader, "OpenGL", "Shader Setup", MP_RGB(128, 128, 192));
 MICROPROFILE_DEFINE(OpenGL_UBO, "OpenGL", "Const Buffer Setup", MP_RGB(128, 128, 192));
 MICROPROFILE_DEFINE(OpenGL_Index, "OpenGL", "Index Buffer Setup", MP_RGB(128, 128, 192));
@@ -79,7 +80,8 @@ struct DrawParameters {
 };
 
 RasterizerOpenGL::RasterizerOpenGL(Core::Frontend::EmuWindow& window, ScreenInfo& info)
-    : emu_window{window}, screen_info{info}, buffer_cache(STREAM_BUFFER_SIZE) {
+    : res_cache{*this}, shader_cache{*this}, emu_window{window}, screen_info{info},
+      buffer_cache(*this, STREAM_BUFFER_SIZE) {
     // Create sampler objects
     for (std::size_t i = 0; i < texture_samplers.size(); ++i) {
         texture_samplers[i].Create();
@@ -122,10 +124,15 @@ RasterizerOpenGL::RasterizerOpenGL(Core::Frontend::EmuWindow& window, ScreenInfo
 
 RasterizerOpenGL::~RasterizerOpenGL() {}
 
-void RasterizerOpenGL::SetupVertexArrays() {
-    MICROPROFILE_SCOPE(OpenGL_VAO);
-    const auto& gpu = Core::System::GetInstance().GPU().Maxwell3D();
+void RasterizerOpenGL::SetupVertexFormat() {
+    auto& gpu = Core::System::GetInstance().GPU().Maxwell3D();
     const auto& regs = gpu.regs;
+
+    if (!gpu.dirty_flags.vertex_attrib_format)
+        return;
+    gpu.dirty_flags.vertex_attrib_format = false;
+
+    MICROPROFILE_SCOPE(OpenGL_VAO);
 
     auto [iter, is_cache_miss] = vertex_array_cache.try_emplace(regs.vertex_attrib_format);
     auto& VAO = iter->second;
@@ -133,7 +140,7 @@ void RasterizerOpenGL::SetupVertexArrays() {
     if (is_cache_miss) {
         VAO.Create();
         state.draw.vertex_array = VAO.handle;
-        state.Apply();
+        state.ApplyVertexBufferState();
 
         // The index buffer binding is stored within the VAO. Stupid OpenGL, but easy to work
         // around.
@@ -175,8 +182,13 @@ void RasterizerOpenGL::SetupVertexArrays() {
         }
     }
     state.draw.vertex_array = VAO.handle;
-    state.draw.vertex_buffer = buffer_cache.GetHandle();
-    state.Apply();
+    state.ApplyVertexBufferState();
+}
+
+void RasterizerOpenGL::SetupVertexBuffer() {
+    MICROPROFILE_SCOPE(OpenGL_VB);
+    const auto& gpu = Core::System::GetInstance().GPU().Maxwell3D();
+    const auto& regs = gpu.regs;
 
     // Upload all guest vertex arrays sequentially to our buffer
     for (u32 index = 0; index < Maxwell::NumVertexArrays; ++index) {
@@ -203,6 +215,9 @@ void RasterizerOpenGL::SetupVertexArrays() {
             glVertexBindingDivisor(index, 0);
         }
     }
+
+    // Implicit set by glBindVertexBuffer. Stupid glstate handling...
+    state.draw.vertex_buffer = buffer_cache.GetHandle();
 }
 
 DrawParameters RasterizerOpenGL::SetupDraw() {
@@ -332,8 +347,6 @@ void RasterizerOpenGL::SetupShaders(GLenum primitive_mode) {
             index++;
         }
     }
-
-    state.Apply();
 }
 
 std::size_t RasterizerOpenGL::CalculateVertexArraysSize() const {
@@ -402,8 +415,8 @@ void RasterizerOpenGL::UpdatePagesCachedCount(VAddr addr, u64 size, int delta) {
         cached_pages.add({pages_interval, delta});
 }
 
-void RasterizerOpenGL::ConfigureFramebuffers(bool using_color_fb, bool using_depth_fb,
-                                             bool preserve_contents,
+void RasterizerOpenGL::ConfigureFramebuffers(OpenGLState& current_state, bool using_color_fb,
+                                             bool using_depth_fb, bool preserve_contents,
                                              std::optional<std::size_t> single_color_target) {
     MICROPROFILE_SCOPE(OpenGL_Framebuffer);
     const auto& regs = Core::System::GetInstance().GPU().Maxwell3D().regs;
@@ -419,9 +432,9 @@ void RasterizerOpenGL::ConfigureFramebuffers(bool using_color_fb, bool using_dep
     ASSERT_MSG(regs.rt_separate_frag_data == 0, "Unimplemented");
 
     // Bind the framebuffer surfaces
-    state.draw.draw_framebuffer = framebuffer.handle;
-    state.Apply();
-    state.framebuffer_srgb.enabled = regs.framebuffer_srgb != 0;
+    current_state.draw.draw_framebuffer = framebuffer.handle;
+    current_state.ApplyFramebufferState();
+    current_state.framebuffer_srgb.enabled = regs.framebuffer_srgb != 0;
 
     if (using_color_fb) {
         if (single_color_target) {
@@ -499,10 +512,7 @@ void RasterizerOpenGL::ConfigureFramebuffers(bool using_color_fb, bool using_dep
         glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_TEXTURE_2D, 0,
                                0);
     }
-
-    SyncViewport();
-
-    state.Apply();
+    SyncViewport(current_state);
 }
 
 void RasterizerOpenGL::Clear() {
@@ -515,22 +525,23 @@ void RasterizerOpenGL::Clear() {
     bool use_stencil{};
 
     OpenGLState clear_state;
-    clear_state.draw.draw_framebuffer = framebuffer.handle;
-    clear_state.color_mask[0].red_enabled = regs.clear_buffers.R ? GL_TRUE : GL_FALSE;
-    clear_state.color_mask[0].green_enabled = regs.clear_buffers.G ? GL_TRUE : GL_FALSE;
-    clear_state.color_mask[0].blue_enabled = regs.clear_buffers.B ? GL_TRUE : GL_FALSE;
-    clear_state.color_mask[0].alpha_enabled = regs.clear_buffers.A ? GL_TRUE : GL_FALSE;
-
     if (regs.clear_buffers.R || regs.clear_buffers.G || regs.clear_buffers.B ||
         regs.clear_buffers.A) {
         use_color = true;
+    }
+    if (use_color) {
+        clear_state.color_mask[0].red_enabled = regs.clear_buffers.R ? GL_TRUE : GL_FALSE;
+        clear_state.color_mask[0].green_enabled = regs.clear_buffers.G ? GL_TRUE : GL_FALSE;
+        clear_state.color_mask[0].blue_enabled = regs.clear_buffers.B ? GL_TRUE : GL_FALSE;
+        clear_state.color_mask[0].alpha_enabled = regs.clear_buffers.A ? GL_TRUE : GL_FALSE;
     }
     if (regs.clear_buffers.Z) {
         ASSERT_MSG(regs.zeta_enable != 0, "Tried to clear Z but buffer is not enabled!");
         use_depth = true;
 
         // Always enable the depth write when clearing the depth buffer. The depth write mask is
-        // ignored when clearing the buffer in the Switch, but OpenGL obeys it so we set it to true.
+        // ignored when clearing the buffer in the Switch, but OpenGL obeys it so we set it to
+        // true.
         clear_state.depth.test_enabled = true;
         clear_state.depth.test_func = GL_ALWAYS;
     }
@@ -547,11 +558,8 @@ void RasterizerOpenGL::Clear() {
 
     ScopeAcquireGLContext acquire_context{emu_window};
 
-    ConfigureFramebuffers(use_color, use_depth || use_stencil, false,
+    ConfigureFramebuffers(clear_state, use_color, use_depth || use_stencil, false,
                           regs.clear_buffers.RT.Value());
-    // Copy the sRGB setting to the clear state to avoid problem with
-    // specific driver implementations
-    clear_state.framebuffer_srgb.enabled = state.framebuffer_srgb.enabled;
     clear_state.Apply();
 
     if (use_color) {
@@ -577,7 +585,7 @@ void RasterizerOpenGL::DrawArrays() {
 
     ScopeAcquireGLContext acquire_context{emu_window};
 
-    ConfigureFramebuffers();
+    ConfigureFramebuffers(state);
     SyncColorMask();
     SyncDepthTestState();
     SyncStencilTestState();
@@ -598,7 +606,7 @@ void RasterizerOpenGL::DrawArrays() {
     const bool is_indexed = accelerate_draw == AccelDraw::Indexed;
 
     state.draw.vertex_buffer = buffer_cache.GetHandle();
-    state.Apply();
+    state.ApplyVertexBufferState();
 
     std::size_t buffer_size = CalculateVertexArraysSize();
 
@@ -625,7 +633,8 @@ void RasterizerOpenGL::DrawArrays() {
 
     buffer_cache.Map(buffer_size);
 
-    SetupVertexArrays();
+    SetupVertexFormat();
+    SetupVertexBuffer();
     DrawParameters params = SetupDraw();
     SetupShaders(params.primitive_mode);
 
@@ -730,9 +739,9 @@ void RasterizerOpenGL::SamplerInfo::Create() {
     glSamplerParameteri(sampler.handle, GL_TEXTURE_COMPARE_FUNC, GL_NEVER);
 }
 
-void RasterizerOpenGL::SamplerInfo::SyncWithConfig(const Tegra::Texture::TSCEntry& config) {
+void RasterizerOpenGL::SamplerInfo::SyncWithConfig(const Tegra::Texture::FullTextureInfo& info) {
     const GLuint s = sampler.handle;
-
+    const Tegra::Texture::TSCEntry& config = info.tsc;
     if (mag_filter != config.mag_filter) {
         mag_filter = config.mag_filter;
         glSamplerParameteri(
@@ -782,6 +791,22 @@ void RasterizerOpenGL::SamplerInfo::SyncWithConfig(const Tegra::Texture::TSCEntr
             border_color = new_border_color;
             glSamplerParameterfv(s, GL_TEXTURE_BORDER_COLOR, border_color.data());
         }
+    }
+    if (info.tic.use_header_opt_control == 0) {
+        if (GLAD_GL_ARB_texture_filter_anisotropic) {
+            glSamplerParameterf(s, GL_TEXTURE_MAX_ANISOTROPY,
+                                static_cast<float>(1 << info.tic.max_anisotropy.Value()));
+        } else if (GLAD_GL_EXT_texture_filter_anisotropic) {
+            glSamplerParameterf(s, GL_TEXTURE_MAX_ANISOTROPY_EXT,
+                                static_cast<float>(1 << info.tic.max_anisotropy.Value()));
+        }
+        glSamplerParameterf(s, GL_TEXTURE_MIN_LOD,
+                            static_cast<float>(info.tic.res_min_mip_level.Value()));
+        glSamplerParameterf(s, GL_TEXTURE_MAX_LOD,
+                            static_cast<float>(info.tic.res_max_mip_level.Value() == 0
+                                                   ? 16
+                                                   : info.tic.res_max_mip_level.Value()));
+        glSamplerParameterf(s, GL_TEXTURE_LOD_BIAS, info.tic.mip_lod_bias.Value() / 256.f);
     }
 }
 
@@ -903,7 +928,7 @@ u32 RasterizerOpenGL::SetupTextures(Maxwell::ShaderStage stage, Shader& shader,
             continue;
         }
 
-        texture_samplers[current_bindpoint].SyncWithConfig(texture.tsc);
+        texture_samplers[current_bindpoint].SyncWithConfig(texture);
         Surface surface = res_cache.GetTextureSurface(texture, entry);
         if (surface != nullptr) {
             state.texture_units[current_bindpoint].texture = surface->Texture().handle;
@@ -925,15 +950,15 @@ u32 RasterizerOpenGL::SetupTextures(Maxwell::ShaderStage stage, Shader& shader,
     return current_unit + static_cast<u32>(entries.size());
 }
 
-void RasterizerOpenGL::SyncViewport() {
+void RasterizerOpenGL::SyncViewport(OpenGLState& current_state) {
     const auto& regs = Core::System::GetInstance().GPU().Maxwell3D().regs;
     for (size_t i = 0; i < Tegra::Engines::Maxwell3D::Regs::NumRenderTargets; i++) {
         const MathUtil::Rectangle<s32> viewport_rect{regs.viewport_transform[i].GetRect()};
-        auto& viewport = state.viewports[i];
+        auto& viewport = current_state.viewports[i];
         viewport.x = viewport_rect.left;
         viewport.y = viewport_rect.bottom;
-        viewport.width = static_cast<GLsizei>(viewport_rect.GetWidth());
-        viewport.height = static_cast<GLsizei>(viewport_rect.GetHeight());
+        viewport.width = static_cast<GLfloat>(viewport_rect.GetWidth());
+        viewport.height = static_cast<GLfloat>(viewport_rect.GetHeight());
         viewport.depth_range_far = regs.viewport[i].depth_range_far;
         viewport.depth_range_near = regs.viewport[i].depth_range_near;
     }
@@ -998,9 +1023,6 @@ void RasterizerOpenGL::SyncStencilTestState() {
         return;
     }
 
-    // TODO(bunnei): Verify behavior when this is not set
-    ASSERT(regs.stencil_two_side_enable);
-
     state.stencil.front.test_func = MaxwellToGL::ComparisonOp(regs.stencil_front_func_func);
     state.stencil.front.test_ref = regs.stencil_front_func_ref;
     state.stencil.front.test_mask = regs.stencil_front_func_mask;
@@ -1008,14 +1030,23 @@ void RasterizerOpenGL::SyncStencilTestState() {
     state.stencil.front.action_depth_fail = MaxwellToGL::StencilOp(regs.stencil_front_op_zfail);
     state.stencil.front.action_depth_pass = MaxwellToGL::StencilOp(regs.stencil_front_op_zpass);
     state.stencil.front.write_mask = regs.stencil_front_mask;
-
-    state.stencil.back.test_func = MaxwellToGL::ComparisonOp(regs.stencil_back_func_func);
-    state.stencil.back.test_ref = regs.stencil_back_func_ref;
-    state.stencil.back.test_mask = regs.stencil_back_func_mask;
-    state.stencil.back.action_stencil_fail = MaxwellToGL::StencilOp(regs.stencil_back_op_fail);
-    state.stencil.back.action_depth_fail = MaxwellToGL::StencilOp(regs.stencil_back_op_zfail);
-    state.stencil.back.action_depth_pass = MaxwellToGL::StencilOp(regs.stencil_back_op_zpass);
-    state.stencil.back.write_mask = regs.stencil_back_mask;
+    if (regs.stencil_two_side_enable) {
+        state.stencil.back.test_func = MaxwellToGL::ComparisonOp(regs.stencil_back_func_func);
+        state.stencil.back.test_ref = regs.stencil_back_func_ref;
+        state.stencil.back.test_mask = regs.stencil_back_func_mask;
+        state.stencil.back.action_stencil_fail = MaxwellToGL::StencilOp(regs.stencil_back_op_fail);
+        state.stencil.back.action_depth_fail = MaxwellToGL::StencilOp(regs.stencil_back_op_zfail);
+        state.stencil.back.action_depth_pass = MaxwellToGL::StencilOp(regs.stencil_back_op_zpass);
+        state.stencil.back.write_mask = regs.stencil_back_mask;
+    } else {
+        state.stencil.back.test_func = GL_ALWAYS;
+        state.stencil.back.test_ref = 0;
+        state.stencil.back.test_mask = 0xFFFFFFFF;
+        state.stencil.back.write_mask = 0xFFFFFFFF;
+        state.stencil.back.action_stencil_fail = GL_KEEP;
+        state.stencil.back.action_depth_fail = GL_KEEP;
+        state.stencil.back.action_depth_pass = GL_KEEP;
+    }
 }
 
 void RasterizerOpenGL::SyncColorMask() {
@@ -1127,9 +1158,8 @@ void RasterizerOpenGL::CheckAlphaTests() {
     const auto& regs = Core::System::GetInstance().GPU().Maxwell3D().regs;
 
     if (regs.alpha_test_enabled != 0 && regs.rt_control.count > 1) {
-        LOG_CRITICAL(
-            Render_OpenGL,
-            "Alpha Testing is enabled with Multiple Render Targets, this behavior is undefined.");
+        LOG_CRITICAL(Render_OpenGL, "Alpha Testing is enabled with Multiple Render Targets, "
+                                    "this behavior is undefined.");
         UNREACHABLE();
     }
 }

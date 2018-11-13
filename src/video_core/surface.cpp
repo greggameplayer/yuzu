@@ -455,8 +455,8 @@ bool IsPixelFormatASTC(PixelFormat format) {
     case PixelFormat::ASTC_2D_5X5_SRGB:
     case PixelFormat::ASTC_2D_8X8_SRGB:
     case PixelFormat::ASTC_2D_8X5_SRGB:
-    case PixelFormat::ASTC_2D_10X8_SRGB:
     case PixelFormat::ASTC_2D_10X8:
+    case PixelFormat::ASTC_2D_10X8_SRGB:
         return true;
     default:
         return false;
