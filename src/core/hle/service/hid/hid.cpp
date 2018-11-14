@@ -228,8 +228,8 @@ public:
             {123, nullptr, "SetNpadJoyAssignmentModeSingleByDefault"},
             {124, &Hid::SetNpadJoyAssignmentModeDual, "SetNpadJoyAssignmentModeDual"},
             {125, &Hid::MergeSingleJoyAsDualJoy, "MergeSingleJoyAsDualJoy"},
-            {126, nullptr, "StartLrAssignmentMode"},
-            {127, nullptr, "StopLrAssignmentMode"},
+            {126, &Hid::StartLrAssignmentMode, "StartLrAssignmentMode"},
+            {127, &Hid::StopLrAssignmentMode, "StopLrAssignmentMode"},
             {128, &Hid::SetNpadHandheldActivationMode, "SetNpadHandheldActivationMode"},
             {129, nullptr, "GetNpadHandheldActivationMode"},
             {130, nullptr, "SwapNpadAssignment"},
@@ -301,6 +301,7 @@ public:
     ~Hid() = default;
 
 private:
+    AM::IWindowController IWindowController;
     std::shared_ptr<IAppletResource> applet_resource;
 
     void CreateAppletResource(Kernel::HLERequestContext& ctx) {
@@ -555,6 +556,20 @@ private:
         IPC::ResponseBuilder rb{ctx, 2};
         rb.Push(RESULT_SUCCESS);
         LOG_WARNING(Service_HID, "(STUBBED) called");
+    }
+
+    void StartLrAssignmentMode(Kernel::HLERequestContext& ctx) {
+        IPC::ResponseBuilder rb{ctx, 3};
+        rb.Push<u64>(IWindowController.applet_resource_user_id);
+        rb.Push(RESULT_SUCCESS);
+        LOG_DEBUG(Service_HID, "called");
+    }
+
+    void StopLrAssignmentMode(Kernel::HLERequestContext& ctx) {
+        IPC::ResponseBuilder rb{ctx, 3};
+        rb.Push<u64>(IWindowController.applet_resource_user_id);
+        rb.Push(RESULT_SUCCESS);
+        LOG_DEBUG(Service_HID, "called");
     }
 
     void SetNpadHandheldActivationMode(Kernel::HLERequestContext& ctx) {
