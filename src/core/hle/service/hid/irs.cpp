@@ -8,8 +8,10 @@
 #include "core/hle/ipc_helpers.h"
 #include "core/hle/kernel/shared_memory.h"
 #include "core/hle/service/hid/irs.h"
+#include "core/hle/service/am/am.h"
 
 namespace Service::HID {
+AM::IWindowController IWindowController;
 
 IRS::IRS() : ServiceFramework{"irs"} {
     // clang-format off
@@ -169,7 +171,6 @@ IRS_SYS::IRS_SYS() : ServiceFramework{"irs:sys"} {
 
     RegisterHandlers(functions);
 }
-AM::IWindowController IWindowController;
 
 void IRS_SYS::SetAppletResourceUserId(Kernel::HLERequestContext& ctx) {
     IPC::RequestParser rp{ctx};
