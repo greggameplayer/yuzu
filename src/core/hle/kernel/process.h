@@ -8,6 +8,7 @@
 #include <bitset>
 #include <cstddef>
 #include <memory>
+#include <random>
 #include <string>
 #include <vector>
 #include <boost/container/static_vector.hpp>
@@ -119,6 +120,8 @@ struct CodeSet final {
 
 class Process final : public Object {
 public:
+    static constexpr std::size_t RANDOM_ENTROPY_SIZE = 4;
+
     static SharedPtr<Process> Create(KernelCore& kernel, std::string&& name);
 
     std::string GetTypeName() const override {
@@ -212,6 +215,11 @@ public:
         total_process_running_time_ticks += ticks;
     }
 
+    /// Gets 8 bytes of random data for svcGetInfo RandomEntropy
+    u64 GetRandomEntropy(std::size_t index) const {
+        return random_entropy.at(index);
+    }
+
     /**
      * Loads process-specifics configuration info with metadata provided
      * by an executable.
@@ -293,17 +301,6 @@ private:
     u32 allowed_thread_priority_mask = 0xFFFFFFFF;
     u32 is_virtual_address_memory_enabled = 0;
 
-    // Memory used to back the allocations in the regular heap. A single vector is used to cover
-    // the entire virtual address space extents that bound the allocations, including any holes.
-    // This makes deallocation and reallocation of holes fast and keeps process memory contiguous
-    // in the emulator address space, allowing Memory::GetPointer to be reasonably safe.
-    std::shared_ptr<std::vector<u8>> heap_memory;
-
-    // The left/right bounds of the address space covered by heap_memory.
-    VAddr heap_start = 0;
-    VAddr heap_end = 0;
-    u64 heap_used = 0;
-
     /// The Thread Local Storage area is allocated as processes create threads,
     /// each TLS area is 0x200 bytes, so one page (0x1000) is split up in 8 parts, and each part
     /// holds the TLS for a specific thread. This vector contains which parts are in use for each
@@ -321,6 +318,9 @@ private:
 
     /// Per-process handle table for storing created object handles in.
     HandleTable handle_table;
+
+    /// Random values for svcGetInfo RandomEntropy
+    std::array<u64, RANDOM_ENTROPY_SIZE> random_entropy;
 
     std::string name;
 };
