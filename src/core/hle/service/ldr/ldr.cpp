@@ -315,13 +315,11 @@ public:
 
         ASSERT(map_address.Succeeded());
 
-        ASSERT(process->MirrorMemory(*map_address, nro_addr, nro_size,
-                                     Kernel::MemoryState::ModuleCodeStatic) == RESULT_SUCCESS);
+        ASSERT(process->MirrorMemory(*map_address, nro_addr, nro_size) == RESULT_SUCCESS);
         ASSERT(process->UnmapMemory(nro_addr, 0, nro_size) == RESULT_SUCCESS);
 
         if (bss_size > 0) {
-            ASSERT(process->MirrorMemory(*map_address + nro_size, bss_addr, bss_size,
-                                         Kernel::MemoryState::ModuleCodeStatic) == RESULT_SUCCESS);
+            ASSERT(process->MirrorMemory(*map_address + nro_size, bss_addr, bss_size) == RESULT_SUCCESS);
             ASSERT(process->UnmapMemory(bss_addr, 0, bss_size) == RESULT_SUCCESS);
         }
 
@@ -382,8 +380,7 @@ public:
         auto& vm_manager = process->VMManager();
         const auto& nro_size = iter->second.size;
 
-        ASSERT(process->MirrorMemory(heap_addr, mapped_addr, nro_size,
-                                     Kernel::MemoryState::ModuleCodeStatic) == RESULT_SUCCESS);
+        ASSERT(process->MirrorMemory(heap_addr, mapped_addr, nro_size) == RESULT_SUCCESS);
         ASSERT(process->UnmapMemory(mapped_addr, 0, nro_size) == RESULT_SUCCESS);
 
         Core::System::GetInstance().ArmInterface(0).ClearInstructionCache();
