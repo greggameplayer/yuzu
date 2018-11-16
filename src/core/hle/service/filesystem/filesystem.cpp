@@ -306,7 +306,7 @@ ResultVal<FileSys::VirtualDir> OpenSaveData(FileSys::SaveDataSpaceId space,
               static_cast<u8>(space), save_struct.DebugInfo());
 
     if (save_data_factory == nullptr) {
-        return ResultCode(ErrorModule::FS, FileSys::ErrCodes::TitleNotFound);
+        return FileSys::ERROR_ENTITY_NOT_FOUND;
     }
 
     return save_data_factory->Open(space, save_struct);
@@ -316,7 +316,7 @@ ResultVal<FileSys::VirtualDir> OpenSaveDataSpace(FileSys::SaveDataSpaceId space)
     LOG_TRACE(Service_FS, "Opening Save Data Space for space_id={:01X}", static_cast<u8>(space));
 
     if (save_data_factory == nullptr) {
-        return ResultCode(ErrorModule::FS, FileSys::ErrCodes::TitleNotFound);
+        return FileSys::ERROR_ENTITY_NOT_FOUND;
     }
 
     return MakeResult(save_data_factory->GetSaveDataSpaceDirectory(space));
@@ -326,15 +326,22 @@ ResultVal<FileSys::VirtualDir> OpenSDMC() {
     LOG_TRACE(Service_FS, "Opening SDMC");
 
     if (sdmc_factory == nullptr) {
-        return ResultCode(ErrorModule::FS, FileSys::ErrCodes::SdCardNotFound);
+        return FileSys::ERROR_SD_CARD_NOT_FOUND;
     }
 
     return sdmc_factory->Open();
 }
 
-std::unique_ptr<FileSys::RegisteredCacheUnion> GetUnionContents() {
-    return std::make_unique<FileSys::RegisteredCacheUnion>(std::vector<FileSys::RegisteredCache*>{
-        GetSystemNANDContents(), GetUserNANDContents(), GetSDMCContents()});
+std::shared_ptr<FileSys::RegisteredCacheUnion> registered_cache_union;
+
+std::shared_ptr<FileSys::RegisteredCacheUnion> GetUnionContents() {
+    if (registered_cache_union == nullptr) {
+        registered_cache_union =
+            std::make_shared<FileSys::RegisteredCacheUnion>(std::vector<FileSys::RegisteredCache*>{
+                GetSystemNANDContents(), GetUserNANDContents(), GetSDMCContents()});
+    }
+
+    return registered_cache_union;
 }
 
 FileSys::RegisteredCache* GetSystemNANDContents() {
