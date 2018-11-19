@@ -107,8 +107,6 @@ RasterizerOpenGL::RasterizerOpenGL(Core::Frontend::EmuWindow& window, ScreenInfo
 
     ASSERT_MSG(has_ARB_separate_shader_objects, "has_ARB_separate_shader_objects is unsupported");
     OpenGLState::ApplyDefaultState();
-    // Clipping plane 0 is always enabled for PICA fixed clip plane z <= 0
-    state.clip_distance[0] = true;
 
     // Create render framebuffer
     framebuffer.Create();
@@ -741,9 +739,8 @@ void RasterizerOpenGL::SamplerInfo::Create() {
     glSamplerParameteri(sampler.handle, GL_TEXTURE_COMPARE_FUNC, GL_NEVER);
 }
 
-void RasterizerOpenGL::SamplerInfo::SyncWithConfig(const Tegra::Texture::FullTextureInfo& info) {
+void RasterizerOpenGL::SamplerInfo::SyncWithConfig(const Tegra::Texture::TSCEntry& config) {
     const GLuint s = sampler.handle;
-    const Tegra::Texture::TSCEntry& config = info.tsc;
     if (mag_filter != config.mag_filter) {
         mag_filter = config.mag_filter;
         glSamplerParameteri(
@@ -785,28 +782,50 @@ void RasterizerOpenGL::SamplerInfo::SyncWithConfig(const Tegra::Texture::FullTex
                             MaxwellToGL::DepthCompareFunc(depth_compare_func));
     }
 
-    const GLvec4 new_border_color = {{config.border_color_r, config.border_color_g,
-                                      config.border_color_b, config.border_color_a}};
+    GLvec4 new_border_color;
+    if (config.srgb_conversion) {
+        new_border_color[0] = config.srgb_border_color_r / 255.0f;
+        new_border_color[1] = config.srgb_border_color_g / 255.0f;
+        new_border_color[2] = config.srgb_border_color_g / 255.0f;
+    } else {
+        new_border_color[0] = config.border_color_r;
+        new_border_color[1] = config.border_color_g;
+        new_border_color[2] = config.border_color_b;
+    }
+    new_border_color[3] = config.border_color_a;
+
     if (border_color != new_border_color) {
         border_color = new_border_color;
         glSamplerParameterfv(s, GL_TEXTURE_BORDER_COLOR, border_color.data());
     }
 
-    if (info.tic.use_header_opt_control == 0) {
+    const float anisotropic_max = static_cast<float>(1 << config.max_anisotropy.Value());
+    if (anisotropic_max != max_anisotropic) {
+        max_anisotropic = anisotropic_max;
         if (GLAD_GL_ARB_texture_filter_anisotropic) {
-            glSamplerParameterf(s, GL_TEXTURE_MAX_ANISOTROPY,
-                                static_cast<float>(1 << info.tic.max_anisotropy.Value()));
+            glSamplerParameterf(s, GL_TEXTURE_MAX_ANISOTROPY, max_anisotropic);
         } else if (GLAD_GL_EXT_texture_filter_anisotropic) {
-            glSamplerParameterf(s, GL_TEXTURE_MAX_ANISOTROPY_EXT,
-                                static_cast<float>(1 << info.tic.max_anisotropy.Value()));
+            glSamplerParameterf(s, GL_TEXTURE_MAX_ANISOTROPY_EXT, max_anisotropic);
         }
-        glSamplerParameterf(s, GL_TEXTURE_MIN_LOD,
-                            static_cast<float>(info.tic.res_min_mip_level.Value()));
-        glSamplerParameterf(s, GL_TEXTURE_MAX_LOD,
-                            static_cast<float>(info.tic.res_max_mip_level.Value() == 0
-                                                   ? 16
-                                                   : info.tic.res_max_mip_level.Value()));
-        glSamplerParameterf(s, GL_TEXTURE_LOD_BIAS, info.tic.mip_lod_bias.Value() / 256.f);
+    }
+    const float lod_min = static_cast<float>(config.min_lod_clamp.Value()) / 256.0f;
+    if (lod_min != min_lod) {
+        min_lod = lod_min;
+        glSamplerParameterf(s, GL_TEXTURE_MIN_LOD, min_lod);
+    }
+
+    const float lod_max = static_cast<float>(config.max_lod_clamp.Value()) / 256.0f;
+    if (lod_max != max_lod) {
+        max_lod = lod_max;
+        glSamplerParameterf(s, GL_TEXTURE_MAX_LOD, max_lod);
+    }
+    const u32 bias = config.mip_lod_bias.Value();
+    // Sign extend the 13-bit value.
+    const u32 mask = 1U << (13 - 1);
+    const float bias_lod = static_cast<s32>((bias ^ mask) - mask) / 256.f;
+    if (lod_bias != bias_lod) {
+        lod_bias = bias_lod;
+        glSamplerParameterf(s, GL_TEXTURE_LOD_BIAS, lod_bias);
     }
 }
 
@@ -928,7 +947,7 @@ u32 RasterizerOpenGL::SetupTextures(Maxwell::ShaderStage stage, Shader& shader,
             continue;
         }
 
-        texture_samplers[current_bindpoint].SyncWithConfig(texture);
+        texture_samplers[current_bindpoint].SyncWithConfig(texture.tsc);
         Surface surface = res_cache.GetTextureSurface(texture, entry);
         if (surface != nullptr) {
             state.texture_units[current_bindpoint].texture = surface->Texture().handle;
@@ -1085,15 +1104,15 @@ void RasterizerOpenGL::SyncBlendState() {
     state.independant_blend.enabled = regs.independent_blend_enable;
     if (!state.independant_blend.enabled) {
         auto& blend = state.blend[0];
-        blend.enabled = regs.blend.enable[0] != 0;
-        blend.separate_alpha = regs.blend.separate_alpha;
-        blend.rgb_equation = MaxwellToGL::BlendEquation(regs.blend.equation_rgb);
-        blend.src_rgb_func = MaxwellToGL::BlendFunc(regs.blend.factor_source_rgb);
-        blend.dst_rgb_func = MaxwellToGL::BlendFunc(regs.blend.factor_dest_rgb);
-        if (blend.separate_alpha) {
-            blend.a_equation = MaxwellToGL::BlendEquation(regs.blend.equation_a);
-            blend.src_a_func = MaxwellToGL::BlendFunc(regs.blend.factor_source_a);
-            blend.dst_a_func = MaxwellToGL::BlendFunc(regs.blend.factor_dest_a);
+        const auto& src = regs.blend;
+        blend.enabled = src.enable[0] != 0;
+        if (blend.enabled) {
+            blend.rgb_equation = MaxwellToGL::BlendEquation(src.equation_rgb);
+            blend.src_rgb_func = MaxwellToGL::BlendFunc(src.factor_source_rgb);
+            blend.dst_rgb_func = MaxwellToGL::BlendFunc(src.factor_dest_rgb);
+            blend.a_equation = MaxwellToGL::BlendEquation(src.equation_a);
+            blend.src_a_func = MaxwellToGL::BlendFunc(src.factor_source_a);
+            blend.dst_a_func = MaxwellToGL::BlendFunc(src.factor_dest_a);
         }
         for (std::size_t i = 1; i < Tegra::Engines::Maxwell3D::Regs::NumRenderTargets; i++) {
             state.blend[i].enabled = false;
@@ -1103,18 +1122,16 @@ void RasterizerOpenGL::SyncBlendState() {
 
     for (std::size_t i = 0; i < Tegra::Engines::Maxwell3D::Regs::NumRenderTargets; i++) {
         auto& blend = state.blend[i];
+        const auto& src = regs.independent_blend[i];
         blend.enabled = regs.blend.enable[i] != 0;
         if (!blend.enabled)
             continue;
-        blend.separate_alpha = regs.independent_blend[i].separate_alpha;
-        blend.rgb_equation = MaxwellToGL::BlendEquation(regs.independent_blend[i].equation_rgb);
-        blend.src_rgb_func = MaxwellToGL::BlendFunc(regs.independent_blend[i].factor_source_rgb);
-        blend.dst_rgb_func = MaxwellToGL::BlendFunc(regs.independent_blend[i].factor_dest_rgb);
-        if (blend.separate_alpha) {
-            blend.a_equation = MaxwellToGL::BlendEquation(regs.independent_blend[i].equation_a);
-            blend.src_a_func = MaxwellToGL::BlendFunc(regs.independent_blend[i].factor_source_a);
-            blend.dst_a_func = MaxwellToGL::BlendFunc(regs.independent_blend[i].factor_dest_a);
-        }
+        blend.rgb_equation = MaxwellToGL::BlendEquation(src.equation_rgb);
+        blend.src_rgb_func = MaxwellToGL::BlendFunc(src.factor_source_rgb);
+        blend.dst_rgb_func = MaxwellToGL::BlendFunc(src.factor_dest_rgb);
+        blend.a_equation = MaxwellToGL::BlendEquation(src.equation_a);
+        blend.src_a_func = MaxwellToGL::BlendFunc(src.factor_source_a);
+        blend.dst_a_func = MaxwellToGL::BlendFunc(src.factor_dest_a);
     }
 }
 

@@ -89,7 +89,7 @@ private:
         /// SamplerInfo struct.
         void Create();
         /// Syncs the sampler object with the config, updating any necessary state.
-        void SyncWithConfig(const Tegra::Texture::FullTextureInfo& info);
+        void SyncWithConfig(const Tegra::Texture::TSCEntry& info);
 
     private:
         Tegra::Texture::TextureFilter mag_filter;
@@ -101,6 +101,10 @@ private:
         bool uses_depth_compare;
         Tegra::Texture::DepthCompareFunc depth_compare_func;
         GLvec4 border_color;
+        float min_lod;
+        float max_lod;
+        float lod_bias;
+        float max_anisotropic;
     };
 
     /**

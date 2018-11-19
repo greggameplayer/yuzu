@@ -240,9 +240,6 @@ private:
 /// Represents a parcel containing one int '0' as its data
 /// Used by DetachBuffer and Disconnect
 class IGBPEmptyResponseParcel : public Parcel {
-public:
-    ~IGBPEmptyResponseParcel() override = default;
-
 protected:
     void SerializeData() override {
         Write(data);
