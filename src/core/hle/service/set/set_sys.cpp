@@ -70,14 +70,14 @@ void SET_SYS::GetLdnChannel(Kernel::HLERequestContext& ctx) {
     IPC::ResponseBuilder rb{ctx, 3};
 
     rb.Push(RESULT_SUCCESS);
-    rb.Push<s32>(ldn_channel);
+    rb.Push<u32>(ldn_channel);
 
     LOG_DEBUG(Service_SET, "called");
 }
 
 void SET_SYS::SetLdnChannel(Kernel::HLERequestContext& ctx) {
     IPC::RequestParser rp{ctx};
-    ldn_channel = rp.Pop<s32>();
+    ldn_channel = rp.Pop<u32>();
 
     IPC::ResponseBuilder rb{ctx, 2};
     rb.Push(RESULT_SUCCESS);
