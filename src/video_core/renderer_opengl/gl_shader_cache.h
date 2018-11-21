@@ -30,7 +30,7 @@ public:
     }
 
     std::size_t GetSizeInBytes() const override {
-        return GLShader::MAX_PROGRAM_CODE_LENGTH * sizeof(u64);
+        return shader_length;
     }
 
     // We do not have to flush this cache as things in it are never modified by us.
@@ -95,6 +95,7 @@ private:
     void CalculateProperties();
 
     VAddr addr;
+    std::size_t shader_length;
     Maxwell::ShaderProgram program_type;
     GLShader::ShaderSetup setup;
     GLShader::ShaderEntries entries;
