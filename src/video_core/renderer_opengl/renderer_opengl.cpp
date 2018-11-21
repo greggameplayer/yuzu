@@ -303,11 +303,11 @@ void RendererOpenGL::ConfigureFramebufferTexture(TextureInfo& texture,
         texture.gl_type = GL_UNSIGNED_INT_8_8_8_8_REV;
         gl_framebuffer_data.resize(texture.width * texture.height * 4);
         break;
-    case Tegra::FramebufferConfig::PixelFormat::R8:
-        internal_format = GL_R8;
-        texture.gl_format = GL_R8;
-        texture.gl_type = GL_UNSIGNED_BYTE;
-        gl_framebuffer_data.resize(texture.width * texture.height * 1);
+    case Tegra::FramebufferConfig::PixelFormat::ABGR8S:
+        internal_format = GL_RGBA;
+        texture.gl_format = GL_RGBA;
+        texture.gl_type = GL_BYTE;
+        gl_framebuffer_data.resize(texture.width * texture.height * 4);
         break;
     default:
         internal_format = GL_RGBA;

@@ -15,10 +15,9 @@ namespace Tegra {
 
 u32 FramebufferConfig::BytesPerPixel(PixelFormat format) {
     switch (format) {
+    case PixelFormat::ABGR8S:
     case PixelFormat::ABGR8:
         return 4;
-    case PixelFormat::R8:
-        return 1;
     default:
         return 4;
     }

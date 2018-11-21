@@ -400,8 +400,8 @@ PixelFormat PixelFormatFromGPUPixelFormat(Tegra::FramebufferConfig::PixelFormat 
     switch (format) {
     case Tegra::FramebufferConfig::PixelFormat::ABGR8:
         return PixelFormat::ABGR8U;
-    case Tegra::FramebufferConfig::PixelFormat::R8:
-        return PixelFormat::R8U;
+    case Tegra::FramebufferConfig::PixelFormat::ABGR8S:
+        return PixelFormat::ABGR8S;
     default:
         LOG_CRITICAL(HW_GPU, "Unimplemented format={}", static_cast<u32>(format));
         UNREACHABLE();
