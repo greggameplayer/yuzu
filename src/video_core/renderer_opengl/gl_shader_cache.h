@@ -92,6 +92,8 @@ private:
     GLuint LazyGeometryProgram(OGLProgram& target_program, const std::string& glsl_topology,
                                u32 max_vertices, const std::string& debug_name);
 
+    void CalculateProperties();
+
     VAddr addr;
     Maxwell::ShaderProgram program_type;
     GLShader::ShaderSetup setup;
