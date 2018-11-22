@@ -160,6 +160,7 @@ void ConfigureInput::updateUIEnabled() {
     }
 
     ui->handheld_connected->setEnabled(!ui->use_docked_mode->isChecked());
+    ui->handheld_connected->setChecked(!ui->use_docked_mode->isChecked());
     ui->handheld_configure->setEnabled(ui->handheld_connected->isChecked() &&
                                        !ui->use_docked_mode->isChecked());
     ui->mouse_advanced->setEnabled(ui->mouse_enabled->isChecked());
