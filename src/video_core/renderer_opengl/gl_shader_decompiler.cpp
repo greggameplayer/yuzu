@@ -1250,7 +1250,15 @@ private:
         regs.SetRegisterToInteger(dest, true, 0, result, 1, 1);
     }
 
-    void WriteTexsInstruction(const Instruction& instr, const std::string& texture) {
+    void WriteTexsInstruction(const Instruction& instr, const std::string& coord,
+                              const std::string& texture) {
+        // Add an extra scope and declare the texture coords inside to prevent
+        // overwriting them in case they are used as outputs of the texs instruction.
+        shader.AddLine('{');
+        ++shader.scope;
+        shader.AddLine(coord);
+        shader.AddLine("vec4 texture_tmp = " + texture + ';');
+
         // TEXS has two destination registers and a swizzle. The first two elements in the swizzle
         // go into gpr0+0 and gpr0+1, and the rest goes into gpr28+0 and gpr28+1
 
@@ -1262,12 +1270,12 @@ private:
 
             if (written_components < 2) {
                 // Write the first two swizzle components to gpr0 and gpr0+1
-                regs.SetRegisterToFloat(instr.gpr0, component, texture, 1, 4, false,
+                regs.SetRegisterToFloat(instr.gpr0, component, "texture_tmp", 1, 4, false,
                                         written_components % 2);
             } else {
                 ASSERT(instr.texs.HasTwoDestinations());
                 // Write the rest of the swizzle components to gpr28 and gpr28+1
-                regs.SetRegisterToFloat(instr.gpr28, component, texture, 1, 4, false,
+                regs.SetRegisterToFloat(instr.gpr28, component, "texture_tmp", 1, 4, false,
                                         written_components % 2);
             }
 
@@ -2494,7 +2502,7 @@ private:
                     array_elem = regs.GetRegisterAsInteger(instr.gpr8);
                     start_index = 1;
                 }
-                auto process_mode = instr.tex.GetTextureProcessMode();
+                const auto process_mode = instr.tex.GetTextureProcessMode();
                 u32 start_index_b = 0;
                 std::string lod_value;
                 if (process_mode != Tegra::Shader::TextureProcessMode::LZ &&
@@ -2552,8 +2560,10 @@ private:
                 }
                 case 3: {
                     const std::string x = regs.GetRegisterAsFloat(instr.gpr8.Value() + start_index);
-                    const std::string y = regs.GetRegisterAsFloat(instr.gpr8.Value() + start_index + 1);
-                    const std::string z = regs.GetRegisterAsFloat(instr.gpr8.Value() + start_index + 2);
+                    const std::string y =
+                        regs.GetRegisterAsFloat(instr.gpr8.Value() + start_index + 1);
+                    const std::string z =
+                        regs.GetRegisterAsFloat(instr.gpr8.Value() + start_index + 2);
                     if (is_array) {
                         depth_compare_extra = depth_compare;
                         coord = "vec4 coords = vec4(" + x + ", " + y + ", " + z + ", " +
@@ -2613,7 +2623,8 @@ private:
                         texture = "texture(" + sampler + ", coords, " + lod_value + ')';
                     } else {
                         texture = "texture(" + sampler + ", coords, " + depth_value + ')';
-                        LOG_WARNING(HW_GPU, "OpenGL Limitation: can't set bias value along depth compare");
+                        LOG_WARNING(HW_GPU,
+                                    "OpenGL Limitation: can't set bias value along depth compare");
                     }
                     break;
                 }
@@ -2624,7 +2635,8 @@ private:
                         texture = "textureLod(" + sampler + ", coords, " + lod_value + ')';
                     } else {
                         texture = "texture(" + sampler + ", coords, " + depth_value + ')';
-                        LOG_WARNING(HW_GPU, "OpenGL Limitation: can't set lod value along depth compare");
+                        LOG_WARNING(HW_GPU,
+                                    "OpenGL Limitation: can't set lod value along depth compare");
                     }
                     break;
                 }
@@ -2639,13 +2651,15 @@ private:
                 }
                 }
                 if (!depth_compare) {
+                    shader.AddLine("vec4 texture_tmp = " + texture + ';');
                     std::size_t dest_elem{};
                     for (std::size_t elem = 0; elem < 4; ++elem) {
                         if (!instr.tex.IsComponentEnabled(elem)) {
                             // Skip disabled components
                             continue;
                         }
-                        regs.SetRegisterToFloat(instr.gpr0, elem, texture, 1, 4, false, dest_elem);
+                        regs.SetRegisterToFloat(instr.gpr0, elem, "texture_tmp", 1, 4, false,
+                                                dest_elem);
                         ++dest_elem;
                     }
                 } else {
@@ -2665,8 +2679,9 @@ private:
                 const bool depth_compare =
                     instr.texs.UsesMiscMode(Tegra::Shader::TextureMiscMode::DC);
                 u32 num_coordinates = TextureCoordinates(texture_type);
-                auto process_mode = instr.texs.GetTextureProcessMode();
+                const auto process_mode = instr.texs.GetTextureProcessMode();
                 std::string lod_value;
+                std::string coord;
                 u32 lod_offset = 0;
                 if (process_mode == Tegra::Shader::TextureProcessMode::LL) {
                     if (num_coordinates > 2) {
@@ -2684,8 +2699,7 @@ private:
 
                 switch (num_coordinates) {
                 case 1: {
-                    const std::string x = regs.GetRegisterAsFloat(instr.gpr8);
-                    coord = "float coords = " + x + ';';
+                    coord = "float coords = " + regs.GetRegisterAsFloat(instr.gpr8) + ';';
                     break;
                 }
                 case 2: {
@@ -2698,18 +2712,22 @@ private:
                         if (lod_offset != 0) {
                             if (depth_compare) {
                                 const std::string x = regs.GetRegisterAsFloat(instr.gpr8);
-                                const std::string y = regs.GetRegisterAsFloat(instr.gpr8.Value() + 1);
-                                const std::string z = regs.GetRegisterAsFloat(instr.gpr20.Value() + lod_offset);
+                                const std::string y =
+                                    regs.GetRegisterAsFloat(instr.gpr8.Value() + 1);
+                                const std::string z =
+                                    regs.GetRegisterAsFloat(instr.gpr20.Value() + lod_offset);
                                 coord = "vec3 coords = vec3(" + x + ", " + y + ", " + z + ");";
                             } else {
                                 const std::string x = regs.GetRegisterAsFloat(instr.gpr8);
-                                const std::string y = regs.GetRegisterAsFloat(instr.gpr8.Value() + 1);
+                                const std::string y =
+                                    regs.GetRegisterAsFloat(instr.gpr8.Value() + 1);
                                 coord = "vec2 coords = vec2(" + x + ", " + y + ");";
                             }
                         } else {
                             if (depth_compare) {
                                 const std::string x = regs.GetRegisterAsFloat(instr.gpr8);
-                                const std::string y = regs.GetRegisterAsFloat(instr.gpr8.Value() + 1);
+                                const std::string y =
+                                    regs.GetRegisterAsFloat(instr.gpr8.Value() + 1);
                                 const std::string z = regs.GetRegisterAsFloat(instr.gpr20);
                                 coord = "vec3 coords = vec3(" + x + ", " + y + ", " + z + ");";
                             } else {
@@ -2749,7 +2767,8 @@ private:
                 }
                 case Tegra::Shader::TextureProcessMode::LZ: {
                     if (depth_compare && is_array) {
-                        // Since we got an OpenGL limitation, we set bias very high to enforce mipmap 0
+                        // Since we got an OpenGL limitation, we set bias very high to enforce
+                        // mipmap 0
                         texture = "texture(" + sampler + ", coords, 1000.0)";
                     } else {
                         texture = "textureLod(" + sampler + ", coords, 0.0)";
@@ -2767,9 +2786,9 @@ private:
                 }
                 }
                 if (!depth_compare) {
-                    WriteTexsInstruction(instr, texture);
+                    WriteTexsInstruction(instr, coord, texture);
                 } else {
-                    WriteTexsInstruction(instr, "vec4(" + texture + ')');
+                    WriteTexsInstruction(instr, coord, "vec4(" + texture + ')');
                 }
 
                 shader.AddLine('}');
@@ -2795,11 +2814,12 @@ private:
                 // Scope to avoid variable name overlaps.
                 shader.AddLine('{');
                 ++shader.scope;
+                std::string coords;
 
                 switch (texture_type) {
                 case Tegra::Shader::TextureType::Texture1D: {
                     const std::string x = regs.GetRegisterAsInteger(instr.gpr8);
-                    shader.AddLine("int coords = " + x + ';');
+                    coords = "float coords = " + x + ';';
                     break;
                 }
                 case Tegra::Shader::TextureType::Texture2D: {
@@ -2807,7 +2827,8 @@ private:
 
                     const std::string x = regs.GetRegisterAsInteger(instr.gpr8);
                     const std::string y = regs.GetRegisterAsInteger(instr.gpr20);
-                    shader.AddLine("ivec2 coords = ivec2(" + x + ", " + y + ");");
+                    //shader.AddLine("ivec2 coords = ivec2(" + x + ", " + y + ");");
+                    coords = "ivec2 coords = ivec2(" + x + ", " + y + ");";
                     extra_op_offset = 1;
                     break;
                 }
@@ -2835,7 +2856,7 @@ private:
                                       static_cast<u32>(instr.tlds.GetTextureProcessMode()));
                 }
                 }
-                WriteTexsInstruction(instr, texture);
+                WriteTexsInstruction(instr, coords, texture);
 
                 --shader.scope;
                 shader.AddLine('}');
@@ -2894,14 +2915,17 @@ private:
 
                 const std::string texture = "textureGather(" + sampler + ", coords, " +
                                             std::to_string(instr.tld4.component) + ')';
+
                 if (!depth_compare) {
+                    shader.AddLine("vec4 texture_tmp = " + texture + ';');
                     std::size_t dest_elem{};
                     for (std::size_t elem = 0; elem < 4; ++elem) {
                         if (!instr.tex.IsComponentEnabled(elem)) {
                             // Skip disabled components
                             continue;
                         }
-                        regs.SetRegisterToFloat(instr.gpr0, elem, texture, 1, 4, false, dest_elem);
+                        regs.SetRegisterToFloat(instr.gpr0, elem, "texture_tmp", 1, 4, false,
+                                                dest_elem);
                         ++dest_elem;
                     }
                 } else {
@@ -2922,6 +2946,7 @@ private:
                 // Scope to avoid variable name overlaps.
                 shader.AddLine('{');
                 ++shader.scope;
+                std::string coords;
 
                 const bool depth_compare =
                     instr.tld4s.UsesMiscMode(Tegra::Shader::TextureMiscMode::DC);
@@ -2931,20 +2956,19 @@ private:
                 const std::string sampler = GetSampler(
                     instr.sampler, Tegra::Shader::TextureType::Texture2D, false, depth_compare);
                 if (!depth_compare) {
-                    shader.AddLine("vec2 coords = vec2(" + op_a + ", " + op_b + ");");
+                    coords = "vec2 coords = vec2(" + op_a + ", " + op_b + ");";
                 } else {
                     // Note: TLD4S coordinate encoding works just like TEXS's
-                    shader.AddLine(
-                        "float op_y = " + regs.GetRegisterAsFloat(instr.gpr8.Value() + 1) + ';');
-                    shader.AddLine("vec3 coords = vec3(" + op_a + ", op_y, " + op_b + ");");
+                    const std::string op_y = regs.GetRegisterAsFloat(instr.gpr8.Value() + 1);
+                    coords = "vec3 coords = vec3(" + op_a + ", " + op_y + ", " + op_b + ");";
                 }
                 const std::string texture = "textureGather(" + sampler + ", coords, " +
                                             std::to_string(instr.tld4s.component) + ')';
 
                 if (!depth_compare) {
-                    WriteTexsInstruction(instr, texture);
+                    WriteTexsInstruction(instr, coords, texture);
                 } else {
-                    WriteTexsInstruction(instr, "vec4(" + texture + ')');
+                    WriteTexsInstruction(instr, coords, "vec4(" + texture + ')');
                 }
 
                 --shader.scope;
