@@ -6,8 +6,6 @@
 #include <cinttypes>
 #include <cstring>
 #include <stack>
-#include "applets/applets.h"
-#include "applets/software_keyboard.h"
 #include "audio_core/audio_renderer.h"
 #include "core/core.h"
 #include "core/hle/ipc_helpers.h"
@@ -18,6 +16,9 @@
 #include "core/hle/service/am/am.h"
 #include "core/hle/service/am/applet_ae.h"
 #include "core/hle/service/am/applet_oe.h"
+#include "core/hle/service/am/applets/applets.h"
+#include "core/hle/service/am/applets/profile_select.h"
+#include "core/hle/service/am/applets/software_keyboard.h"
 #include "core/hle/service/am/idle.h"
 #include "core/hle/service/am/omm.h"
 #include "core/hle/service/am/spsm.h"
@@ -36,6 +37,7 @@ constexpr ResultCode ERR_NO_DATA_IN_CHANNEL{ErrorModule::AM, 0x2};
 constexpr ResultCode ERR_SIZE_OUT_OF_BOUNDS{ErrorModule::AM, 0x1F7};
 
 enum class AppletId : u32 {
+    ProfileSelect = 0x10,
     SoftwareKeyboard = 0x11,
 };
 
@@ -757,6 +759,8 @@ ILibraryAppletCreator::~ILibraryAppletCreator() = default;
 
 static std::shared_ptr<Applets::Applet> GetAppletFromId(AppletId id) {
     switch (id) {
+    case AppletId::ProfileSelect:
+        return std::make_shared<Applets::ProfileSelect>();
     case AppletId::SoftwareKeyboard:
         return std::make_shared<Applets::SoftwareKeyboard>();
     default:
