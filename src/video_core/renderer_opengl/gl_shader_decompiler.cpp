@@ -2886,7 +2886,7 @@ private:
 
                     const std::string x = regs.GetRegisterAsInteger(instr.gpr8);
                     const std::string y = regs.GetRegisterAsInteger(instr.gpr20);
-                    //shader.AddLine("ivec2 coords = ivec2(" + x + ", " + y + ");");
+                    // shader.AddLine("ivec2 coords = ivec2(" + x + ", " + y + ");");
                     coords = "ivec2 coords = ivec2(" + x + ", " + y + ");";
                     extra_op_offset = 1;
                     break;
