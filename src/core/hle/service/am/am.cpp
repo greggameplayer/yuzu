@@ -562,7 +562,6 @@ public:
 private:
     void GetAppletStateChangedEvent(Kernel::HLERequestContext& ctx) {
         const auto event = applet->GetBroker().GetStateChangedEvent();
-        event->Signal();
 
         IPC::ResponseBuilder rb{ctx, 2, 1};
         rb.Push(RESULT_SUCCESS);
