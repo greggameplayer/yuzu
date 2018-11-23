@@ -139,6 +139,8 @@ struct System::Impl {
             virtual_filesystem = std::make_shared<FileSys::RealVfsFilesystem>();
 
         /// Create default implementations of applets if one is not provided.
+        if (profile_selector == nullptr)
+            profile_selector = std::make_unique<Core::Frontend::DefaultProfileSelectApplet>();
         if (software_keyboard == nullptr)
             software_keyboard = std::make_unique<Core::Frontend::DefaultSoftwareKeyboardApplet>();
 
@@ -296,6 +298,7 @@ struct System::Impl {
     std::size_t active_core{}; ///< Active core, only used in single thread mode
 
     /// Frontend applets
+    std::unique_ptr<Core::Frontend::ProfileSelectApplet> profile_selector;
     std::unique_ptr<Core::Frontend::SoftwareKeyboardApplet> software_keyboard;
 
     /// Service manager
@@ -495,6 +498,14 @@ void System::SetFilesystem(std::shared_ptr<FileSys::VfsFilesystem> vfs) {
 
 std::shared_ptr<FileSys::VfsFilesystem> System::GetFilesystem() const {
     return impl->virtual_filesystem;
+}
+
+void System::SetProfileSelector(std::unique_ptr<Core::Frontend::ProfileSelectApplet> applet) {
+    impl->profile_selector = std::move(applet);
+}
+
+const Core::Frontend::ProfileSelectApplet& System::GetProfileSelector() const {
+    return *impl->profile_selector;
 }
 
 void System::SetSoftwareKeyboard(std::unique_ptr<Core::Frontend::SoftwareKeyboardApplet> applet) {
