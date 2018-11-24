@@ -1340,6 +1340,8 @@ private:
 
             ++written_components;
         }
+        --shader.scope;
+        shader.AddLine('}');
     }
 
     static u32 TextureCoordinates(Tegra::Shader::TextureType texture_type) {
@@ -2664,7 +2666,7 @@ private:
                 // Add an extra scope and declare the texture coords inside to prevent
                 // overwriting them in case they are used as outputs of the texs instruction.
 
-                shader.AddLine("{");
+                shader.AddLine('{');
                 ++shader.scope;
                 shader.AddLine(coord);
                 std::string texture;
@@ -2736,7 +2738,7 @@ private:
                     regs.SetRegisterToFloat(instr.gpr0, 0, texture, 1, 1, false);
                 }
                 --shader.scope;
-                shader.AddLine("}");
+                shader.AddLine('}');
                 break;
             }
             case OpCode::Id::TEXS: {
@@ -2763,10 +2765,6 @@ private:
                     }
                 }
 
-                // Scope to avoid variable name overlaps.
-                shader.AddLine('{');
-                ++shader.scope;
-
                 switch (num_coordinates) {
                 case 1: {
                     coord = "float coords = " + regs.GetRegisterAsFloat(instr.gpr8) + ';';
@@ -2777,7 +2775,7 @@ private:
                         const std::string index = regs.GetRegisterAsInteger(instr.gpr8);
                         const std::string x = regs.GetRegisterAsFloat(instr.gpr8.Value() + 1);
                         const std::string y = regs.GetRegisterAsFloat(instr.gpr20);
-                        shader.AddLine("vec3 coords = vec3(" + x + ", " + y + ", " + index + ");");
+                        coord = "vec3 coords = vec3(" + x + ", " + y + ", " + index + ");";
                     } else {
                         if (lod_offset != 0) {
                             if (depth_compare) {
@@ -2823,7 +2821,7 @@ private:
                     // Fallback to interpreting as a 2D texture for now
                     const std::string x = regs.GetRegisterAsFloat(instr.gpr8);
                     const std::string y = regs.GetRegisterAsFloat(instr.gpr20);
-                    shader.AddLine("vec2 coords = vec2(" + x + ", " + y + ");");
+                    coord = "vec2 coords = vec2(" + x + ", " + y + ");";
                     texture_type = Tegra::Shader::TextureType::Texture2D;
                     is_array = false;
                 }
@@ -2861,8 +2859,6 @@ private:
                     WriteTexsInstruction(instr, coord, "vec4(" + texture + ')');
                 }
 
-                shader.AddLine('}');
-                --shader.scope;
                 break;
             }
             case OpCode::Id::TLDS: {
