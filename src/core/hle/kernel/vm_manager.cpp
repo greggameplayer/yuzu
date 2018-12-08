@@ -164,8 +164,10 @@ ResultVal<VAddr> VMManager::FindFreeRegion(u64 size) const {
     return MakeResult<VAddr>(target);
 }
 
-constexpr bool FallsInAddress(u64 addr_start, u64 addr_end, u64 start_range) {
-    return (addr_start >= start_range && addr_end >= start_range);
+constexpr bool AreOverlapping(VAddr addr_start, VAddr addr_end, VAddr region_start,
+                              VAddr region_end) {
+    return std::max(addr_end, region_end) - std::min(addr_start, region_start) <
+           (addr_end - addr_start) + (region_end - region_start);
 }
 
 ResultCode VMManager::MapPhysicalMemory(VAddr addr, u64 size) {
@@ -173,6 +175,10 @@ ResultCode VMManager::MapPhysicalMemory(VAddr addr, u64 size) {
     const auto end = GetMapRegionEndAddress();
 
     if (!IsInsideMapRegion(addr, size)) {
+        LOG_ERROR(
+            Kernel,
+            "Address and size does not fall inside the map region, addr=0x{:016X}, size=0x{:016X}",
+            addr, size);
         return ERR_INVALID_ADDRESS;
     }
 
@@ -208,11 +214,12 @@ ResultCode VMManager::MapPhysicalMemory(VAddr addr, u64 size) {
         }
 
         // We're not processing addresses yet, lets keep skipping
-        if (!IsInsideAddressRange(addr, size, vma_start, vma_end)) {
+        if (!AreOverlapping(addr, addr + size, vma_start, vma_end)) {
             continue;
         }
 
-        const auto offset_in_vma = vma_start + (addr - vma_start);
+        // If we fall within the vma, get the offset of where we begin in the said vma
+        const auto offset_in_vma = vma_start + ((addr + size - remaining_to_map) - vma_start);
         const auto remaining_vma_size = (vma_end - offset_in_vma);
         // Our vma is already mapped
         if (is_mapped) {
@@ -235,6 +242,13 @@ ResultCode VMManager::MapPhysicalMemory(VAddr addr, u64 size) {
                 if (last_result.IsSuccess()) {
                     personal_heap_usage += remaining_to_map;
                     mapped_regions.push_back(std::make_pair(offset_in_vma, remaining_to_map));
+                } else {
+                    LOG_ERROR(Kernel,
+                              "Failed to map entire VMA with error 0x{:X}, addr=0x{:016X}, "
+                              "size=0x{:016X}, vma_start={:016X}, vma_end={:016X}, "
+                              "offset_in_vma={:016X}, remaining_to_map={:016X}",
+                              last_result.raw, addr, size, vma_start, vma_end, offset_in_vma,
+                              remaining_to_map);
                 }
                 break;
             } else {
@@ -250,6 +264,13 @@ ResultCode VMManager::MapPhysicalMemory(VAddr addr, u64 size) {
                     personal_heap_usage += remaining_vma_size;
                     remaining_to_map -= remaining_vma_size;
                     mapped_regions.push_back(std::make_pair(offset_in_vma, remaining_vma_size));
+                } else {
+                    LOG_ERROR(Kernel,
+                              "Failed to map partial VMA with error 0x{:X}, addr=0x{:016X}, "
+                              "size=0x{:016X}, vma_start={:016X}, vma_end={:016X}, "
+                              "offset_in_vma={:016X}, remaining_to_map={:016X}",
+                              last_result.raw, addr, size, vma_start, vma_end, offset_in_vma,
+                              remaining_to_map);
                 }
                 continue;
             }
@@ -278,24 +299,18 @@ ResultCode VMManager::UnmapPhysicalMemory(VAddr addr, u64 size) {
 
     // We have nothing mapped, we can just map directly
     if (personal_heap_usage == 0) {
+        LOG_WARNING(Kernel, "Unmap physical memory called when our personal usage is empty");
         return RESULT_SUCCESS;
     }
 
     auto vma = FindVMA(base);
     u64 remaining_to_unmap = size;
-    auto last_result = RESULT_SUCCESS;
     // Needed just in case we fail to map a region, we'll unmap everything.
     std::vector<std::pair<u64, u64>> unmapped_regions;
     while (vma != vma_map.end() && vma->second.base <= end && remaining_to_unmap > 0) {
         const auto vma_start = vma->second.base;
         const auto vma_end = vma_start + vma->second.size;
         const auto is_unmapped = vma->second.meminfo_state != MemoryState::Mapped;
-        // Something failed, lets bail out
-        if (last_result.IsError()) {
-            break;
-        }
-        last_result = RESULT_SUCCESS;
-
         // Allows us to use continue without worrying about incrementing the vma
         SCOPE_EXIT({ vma++; });
 
@@ -305,11 +320,11 @@ ResultCode VMManager::UnmapPhysicalMemory(VAddr addr, u64 size) {
         }
 
         // We're not processing addresses yet, lets keep skipping
-        if (!IsInsideAddressRange(addr, size, vma_start, vma_end)) {
+        if (!AreOverlapping(addr, addr + size, vma_start, vma_end)) {
             continue;
         }
 
-        const auto offset_in_vma = vma_start + (addr - vma_start);
+        const auto offset_in_vma = vma_start + ((addr + size - remaining_to_unmap) - vma_start);
         const auto remaining_vma_size = (vma_end - offset_in_vma);
         // Our vma is already unmapped
         if (is_unmapped) {
@@ -325,34 +340,36 @@ ResultCode VMManager::UnmapPhysicalMemory(VAddr addr, u64 size) {
             // We're mapped, so lets unmap
             if (remaining_vma_size >= remaining_to_unmap) {
                 // The rest of what we need to unmap fits in this region
-                last_result = UnmapRange(offset_in_vma, remaining_to_unmap);
-                if (last_result.IsSuccess()) {
-                    personal_heap_usage -= remaining_to_unmap;
-                    unmapped_regions.push_back(std::make_pair(offset_in_vma, remaining_to_unmap));
-                }
+                unmapped_regions.push_back(std::make_pair(offset_in_vma, remaining_to_unmap));
                 break;
             } else {
                 // We only partially fit here, lets unmap what we can
-                last_result = UnmapRange(offset_in_vma, remaining_vma_size);
-
                 // Update our usage and continue to the next vma
-                if (last_result.IsSuccess()) {
-                    personal_heap_usage -= remaining_vma_size;
-                    remaining_to_unmap -= remaining_vma_size;
-                    unmapped_regions.push_back(std::make_pair(offset_in_vma, remaining_vma_size));
-                }
+                remaining_to_unmap -= remaining_vma_size;
+                unmapped_regions.push_back(std::make_pair(offset_in_vma, remaining_vma_size));
                 continue;
             }
         }
     }
-
-    // We failed to unmap something, lets remap everything back
-    if (last_result.IsError() && !unmapped_regions.empty()) {
-        for (const auto [mapped_addr, mapped_size] : unmapped_regions) {
-            if (MapMemoryBlock(mapped_addr, std::make_shared<std::vector<u8>>(mapped_size, 0), 0,
-                               mapped_size, MemoryState::Mapped)
-                    .Succeeded()) {
-                personal_heap_usage += mapped_size;
+    auto last_result = RESULT_SUCCESS;
+    if (!unmapped_regions.empty()) {
+        for (auto it = unmapped_regions.begin(); it != unmapped_regions.end(); ++it) {
+            last_result = UnmapRange((*it).first, (*it).second);
+            if (last_result.IsSuccess()) {
+                personal_heap_usage -= (*it).second;
+            } else {
+                LOG_ERROR(Kernel,
+                          "Failed to unmap region addr=0x{:016X}, size=0x{:016X} with error=0x{:X}",
+                          (*it).first, (*it).second, last_result.raw);
+                while (it != unmapped_regions.begin()) {
+                    if (MapMemoryBlock((*it).first,
+                                       std::make_shared<std::vector<u8>>((*it).second, 0), 0,
+                                       (*it).second, MemoryState::Mapped)
+                            .Succeeded()) {
+                        personal_heap_usage += (*it).second;
+                    }
+                    --it;
+                }
             }
         }
     }

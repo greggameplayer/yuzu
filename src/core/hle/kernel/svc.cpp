@@ -38,31 +38,6 @@
 
 namespace Kernel {
 namespace {
-
-// Checks if address + size is greater than the given address
-// This can return false if the size causes an overflow of a 64-bit type
-// or if the given size is zero.
-constexpr bool IsValidAddressRange(VAddr address, u64 size) {
-    return address + size > address;
-}
-
-// Checks if a given address range lies within a larger address range.
-constexpr bool IsInsideAddressRange(VAddr address, u64 size, VAddr address_range_begin,
-                                    VAddr address_range_end) {
-    const VAddr end_address = address + size - 1;
-    return address_range_begin <= address && end_address <= address_range_end - 1;
-}
-
-bool IsInsideAddressSpace(const VMManager& vm, VAddr address, u64 size) {
-    return IsInsideAddressRange(address, size, vm.GetAddressSpaceBaseAddress(),
-                                vm.GetAddressSpaceEndAddress());
-}
-
-bool IsInsideNewMapRegion(const VMManager& vm, VAddr address, u64 size) {
-    return IsInsideAddressRange(address, size, vm.GetNewMapRegionBaseAddress(),
-                                vm.GetNewMapRegionEndAddress());
-}
-
 // 8 GiB
 constexpr u64 MAIN_MEMORY_SIZE = 0x200000000;
 
@@ -104,16 +79,16 @@ ResultCode MapUnmapMemorySanityChecks(const VMManager& vm_manager, VAddr dst_add
         return ERR_INVALID_ADDRESS_STATE;
     }
 
-    if (!IsInsideAddressSpace(vm_manager, src_addr, size)) {
+    if (!vm_manager.IsInsideAddressSpace(src_addr, size)) {
         LOG_ERROR(Kernel_SVC,
-                  "Source is not within the address space, addr=0x{:016X}, size=0x{:016X}",
+                  "Source is not inside the address space, addr=0x{:016X}, size=0x{:016X}",
                   src_addr, size);
         return ERR_INVALID_ADDRESS_STATE;
     }
 
-    if (!IsInsideNewMapRegion(vm_manager, dst_addr, size)) {
+    if (!vm_manager.IsInsideNewMapRegion(dst_addr, size)) {
         LOG_ERROR(Kernel_SVC,
-                  "Destination is not within the new map region, addr=0x{:016X}, size=0x{:016X}",
+                  "Destination is not inside the new map region, addr=0x{:016X}, size=0x{:016X}",
                   dst_addr, size);
         return ERR_INVALID_MEMORY_RANGE;
     }
@@ -139,6 +114,7 @@ ResultCode MapUnmapMemorySanityChecks(const VMManager& vm_manager, VAddr dst_add
 
     return RESULT_SUCCESS;
 }
+} // namespace
 
 enum class ResourceLimitValueType {
     CurrentValue,
@@ -171,7 +147,6 @@ ResultVal<s64> RetrieveResourceLimitValue(Handle resource_limit, u32 resource_ty
 
     return MakeResult(resource_limit_object->GetMaxResourceValue(type));
 }
-} // Anonymous namespace
 
 /// Set the process heap to a given Size. It can both extend and shrink the heap.
 static ResultCode SetHeapSize(VAddr* heap_addr, u64 heap_size) {
@@ -231,7 +206,7 @@ static ResultCode SetMemoryPermission(VAddr addr, u64 size, u32 prot) {
     auto* const current_process = Core::CurrentProcess();
     auto& vm_manager = current_process->VMManager();
 
-    if (!IsInsideAddressSpace(vm_manager, addr, size)) {
+    if (!vm_manager.IsInsideAddressSpace(addr, size)) {
         LOG_ERROR(Kernel_SVC,
                   "Source is not within the address space, addr=0x{:016X}, size=0x{:016X}", addr,
                   size);
@@ -245,8 +220,8 @@ static ResultCode SetMemoryPermission(VAddr addr, u64 size, u32 prot) {
     }
 
     LOG_WARNING(Kernel_SVC, "Uniformity check on protected memory is not implemented.");
-    // TODO: Performs a uniformity check to make sure only protected memory is changed (it doesn't
-    // make sense to allow changing permissions on kernel memory itself, etc).
+    // TODO: Performs a uniformity check to make sure only protected memory is changed (it
+    // doesn't make sense to allow changing permissions on kernel memory itself, etc).
 
     const auto converted_permissions = SharedMemory::ConvertPermissions(permission);
 
@@ -620,10 +595,10 @@ static void Break(u32 reason, u64 info1, u64 info2) {
     }
 
     if (!break_reason.signal_debugger) {
-        LOG_CRITICAL(
-            Debug_Emulated,
-            "Emulated program broke execution! reason=0x{:016X}, info1=0x{:016X}, info2=0x{:016X}",
-            reason, info1, info2);
+        LOG_CRITICAL(Debug_Emulated,
+                     "Emulated program broke execution! reason=0x{:016X}, info1=0x{:016X}, "
+                     "info2=0x{:016X}",
+                     reason, info1, info2);
         handle_debug_buffer(info1, info2);
         ASSERT(false);
 
@@ -828,7 +803,28 @@ static ResultCode GetInfo(u64* result, u64 info_id, u64 handle, u64 info_sub_id)
 
         *result = Core::CurrentProcess()->GetRandomEntropy(info_sub_id);
         return RESULT_SUCCESS;
-
+        break;
+    case GetInfoType::ASLRRegionBaseAddr:
+        *result = vm_manager.GetASLRRegionBaseAddress();
+        break;
+    case GetInfoType::ASLRRegionSize:
+        *result = vm_manager.GetASLRRegionSize();
+        break;
+    case GetInfoType::NewMapRegionBaseAddr:
+        *result = vm_manager.GetNewMapRegionBaseAddress();
+        break;
+    case GetInfoType::NewMapRegionSize:
+        *result = vm_manager.GetNewMapRegionSize();
+        break;
+    case GetInfoType::SystemResourceSize:
+        *result = current_process->GetSystemResourceSize();
+        break;
+    case GetInfoType::PersonalMmHeapUsage:
+        *result = vm_manager.GetPersonalMmHeapUsage();
+        break;
+    case GetInfoType::TitleId:
+        *result = current_process->GetTitleID();
+        break;
     case GetInfoType::PrivilegedProcessId:
         LOG_WARNING(Kernel_SVC,
                     "(STUBBED) Attempted to query privileged process id bounds, returned 0");
@@ -943,10 +939,10 @@ static ResultCode SetThreadPriority(Handle handle, u32 priority) {
     LOG_TRACE(Kernel_SVC, "called");
 
     if (priority > THREADPRIO_LOWEST) {
-        LOG_ERROR(
-            Kernel_SVC,
-            "An invalid priority was specified, expected {} but got {} for thread_handle={:08X}",
-            THREADPRIO_LOWEST, priority, handle);
+        LOG_ERROR(Kernel_SVC,
+                  "An invalid priority was specified, expected {} but got {} for "
+                  "thread_handle={:08X}",
+                  THREADPRIO_LOWEST, priority, handle);
         return ERR_INVALID_THREAD_PRIORITY;
     }
 
@@ -1232,10 +1228,10 @@ static void SleepThread(s64 nanoseconds) {
 /// Wait process wide key atomic
 static ResultCode WaitProcessWideKeyAtomic(VAddr mutex_addr, VAddr condition_variable_addr,
                                            Handle thread_handle, s64 nano_seconds) {
-    LOG_TRACE(
-        Kernel_SVC,
-        "called mutex_addr={:X}, condition_variable_addr={:X}, thread_handle=0x{:08X}, timeout={}",
-        mutex_addr, condition_variable_addr, thread_handle, nano_seconds);
+    LOG_TRACE(Kernel_SVC,
+              "called mutex_addr={:X}, condition_variable_addr={:X}, thread_handle=0x{:08X}, "
+              "timeout={}",
+              mutex_addr, condition_variable_addr, thread_handle, nano_seconds);
 
     const auto& handle_table = Core::CurrentProcess()->GetHandleTable();
     SharedPtr<Thread> thread = handle_table.Get<Thread>(thread_handle);
@@ -1550,7 +1546,8 @@ static ResultCode SetThreadCoreMask(Handle thread_handle, u32 core, u64 mask) {
         return ERR_INVALID_COMBINATION;
     }
 
-    /// This value is used to only change the affinity mask without changing the current ideal core.
+    /// This value is used to only change the affinity mask without changing the current ideal
+    /// core.
     static constexpr u32 OnlyChangeMask = static_cast<u32>(-3);
 
     if (core == OnlyChangeMask) {
@@ -1836,15 +1833,101 @@ static ResultCode SetResourceLimitLimitValue(Handle resource_limit, u32 resource
 
     const auto set_result = resource_limit_object->SetLimitValue(type, static_cast<s64>(value));
     if (set_result.IsError()) {
-        LOG_ERROR(
-            Kernel_SVC,
-            "Attempted to lower resource limit ({}) for category '{}' below its current value ({})",
-            resource_limit_object->GetMaxResourceValue(type), resource_type,
-            resource_limit_object->GetCurrentResourceValue(type));
+        LOG_ERROR(Kernel_SVC,
+                  "Attempted to lower resource limit ({}) for category '{}' below its current "
+                  "value ({})",
+                  resource_limit_object->GetMaxResourceValue(type), resource_type,
+                  resource_limit_object->GetCurrentResourceValue(type));
         return set_result;
     }
-
     return RESULT_SUCCESS;
+}
+
+static ResultCode MapPhysicalMemory(VAddr addr, u64 size) {
+    LOG_DEBUG(Kernel_SVC, "called, addr=0x{:08X}, size=0x{:X}", addr, size);
+
+    if (!Common::Is4KBAligned(addr)) {
+        LOG_ERROR(Kernel_SVC, "Address is not aligned to 4KB, 0x{:016X}", addr);
+        return ERR_INVALID_ADDRESS;
+    }
+
+    if (size == 0) {
+        LOG_ERROR(Kernel_SVC, "Size is 0");
+        return ERR_INVALID_SIZE;
+    }
+
+    if (!Common::Is4KBAligned(size)) {
+        LOG_ERROR(Kernel_SVC, "Size is not aligned to 4KB, 0x{:016X}", size);
+        return ERR_INVALID_SIZE;
+    }
+
+    if (!IsValidAddressRange(addr, size)) {
+        LOG_ERROR(Kernel_SVC,
+                  "Address is not a valid address range, addr=0x{:016X}, size=0x{:016X}", addr,
+                  size);
+        return ERR_INVALID_ADDRESS_STATE;
+    }
+
+    auto* const current_process = Core::CurrentProcess();
+    auto& vm_manager = current_process->VMManager();
+
+    if (current_process->GetSystemResourceSize() == 0) {
+        LOG_ERROR(Kernel_SVC, "The system resource size is 0");
+        return ERR_INVALID_STATE;
+    }
+
+    if (!vm_manager.IsInsideMapRegion(addr, size)) {
+        LOG_ERROR(Kernel_SVC,
+                  "Destination does not fit within the map region, addr=0x{:016X}, "
+                  "size=0x{:016X}",
+                  addr, size);
+        return ERR_INVALID_MEMORY_RANGE;
+    }
+
+    return vm_manager.MapPhysicalMemory(addr, size);
+}
+
+static ResultCode UnmapPhysicalMemory(VAddr addr, u64 size) {
+    LOG_DEBUG(Kernel_SVC, "called, addr=0x{:08X}, size=0x{:X}", addr, size);
+    if (!Common::Is4KBAligned(addr)) {
+        LOG_ERROR(Kernel_SVC, "Address is not aligned to 4KB, 0x{:016X}", addr);
+        return ERR_INVALID_ADDRESS;
+    }
+
+    if (size == 0) {
+        LOG_ERROR(Kernel_SVC, "Size is 0");
+        return ERR_INVALID_SIZE;
+    }
+
+    if (!Common::Is4KBAligned(size)) {
+        LOG_ERROR(Kernel_SVC, "Size is not aligned to 4KB, 0x{:016X}", size);
+        return ERR_INVALID_SIZE;
+    }
+
+    if (!IsValidAddressRange(addr, size)) {
+        LOG_ERROR(Kernel_SVC,
+                  "Address is not a valid address range, addr=0x{:016X}, size=0x{:016X}", addr,
+                  size);
+        return ERR_INVALID_ADDRESS_STATE;
+    }
+
+    auto* const current_process = Core::CurrentProcess();
+    auto& vm_manager = current_process->VMManager();
+
+    if (current_process->GetSystemResourceSize() == 0) {
+        LOG_ERROR(Kernel_SVC, "The system resource size is 0");
+        return ERR_INVALID_STATE;
+    }
+
+    if (!vm_manager.IsInsideMapRegion(addr, size)) {
+        LOG_ERROR(Kernel_SVC,
+                  "Destination does not fit within the map region, addr=0x{:016X}, "
+                  "size=0x{:016X}",
+                  addr, size);
+        return ERR_INVALID_MEMORY_RANGE;
+    }
+
+    return vm_manager.UnmapPhysicalMemory(addr, size);
 }
 
 namespace {
