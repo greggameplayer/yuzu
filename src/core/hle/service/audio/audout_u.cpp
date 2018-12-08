@@ -13,8 +13,10 @@
 #include "common/swap.h"
 #include "core/core.h"
 #include "core/hle/ipc_helpers.h"
-#include "core/hle/kernel/event.h"
 #include "core/hle/kernel/hle_ipc.h"
+#include "core/hle/kernel/kernel.h"
+#include "core/hle/kernel/readable_event.h"
+#include "core/hle/kernel/writable_event.h"
 #include "core/hle/service/audio/audout_u.h"
 #include "core/memory.h"
 
@@ -46,8 +48,8 @@ class IAudioOut final : public ServiceFramework<IAudioOut> {
 public:
     IAudioOut(AudoutParams audio_params, AudioCore::AudioOut& audio_core, std::string&& device_name,
               std::string&& unique_name)
-        : ServiceFramework("IAudioOut"), audio_core(audio_core), audio_params(audio_params),
-          device_name(std::move(device_name)) {
+        : ServiceFramework("IAudioOut"), audio_core(audio_core),
+          device_name(std::move(device_name)), audio_params(audio_params) {
 
         static const FunctionInfo functions[] = {
             {0, &IAudioOut::GetAudioOutState, "GetAudioOutState"},
@@ -67,11 +69,12 @@ public:
 
         // This is the event handle used to check if the audio buffer was released
         auto& kernel = Core::System::GetInstance().Kernel();
-        buffer_event =
-            Kernel::Event::Create(kernel, Kernel::ResetType::Sticky, "IAudioOutBufferReleased");
+        buffer_event = Kernel::WritableEvent::CreateEventPair(kernel, Kernel::ResetType::Sticky,
+                                                              "IAudioOutBufferReleased");
 
         stream = audio_core.OpenStream(audio_params.sample_rate, audio_params.channel_count,
-                                       std::move(unique_name), [=]() { buffer_event->Signal(); });
+                                       std::move(unique_name),
+                                       [=]() { buffer_event.writable->Signal(); });
     }
 
 private:
@@ -86,6 +89,7 @@ private:
 
     void GetAudioOutState(Kernel::HLERequestContext& ctx) {
         LOG_DEBUG(Service_Audio, "called");
+
         IPC::ResponseBuilder rb{ctx, 3};
         rb.Push(RESULT_SUCCESS);
         rb.Push(static_cast<u32>(stream->IsPlaying() ? AudioState::Started : AudioState::Stopped));
@@ -120,7 +124,7 @@ private:
 
         IPC::ResponseBuilder rb{ctx, 2, 1};
         rb.Push(RESULT_SUCCESS);
-        rb.PushCopyObjects(buffer_event);
+        rb.PushCopyObjects(buffer_event.readable);
     }
 
     void AppendAudioOutBufferImpl(Kernel::HLERequestContext& ctx) {
@@ -148,6 +152,7 @@ private:
 
     void GetReleasedAudioOutBufferImpl(Kernel::HLERequestContext& ctx) {
         LOG_DEBUG(Service_Audio, "called {}", ctx.Description());
+
         IPC::RequestParser rp{ctx};
         const u64 max_count{ctx.GetWriteBufferSize() / sizeof(u64)};
         const auto released_buffers{audio_core.GetTagsAndReleaseBuffers(stream, max_count)};
@@ -163,6 +168,7 @@ private:
 
     void ContainsAudioOutBuffer(Kernel::HLERequestContext& ctx) {
         LOG_DEBUG(Service_Audio, "called");
+
         IPC::RequestParser rp{ctx};
         const u64 tag{rp.Pop<u64>()};
         IPC::ResponseBuilder rb{ctx, 3};
@@ -172,6 +178,7 @@ private:
 
     void GetAudioOutBufferCount(Kernel::HLERequestContext& ctx) {
         LOG_DEBUG(Service_Audio, "called");
+
         IPC::ResponseBuilder rb{ctx, 3};
         rb.Push(RESULT_SUCCESS);
         rb.Push(static_cast<u32>(stream->GetQueueSize()));
@@ -183,12 +190,13 @@ private:
 
     AudoutParams audio_params{};
 
-    /// This is the evend handle used to check if the audio buffer was released
-    Kernel::SharedPtr<Kernel::Event> buffer_event;
+    /// This is the event handle used to check if the audio buffer was released
+    Kernel::EventPair buffer_event;
 };
 
 void AudOutU::ListAudioOutsImpl(Kernel::HLERequestContext& ctx) {
     LOG_DEBUG(Service_Audio, "called");
+
     IPC::RequestParser rp{ctx};
 
     ctx.WriteBuffer(DefaultDevice);

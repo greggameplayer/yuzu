@@ -15,6 +15,7 @@
 #include "core/memory.h"
 #include "core/settings.h"
 #include "video_core/engines/maxwell_3d.h"
+#include "video_core/morton.h"
 #include "video_core/renderer_opengl/gl_rasterizer.h"
 #include "video_core/renderer_opengl/gl_rasterizer_cache.h"
 #include "video_core/renderer_opengl/gl_state.h"
@@ -22,10 +23,11 @@
 #include "video_core/surface.h"
 #include "video_core/textures/astc.h"
 #include "video_core/textures/decoders.h"
-#include "video_core/utils.h"
 
 namespace OpenGL {
 
+using VideoCore::MortonSwizzle;
+using VideoCore::MortonSwizzleMode;
 using VideoCore::Surface::ComponentTypeFromDepthFormat;
 using VideoCore::Surface::ComponentTypeFromRenderTarget;
 using VideoCore::Surface::ComponentTypeFromTexture;
@@ -374,176 +376,7 @@ MathUtil::Rectangle<u32> SurfaceParams::GetRect(u32 mip_level) const {
     return {0, actual_height, MipWidth(mip_level), 0};
 }
 
-template <bool morton_to_gl, PixelFormat format>
-void MortonCopy(u32 stride, u32 width_spacing, u32 block_height, u32 height, u32 block_depth,
-                u32 depth, u8* gl_buffer, std::size_t gl_buffer_size, VAddr addr) {
-    constexpr u32 bytes_per_pixel = GetBytesPerPixel(format);
-
-    // With the BCn formats (DXT and DXN), each 4x4 tile is swizzled instead of just individual
-    // pixel values.
-    const u32 tile_size_x{GetDefaultBlockWidth(format)};
-    const u32 tile_size_y{GetDefaultBlockHeight(format)};
-
-    if (morton_to_gl) {
-        Tegra::Texture::UnswizzleTexture(gl_buffer, addr, tile_size_x, tile_size_y, bytes_per_pixel,
-                                         stride, height, depth, block_height, block_depth,
-                                         width_spacing);
-    } else {
-        Tegra::Texture::CopySwizzledData(
-            (stride + tile_size_x - 1) / tile_size_x, (height + tile_size_y - 1) / tile_size_y,
-            depth, bytes_per_pixel, bytes_per_pixel, Memory::GetPointer(addr), gl_buffer, false,
-            block_height, block_depth, width_spacing);
-    }
-}
-
-using GLConversionArray =
-    std::array<void (*)(u32, u32, u32, u32, u32, u32, u8*, std::size_t, VAddr),
-               VideoCore::Surface::MaxPixelFormat>;
-
-static constexpr GLConversionArray morton_to_gl_fns = {
-    // clang-format off
-        MortonCopy<true, PixelFormat::ABGR8U>,
-        MortonCopy<true, PixelFormat::ABGR8S>,
-        MortonCopy<true, PixelFormat::ABGR8UI>,
-        MortonCopy<true, PixelFormat::B5G6R5U>,
-        MortonCopy<true, PixelFormat::A2B10G10R10U>,
-        MortonCopy<true, PixelFormat::A1B5G5R5U>,
-        MortonCopy<true, PixelFormat::R8U>,
-        MortonCopy<true, PixelFormat::R8UI>,
-        MortonCopy<true, PixelFormat::RGBA16F>,
-        MortonCopy<true, PixelFormat::RGBA16U>,
-        MortonCopy<true, PixelFormat::RGBA16UI>,
-        MortonCopy<true, PixelFormat::R11FG11FB10F>,
-        MortonCopy<true, PixelFormat::RGBA32UI>,
-        MortonCopy<true, PixelFormat::DXT1>,
-        MortonCopy<true, PixelFormat::DXT23>,
-        MortonCopy<true, PixelFormat::DXT45>,
-        MortonCopy<true, PixelFormat::DXN1>,
-        MortonCopy<true, PixelFormat::DXN2UNORM>,
-        MortonCopy<true, PixelFormat::DXN2SNORM>,
-        MortonCopy<true, PixelFormat::BC7U>,
-        MortonCopy<true, PixelFormat::BC6H_UF16>,
-        MortonCopy<true, PixelFormat::BC6H_SF16>,
-        MortonCopy<true, PixelFormat::ASTC_2D_4X4>,
-        MortonCopy<true, PixelFormat::G8R8U>,
-        MortonCopy<true, PixelFormat::G8R8S>,
-        MortonCopy<true, PixelFormat::BGRA8>,
-        MortonCopy<true, PixelFormat::RGBA32F>,
-        MortonCopy<true, PixelFormat::RG32F>,
-        MortonCopy<true, PixelFormat::R32F>,
-        MortonCopy<true, PixelFormat::R16F>,
-        MortonCopy<true, PixelFormat::R16U>,
-        MortonCopy<true, PixelFormat::R16S>,
-        MortonCopy<true, PixelFormat::R16UI>,
-        MortonCopy<true, PixelFormat::R16I>,
-        MortonCopy<true, PixelFormat::RG16>,
-        MortonCopy<true, PixelFormat::RG16F>,
-        MortonCopy<true, PixelFormat::RG16UI>,
-        MortonCopy<true, PixelFormat::RG16I>,
-        MortonCopy<true, PixelFormat::RG16S>,
-        MortonCopy<true, PixelFormat::RGB32F>,
-        MortonCopy<true, PixelFormat::RGBA8_SRGB>,
-        MortonCopy<true, PixelFormat::RG8U>,
-        MortonCopy<true, PixelFormat::RG8S>,
-        MortonCopy<true, PixelFormat::RG32UI>,
-        MortonCopy<true, PixelFormat::R32UI>,
-        MortonCopy<true, PixelFormat::ASTC_2D_8X8>,
-        MortonCopy<true, PixelFormat::ASTC_2D_8X5>,
-        MortonCopy<true, PixelFormat::ASTC_2D_5X4>,
-        MortonCopy<true, PixelFormat::BGRA8_SRGB>,
-        MortonCopy<true, PixelFormat::DXT1_SRGB>,
-        MortonCopy<true, PixelFormat::DXT23_SRGB>,
-        MortonCopy<true, PixelFormat::DXT45_SRGB>,
-        MortonCopy<true, PixelFormat::BC7U_SRGB>,
-        MortonCopy<true, PixelFormat::ASTC_2D_4X4_SRGB>,
-        MortonCopy<true, PixelFormat::ASTC_2D_8X8_SRGB>,
-        MortonCopy<true, PixelFormat::ASTC_2D_8X5_SRGB>,
-        MortonCopy<true, PixelFormat::ASTC_2D_5X4_SRGB>,
-        MortonCopy<true, PixelFormat::ASTC_2D_5X5>,
-        MortonCopy<true, PixelFormat::ASTC_2D_5X5_SRGB>,
-        MortonCopy<true, PixelFormat::ASTC_2D_10X8>,
-        MortonCopy<true, PixelFormat::ASTC_2D_10X8_SRGB>,
-        MortonCopy<true, PixelFormat::Z32F>,
-        MortonCopy<true, PixelFormat::Z16>,
-        MortonCopy<true, PixelFormat::Z24S8>,
-        MortonCopy<true, PixelFormat::S8Z24>,
-        MortonCopy<true, PixelFormat::Z32FS8>,
-    // clang-format on
-};
-
-static constexpr GLConversionArray gl_to_morton_fns = {
-    // clang-format off
-        MortonCopy<false, PixelFormat::ABGR8U>,
-        MortonCopy<false, PixelFormat::ABGR8S>,
-        MortonCopy<false, PixelFormat::ABGR8UI>,
-        MortonCopy<false, PixelFormat::B5G6R5U>,
-        MortonCopy<false, PixelFormat::A2B10G10R10U>,
-        MortonCopy<false, PixelFormat::A1B5G5R5U>,
-        MortonCopy<false, PixelFormat::R8U>,
-        MortonCopy<false, PixelFormat::R8UI>,
-        MortonCopy<false, PixelFormat::RGBA16F>,
-        MortonCopy<false, PixelFormat::RGBA16U>,
-        MortonCopy<false, PixelFormat::RGBA16UI>,
-        MortonCopy<false, PixelFormat::R11FG11FB10F>,
-        MortonCopy<false, PixelFormat::RGBA32UI>,
-        MortonCopy<false, PixelFormat::DXT1>,
-        MortonCopy<false, PixelFormat::DXT23>,
-        MortonCopy<false, PixelFormat::DXT45>,
-        MortonCopy<false, PixelFormat::DXN1>,
-        MortonCopy<false, PixelFormat::DXN2UNORM>,
-        MortonCopy<false, PixelFormat::DXN2SNORM>,
-        MortonCopy<false, PixelFormat::BC7U>,
-        MortonCopy<false, PixelFormat::BC6H_UF16>,
-        MortonCopy<false, PixelFormat::BC6H_SF16>,
-        // TODO(Subv): Swizzling ASTC formats are not supported
-        nullptr,
-        MortonCopy<false, PixelFormat::G8R8U>,
-        MortonCopy<false, PixelFormat::G8R8S>,
-        MortonCopy<false, PixelFormat::BGRA8>,
-        MortonCopy<false, PixelFormat::RGBA32F>,
-        MortonCopy<false, PixelFormat::RG32F>,
-        MortonCopy<false, PixelFormat::R32F>,
-        MortonCopy<false, PixelFormat::R16F>,
-        MortonCopy<false, PixelFormat::R16U>,
-        MortonCopy<false, PixelFormat::R16S>,
-        MortonCopy<false, PixelFormat::R16UI>,
-        MortonCopy<false, PixelFormat::R16I>,
-        MortonCopy<false, PixelFormat::RG16>,
-        MortonCopy<false, PixelFormat::RG16F>,
-        MortonCopy<false, PixelFormat::RG16UI>,
-        MortonCopy<false, PixelFormat::RG16I>,
-        MortonCopy<false, PixelFormat::RG16S>,
-        MortonCopy<false, PixelFormat::RGB32F>,
-        MortonCopy<false, PixelFormat::RGBA8_SRGB>,
-        MortonCopy<false, PixelFormat::RG8U>,
-        MortonCopy<false, PixelFormat::RG8S>,
-        MortonCopy<false, PixelFormat::RG32UI>,
-        MortonCopy<false, PixelFormat::R32UI>,
-        nullptr,
-        nullptr,
-        nullptr,
-        MortonCopy<false, PixelFormat::BGRA8_SRGB>,
-        MortonCopy<false, PixelFormat::DXT1_SRGB>,
-        MortonCopy<false, PixelFormat::DXT23_SRGB>,
-        MortonCopy<false, PixelFormat::DXT45_SRGB>,
-        MortonCopy<false, PixelFormat::BC7U_SRGB>,
-        nullptr,
-        nullptr,
-        nullptr,
-        nullptr,
-        nullptr,
-        nullptr,
-        nullptr,
-        nullptr,
-        MortonCopy<false, PixelFormat::Z32F>,
-        MortonCopy<false, PixelFormat::Z16>,
-        MortonCopy<false, PixelFormat::Z24S8>,
-        MortonCopy<false, PixelFormat::S8Z24>,
-        MortonCopy<false, PixelFormat::Z32FS8>,
-    // clang-format on
-};
-
-void SwizzleFunc(const GLConversionArray& functions, const SurfaceParams& params,
+void SwizzleFunc(const MortonSwizzleMode& mode, const SurfaceParams& params,
                  std::vector<u8>& gl_buffer, u32 mip_level) {
     u32 depth = params.MipDepth(mip_level);
     if (params.target == SurfaceTarget::Texture2D) {
@@ -556,153 +389,20 @@ void SwizzleFunc(const GLConversionArray& functions, const SurfaceParams& params
         const u64 layer_size = params.LayerMemorySize();
         const u64 gl_size = params.LayerSizeGL(mip_level);
         for (u32 i = 0; i < params.depth; i++) {
-            functions[static_cast<std::size_t>(params.pixel_format)](
-                params.MipWidth(mip_level), params.tile_width_spacing,
-                params.MipBlockHeight(mip_level), params.MipHeight(mip_level),
-                params.MipBlockDepth(mip_level), 1, gl_buffer.data() + offset_gl, gl_size,
-                params.addr + offset);
+            MortonSwizzle(mode, params.pixel_format, params.MipWidth(mip_level),
+                          params.MipBlockHeight(mip_level), params.MipHeight(mip_level),
+                          params.MipBlockDepth(mip_level), params.tile_width_spacing, 1,
+                          gl_buffer.data() + offset_gl, gl_size, params.addr + offset);
             offset += layer_size;
             offset_gl += gl_size;
         }
     } else {
         const u64 offset = params.GetMipmapLevelOffset(mip_level);
-        functions[static_cast<std::size_t>(params.pixel_format)](
-            params.MipWidth(mip_level), params.tile_width_spacing, params.MipBlockHeight(mip_level),
-            params.MipHeight(mip_level), params.MipBlockDepth(mip_level), depth, gl_buffer.data(),
-            gl_buffer.size(), params.addr + offset);
+        MortonSwizzle(mode, params.pixel_format, params.MipWidth(mip_level),
+                      params.MipBlockHeight(mip_level), params.MipHeight(mip_level),
+                      params.MipBlockDepth(mip_level), depth, params.tile_width_spacing,
+                      gl_buffer.data(), gl_buffer.size(), params.addr + offset);
     }
-}
-
-MICROPROFILE_DEFINE(OpenGL_BlitSurface, "OpenGL", "BlitSurface", MP_RGB(128, 192, 64));
-static bool BlitSurface(const Surface& src_surface, const Surface& dst_surface,
-                        GLuint read_fb_handle, GLuint draw_fb_handle, GLenum src_attachment = 0,
-                        GLenum dst_attachment = 0, std::size_t cubemap_face = 0) {
-    MICROPROFILE_SCOPE(OpenGL_BlitSurface);
-
-    const auto& src_params{src_surface->GetSurfaceParams()};
-    const auto& dst_params{dst_surface->GetSurfaceParams()};
-
-    OpenGLState prev_state{OpenGLState::GetCurState()};
-    SCOPE_EXIT({ prev_state.Apply(); });
-
-    OpenGLState state;
-    state.draw.read_framebuffer = read_fb_handle;
-    state.draw.draw_framebuffer = draw_fb_handle;
-    // Set sRGB enabled if the destination surfaces need it
-    state.framebuffer_srgb.enabled = dst_params.srgb_conversion;
-    state.ApplyFramebufferState();
-
-    u32 buffers{};
-
-    if (src_params.type == SurfaceType::ColorTexture) {
-        switch (src_params.target) {
-        case SurfaceTarget::Texture2D:
-            glFramebufferTexture2D(GL_READ_FRAMEBUFFER, GL_COLOR_ATTACHMENT0 + src_attachment,
-                                   GL_TEXTURE_2D, src_surface->Texture().handle, 0);
-            glFramebufferTexture2D(GL_READ_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_TEXTURE_2D,
-                                   0, 0);
-            break;
-        case SurfaceTarget::TextureCubemap:
-            glFramebufferTexture2D(
-                GL_READ_FRAMEBUFFER, GL_COLOR_ATTACHMENT0 + src_attachment,
-                static_cast<GLenum>(GL_TEXTURE_CUBE_MAP_POSITIVE_X + cubemap_face),
-                src_surface->Texture().handle, 0);
-            glFramebufferTexture2D(
-                GL_READ_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT,
-                static_cast<GLenum>(GL_TEXTURE_CUBE_MAP_POSITIVE_X + cubemap_face), 0, 0);
-            break;
-        case SurfaceTarget::Texture2DArray:
-            glFramebufferTextureLayer(GL_READ_FRAMEBUFFER, GL_COLOR_ATTACHMENT0 + src_attachment,
-                                      src_surface->Texture().handle, 0, 0);
-            glFramebufferTextureLayer(GL_READ_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, 0, 0, 0);
-            break;
-        case SurfaceTarget::Texture3D:
-            glFramebufferTexture3D(GL_READ_FRAMEBUFFER, GL_COLOR_ATTACHMENT0 + src_attachment,
-                                   SurfaceTargetToGL(src_params.target),
-                                   src_surface->Texture().handle, 0, 0);
-            glFramebufferTexture3D(GL_READ_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT,
-                                   SurfaceTargetToGL(src_params.target), 0, 0, 0);
-            break;
-        default:
-            glFramebufferTexture2D(GL_READ_FRAMEBUFFER, GL_COLOR_ATTACHMENT0 + src_attachment,
-                                   GL_TEXTURE_2D, src_surface->Texture().handle, 0);
-            glFramebufferTexture2D(GL_READ_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_TEXTURE_2D,
-                                   0, 0);
-            break;
-        }
-
-        switch (dst_params.target) {
-        case SurfaceTarget::Texture2D:
-            glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER, GL_COLOR_ATTACHMENT0 + dst_attachment,
-                                   GL_TEXTURE_2D, dst_surface->Texture().handle, 0);
-            glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_TEXTURE_2D,
-                                   0, 0);
-            break;
-        case SurfaceTarget::TextureCubemap:
-            glFramebufferTexture2D(
-                GL_DRAW_FRAMEBUFFER, GL_COLOR_ATTACHMENT0 + dst_attachment,
-                static_cast<GLenum>(GL_TEXTURE_CUBE_MAP_POSITIVE_X + cubemap_face),
-                dst_surface->Texture().handle, 0);
-            glFramebufferTexture2D(
-                GL_DRAW_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT,
-                static_cast<GLenum>(GL_TEXTURE_CUBE_MAP_POSITIVE_X + cubemap_face), 0, 0);
-            break;
-        case SurfaceTarget::Texture2DArray:
-            glFramebufferTextureLayer(GL_DRAW_FRAMEBUFFER, GL_COLOR_ATTACHMENT0 + dst_attachment,
-                                      dst_surface->Texture().handle, 0, 0);
-            glFramebufferTextureLayer(GL_DRAW_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, 0, 0, 0);
-            break;
-
-        case SurfaceTarget::Texture3D:
-            glFramebufferTexture3D(GL_DRAW_FRAMEBUFFER, GL_COLOR_ATTACHMENT0 + dst_attachment,
-                                   SurfaceTargetToGL(dst_params.target),
-                                   dst_surface->Texture().handle, 0, 0);
-            glFramebufferTexture3D(GL_DRAW_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT,
-                                   SurfaceTargetToGL(dst_params.target), 0, 0, 0);
-            break;
-        default:
-            glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER, GL_COLOR_ATTACHMENT0 + dst_attachment,
-                                   GL_TEXTURE_2D, dst_surface->Texture().handle, 0);
-            glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_TEXTURE_2D,
-                                   0, 0);
-            break;
-        }
-
-        buffers = GL_COLOR_BUFFER_BIT;
-    } else if (src_params.type == SurfaceType::Depth) {
-        glFramebufferTexture2D(GL_READ_FRAMEBUFFER, GL_COLOR_ATTACHMENT0 + src_attachment,
-                               GL_TEXTURE_2D, 0, 0);
-        glFramebufferTexture2D(GL_READ_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D,
-                               src_surface->Texture().handle, 0);
-        glFramebufferTexture2D(GL_READ_FRAMEBUFFER, GL_STENCIL_ATTACHMENT, GL_TEXTURE_2D, 0, 0);
-
-        glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER, GL_COLOR_ATTACHMENT0 + dst_attachment,
-                               GL_TEXTURE_2D, 0, 0);
-        glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_TEXTURE_2D,
-                               dst_surface->Texture().handle, 0);
-        glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER, GL_STENCIL_ATTACHMENT, GL_TEXTURE_2D, 0, 0);
-
-        buffers = GL_DEPTH_BUFFER_BIT;
-    } else if (src_params.type == SurfaceType::DepthStencil) {
-        glFramebufferTexture2D(GL_READ_FRAMEBUFFER, GL_COLOR_ATTACHMENT0 + src_attachment,
-                               GL_TEXTURE_2D, 0, 0);
-        glFramebufferTexture2D(GL_READ_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_TEXTURE_2D,
-                               src_surface->Texture().handle, 0);
-
-        glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER, GL_COLOR_ATTACHMENT0 + dst_attachment,
-                               GL_TEXTURE_2D, 0, 0);
-        glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_TEXTURE_2D,
-                               dst_surface->Texture().handle, 0);
-
-        buffers = GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT;
-    }
-
-    const auto& rect{src_params.GetRect()};
-    glBlitFramebuffer(rect.left, rect.bottom, rect.right, rect.top, rect.left, rect.bottom,
-                      rect.right, rect.top, buffers,
-                      buffers == GL_COLOR_BUFFER_BIT ? GL_LINEAR : GL_NEAREST);
-
-    return true;
 }
 
 static void FastCopySurface(const Surface& src_surface, const Surface& dst_surface) {
@@ -1003,15 +703,16 @@ void CachedSurface::LoadGLBuffer() {
         ASSERT_MSG(params.block_width == 1, "Block width is defined as {} on texture type {}",
                    params.block_width, static_cast<u32>(params.target));
         for (u32 i = 0; i < params.max_mip_level; i++)
-            SwizzleFunc(morton_to_gl_fns, params, gl_buffer[i], i);
+            SwizzleFunc(MortonSwizzleMode::MortonToLinear, params, gl_buffer[i], i);
     } else {
         const auto texture_src_data{Memory::GetPointer(params.addr)};
         const auto texture_src_data_end{texture_src_data + params.size_in_bytes_gl};
         gl_buffer[0].assign(texture_src_data, texture_src_data_end);
     }
-    for (u32 i = 0; i < params.max_mip_level; i++)
+    for (u32 i = 0; i < params.max_mip_level; i++) {
         ConvertFormatAsNeeded_LoadGLBuffer(gl_buffer[i], params.pixel_format, params.MipWidth(i),
                                            params.MipHeight(i), params.MipDepth(i));
+    }
 }
 
 MICROPROFILE_DEFINE(OpenGL_SurfaceFlush, "OpenGL", "Surface Flush", MP_RGB(128, 192, 64));
@@ -1042,7 +743,7 @@ void CachedSurface::FlushGLBuffer() {
         ASSERT_MSG(params.block_width == 1, "Block width is defined as {} on texture type {}",
                    params.block_width, static_cast<u32>(params.target));
 
-        SwizzleFunc(gl_to_morton_fns, params, gl_buffer[0], 0);
+        SwizzleFunc(MortonSwizzleMode::LinearToMorton, params, gl_buffer[0], 0);
     } else {
         std::memcpy(Memory::GetPointer(GetAddr()), gl_buffer[0].data(), GetSizeInBytes());
     }
@@ -1331,7 +1032,10 @@ void RasterizerCacheOpenGL::AccurateCopySurface(const Surface& src_surface,
                                                 const Surface& dst_surface) {
     const auto& src_params{src_surface->GetSurfaceParams()};
     const auto& dst_params{dst_surface->GetSurfaceParams()};
-    FlushRegion(src_params.addr, dst_params.MemorySize());
+
+    // Flush enough memory for both the source and destination surface
+    FlushRegion(src_params.addr, std::max(src_params.MemorySize(), dst_params.MemorySize()));
+
     LoadSurface(dst_surface);
 }
 
@@ -1357,20 +1061,9 @@ Surface RasterizerCacheOpenGL::RecreateSurface(const Surface& old_surface,
         return new_surface;
     }
 
-    // If the format is the same, just do a framebuffer blit. This is significantly faster than
-    // using PBOs. The is also likely less accurate, as textures will be converted rather than
-    // reinterpreted. When use_accurate_gpu_emulation setting is enabled, perform a more accurate
-    // surface copy, where pixels are reinterpreted as a new format (without conversion). This
-    // code path uses OpenGL PBOs and is quite slow.
-    const bool is_blit{old_params.pixel_format == new_params.pixel_format};
-
     switch (new_params.target) {
     case SurfaceTarget::Texture2D:
-        if (is_blit) {
-            BlitSurface(old_surface, new_surface, read_framebuffer.handle, draw_framebuffer.handle);
-        } else {
-            CopySurface(old_surface, new_surface, copy_pbo.handle);
-        }
+        CopySurface(old_surface, new_surface, copy_pbo.handle);
         break;
     case SurfaceTarget::Texture3D:
         AccurateCopySurface(old_surface, new_surface);

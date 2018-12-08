@@ -12,7 +12,9 @@
 #include "core/core.h"
 #include "core/core_timing.h"
 #include "core/frontend/input.h"
-#include "core/hle/kernel/event.h"
+#include "core/hle/kernel/kernel.h"
+#include "core/hle/kernel/readable_event.h"
+#include "core/hle/kernel/writable_event.h"
 #include "core/hle/service/hid/controllers/npad.h"
 #include "core/settings.h"
 
@@ -167,8 +169,8 @@ void Controller_NPad::InitNewlyAddedControler(std::size_t controller_idx) {
 
 void Controller_NPad::OnInit() {
     auto& kernel = Core::System::GetInstance().Kernel();
-    styleset_changed_event =
-        Kernel::Event::Create(kernel, Kernel::ResetType::OneShot, "npad:NpadStyleSetChanged");
+    styleset_changed_event = Kernel::WritableEvent::CreateEventPair(
+        kernel, Kernel::ResetType::OneShot, "npad:NpadStyleSetChanged");
 
     if (!IsControllerActivated()) {
         return;
@@ -494,7 +496,7 @@ void Controller_NPad::SetSupportedNPadIdTypes(u8* data, std::size_t length) {
             had_controller_update = true;
         }
         if (had_controller_update) {
-            styleset_changed_event->Signal();
+            styleset_changed_event.writable->Signal();
         }
     }
 }
@@ -509,7 +511,7 @@ std::size_t Controller_NPad::GetSupportedNPadIdTypesSize() const {
 }
 
 void Controller_NPad::SetHoldType(NpadHoldType joy_hold_type) {
-    styleset_changed_event->Signal();
+    styleset_changed_event.writable->Signal();
     hold_type = joy_hold_type;
 }
 
@@ -518,12 +520,15 @@ Controller_NPad::NpadHoldType Controller_NPad::GetHoldType() const {
 }
 
 void Controller_NPad::SetNpadMode(u32 npad_id, NPadAssignments assignment_mode) {
-    ASSERT(npad_id < shared_memory_entries.size());
-    shared_memory_entries[npad_id].pad_assignment = assignment_mode;
+    const std::size_t npad_index = NPadIdToIndex(npad_id);
+    ASSERT(npad_index < shared_memory_entries.size());
+    shared_memory_entries[npad_index].pad_assignment = assignment_mode;
 }
 
 void Controller_NPad::VibrateController(const std::vector<u32>& controller_ids,
                                         const std::vector<Vibration>& vibrations) {
+    LOG_WARNING(Service_HID, "(STUBBED) called");
+
     if (!can_controllers_vibrate) {
         return;
     }
@@ -533,15 +538,14 @@ void Controller_NPad::VibrateController(const std::vector<u32>& controller_ids,
             // TODO(ogniK): Vibrate the physical controller
         }
     }
-    LOG_WARNING(Service_HID, "(STUBBED) called");
     last_processed_vibration = vibrations.back();
 }
 
-Kernel::SharedPtr<Kernel::Event> Controller_NPad::GetStyleSetChangedEvent() const {
+Kernel::SharedPtr<Kernel::ReadableEvent> Controller_NPad::GetStyleSetChangedEvent() const {
     // TODO(ogniK): Figure out the best time to signal this event. This event seems that it should
     // be signalled at least once, and signaled after a new controller is connected?
-    styleset_changed_event->Signal();
-    return styleset_changed_event;
+    styleset_changed_event.writable->Signal();
+    return styleset_changed_event.readable;
 }
 
 Controller_NPad::Vibration Controller_NPad::GetLastVibration() const {
@@ -575,8 +579,8 @@ void Controller_NPad::AddNewControllerAt(NPadControllerType controller, u32 npad
         return;
     }
 
-    connected_controllers[npad_id] = {controller, true};
-    InitNewlyAddedControler(npad_id);
+    connected_controllers[NPadIdToIndex(npad_id)] = {controller, true};
+    InitNewlyAddedControler(NPadIdToIndex(npad_id));
 }
 
 void Controller_NPad::ConnectNPad(u32 npad_id) {

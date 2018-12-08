@@ -13,8 +13,10 @@
 #include "core/file_sys/patch_manager.h"
 #include "core/file_sys/registered_cache.h"
 #include "core/hle/ipc_helpers.h"
-#include "core/hle/kernel/event.h"
+#include "core/hle/kernel/kernel.h"
 #include "core/hle/kernel/process.h"
+#include "core/hle/kernel/readable_event.h"
+#include "core/hle/kernel/writable_event.h"
 #include "core/hle/service/aoc/aoc_u.h"
 #include "core/hle/service/filesystem/filesystem.h"
 #include "core/loader/loader.h"
@@ -32,14 +34,14 @@ static std::vector<u64> AccumulateAOCTitleIDs() {
     std::vector<u64> add_on_content;
     const auto rcu = FileSystem::GetUnionContents();
     const auto list =
-        rcu->ListEntriesFilter(FileSys::TitleType::AOC, FileSys::ContentRecordType::Data);
+        rcu.ListEntriesFilter(FileSys::TitleType::AOC, FileSys::ContentRecordType::Data);
     std::transform(list.begin(), list.end(), std::back_inserter(add_on_content),
                    [](const FileSys::RegisteredCacheEntry& rce) { return rce.title_id; });
     add_on_content.erase(
         std::remove_if(
             add_on_content.begin(), add_on_content.end(),
             [&rcu](u64 tid) {
-                return rcu->GetEntry(tid, FileSys::ContentRecordType::Data)->GetStatus() !=
+                return rcu.GetEntry(tid, FileSys::ContentRecordType::Data)->GetStatus() !=
                        Loader::ResultStatus::Success;
             }),
         add_on_content.end());
@@ -61,13 +63,15 @@ AOC_U::AOC_U() : ServiceFramework("aoc:u"), add_on_content(AccumulateAOCTitleIDs
     RegisterHandlers(functions);
 
     auto& kernel = Core::System::GetInstance().Kernel();
-    aoc_change_event = Kernel::Event::Create(kernel, Kernel::ResetType::Sticky,
-                                             "GetAddOnContentListChanged:Event");
+    aoc_change_event = Kernel::WritableEvent::CreateEventPair(kernel, Kernel::ResetType::Sticky,
+                                                              "GetAddOnContentListChanged:Event");
 }
 
 AOC_U::~AOC_U() = default;
 
 void AOC_U::CountAddOnContent(Kernel::HLERequestContext& ctx) {
+    LOG_DEBUG(Service_AOC, "called");
+
     IPC::ResponseBuilder rb{ctx, 3};
     rb.Push(RESULT_SUCCESS);
 
@@ -82,6 +86,7 @@ void AOC_U::ListAddOnContent(Kernel::HLERequestContext& ctx) {
 
     const auto offset = rp.PopRaw<u32>();
     auto count = rp.PopRaw<u32>();
+    LOG_DEBUG(Service_AOC, "called with offset={}, count={}", offset, count);
 
     const auto current = Core::System::GetInstance().CurrentProcess()->GetTitleID();
 
@@ -110,6 +115,8 @@ void AOC_U::ListAddOnContent(Kernel::HLERequestContext& ctx) {
 }
 
 void AOC_U::GetAddOnContentBaseId(Kernel::HLERequestContext& ctx) {
+    LOG_DEBUG(Service_AOC, "called");
+
     IPC::ResponseBuilder rb{ctx, 4};
     rb.Push(RESULT_SUCCESS);
     const auto title_id = Core::System::GetInstance().CurrentProcess()->GetTitleID();
@@ -128,7 +135,6 @@ void AOC_U::PrepareAddOnContent(Kernel::HLERequestContext& ctx) {
     IPC::RequestParser rp{ctx};
 
     const auto aoc_id = rp.PopRaw<u32>();
-
     LOG_WARNING(Service_AOC, "(STUBBED) called with aoc_id={:08X}", aoc_id);
 
     IPC::ResponseBuilder rb{ctx, 2};
@@ -140,7 +146,7 @@ void AOC_U::GetAddOnContentListChangedEvent(Kernel::HLERequestContext& ctx) {
 
     IPC::ResponseBuilder rb{ctx, 2, 1};
     rb.Push(RESULT_SUCCESS);
-    rb.PushCopyObjects(aoc_change_event);
+    rb.PushCopyObjects(aoc_change_event.readable);
 }
 
 void InstallInterfaces(SM::ServiceManager& service_manager) {

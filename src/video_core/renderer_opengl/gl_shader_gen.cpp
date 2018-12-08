@@ -27,8 +27,7 @@ layout (location = 0) out vec4 position;
 
 layout(std140) uniform vs_config {
     vec4 viewport_flip;
-    uvec4 instance_id;
-    uvec4 flip_stage;
+    uvec4 config_pack; // instance_id, flip_stage, y_direction, padding
     uvec4 alpha_test;
 };
 )";
@@ -66,7 +65,8 @@ void main() {
     out += R"(
 
     // Check if the flip stage is VertexB
-    if (flip_stage[0] == 1) {
+    // Config pack's second value is flip_stage
+    if (config_pack[1] == 1) {
         // Viewport can be flipped, which is unsupported by glViewport
         position.xy *= viewport_flip.xy;
     }
@@ -74,7 +74,7 @@ void main() {
 
     // TODO(bunnei): This is likely a hack, position.w should be interpolated as 1.0
     // For now, this is here to bring order in lieu of proper emulation
-    if (flip_stage[0] == 1) {
+    if (config_pack[1] == 1) {
         position.w = 1.0;
     }
 }
@@ -106,8 +106,7 @@ layout (location = 0) out vec4 position;
 
 layout (std140) uniform gs_config {
     vec4 viewport_flip;
-    uvec4 instance_id;
-    uvec4 flip_stage;
+    uvec4 config_pack; // instance_id, flip_stage, y_direction, padding
     uvec4 alpha_test;
 };
 
@@ -146,8 +145,7 @@ layout (location = 0) in vec4 position;
 
 layout (std140) uniform fs_config {
     vec4 viewport_flip;
-    uvec4 instance_id;
-    uvec4 flip_stage;
+    uvec4 config_pack; // instance_id, flip_stage, y_direction, padding
     uvec4 alpha_test;
 };
 

@@ -14,6 +14,10 @@ namespace FileSys {
 class NACP;
 }
 
+namespace Kernel {
+class Process;
+}
+
 namespace Loader {
 
 /// Loads an NRO file
@@ -29,7 +33,7 @@ public:
      */
     static FileType IdentifyType(const FileSys::VirtualFile& file);
 
-    FileType GetFileType() override {
+    FileType GetFileType() const override {
         return IdentifyType(file);
     }
 
@@ -41,10 +45,8 @@ public:
     ResultStatus ReadTitle(std::string& title) override;
     bool IsRomFSUpdatable() const override;
 
-    static bool LoadNro(const std::vector<u8>& data, const std::string& name, VAddr load_base);
-
 private:
-    bool LoadNro(const FileSys::VfsFile& file, VAddr load_base);
+    bool LoadNro(Kernel::Process& process, const FileSys::VfsFile& file, VAddr load_base);
 
     std::vector<u8> icon_data;
     std::unique_ptr<FileSys::NACP> nacp;

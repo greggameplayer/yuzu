@@ -20,6 +20,7 @@
 #include "core/file_sys/nca_metadata.h"
 #include "core/file_sys/patch_manager.h"
 #include "core/file_sys/savedata_factory.h"
+#include "core/file_sys/system_archive/system_archive.h"
 #include "core/file_sys/vfs.h"
 #include "core/hle/ipc_helpers.h"
 #include "core/hle/kernel/process.h"
@@ -62,11 +63,13 @@ private:
 
         // Error checking
         if (length < 0) {
+            LOG_ERROR(Service_FS, "Length is less than 0, length={}", length);
             IPC::ResponseBuilder rb{ctx, 2};
             rb.Push(FileSys::ERROR_INVALID_SIZE);
             return;
         }
         if (offset < 0) {
+            LOG_ERROR(Service_FS, "Offset is less than 0, offset={}", offset);
             IPC::ResponseBuilder rb{ctx, 2};
             rb.Push(FileSys::ERROR_INVALID_OFFSET);
             return;
@@ -107,11 +110,13 @@ private:
 
         // Error checking
         if (length < 0) {
+            LOG_ERROR(Service_FS, "Length is less than 0, length={}", length);
             IPC::ResponseBuilder rb{ctx, 2};
             rb.Push(FileSys::ERROR_INVALID_SIZE);
             return;
         }
         if (offset < 0) {
+            LOG_ERROR(Service_FS, "Offset is less than 0, offset={}", offset);
             IPC::ResponseBuilder rb{ctx, 2};
             rb.Push(FileSys::ERROR_INVALID_OFFSET);
             return;
@@ -138,11 +143,13 @@ private:
 
         // Error checking
         if (length < 0) {
+            LOG_ERROR(Service_FS, "Length is less than 0, length={}", length);
             IPC::ResponseBuilder rb{ctx, 2};
             rb.Push(FileSys::ERROR_INVALID_SIZE);
             return;
         }
         if (offset < 0) {
+            LOG_ERROR(Service_FS, "Offset is less than 0, offset={}", offset);
             IPC::ResponseBuilder rb{ctx, 2};
             rb.Push(FileSys::ERROR_INVALID_OFFSET);
             return;
@@ -180,8 +187,9 @@ private:
     void SetSize(Kernel::HLERequestContext& ctx) {
         IPC::RequestParser rp{ctx};
         const u64 size = rp.Pop<u64>();
-        backend->Resize(size);
         LOG_DEBUG(Service_FS, "called, size={}", size);
+
+        backend->Resize(size);
 
         IPC::ResponseBuilder rb{ctx, 2};
         rb.Push(RESULT_SUCCESS);
@@ -284,7 +292,7 @@ public:
             {10, &IFileSystem::Commit, "Commit"},
             {11, nullptr, "GetFreeSpaceSize"},
             {12, nullptr, "GetTotalSpaceSize"},
-            {13, nullptr, "CleanDirectoryRecursively"},
+            {13, &IFileSystem::CleanDirectoryRecursively, "CleanDirectoryRecursively"},
             {14, nullptr, "GetFileTimeStampRaw"},
             {15, nullptr, "QueryEntry"},
         };
@@ -352,6 +360,16 @@ public:
 
         IPC::ResponseBuilder rb{ctx, 2};
         rb.Push(backend.DeleteDirectoryRecursively(name));
+    }
+
+    void CleanDirectoryRecursively(Kernel::HLERequestContext& ctx) {
+        const auto file_buffer = ctx.ReadBuffer();
+        const std::string name = Common::StringFromBuffer(file_buffer);
+
+        LOG_DEBUG(Service_FS, "called. Directory: {}", name);
+
+        IPC::ResponseBuilder rb{ctx, 2};
+        rb.Push(backend.CleanDirectoryRecursively(name));
     }
 
     void RenameFile(Kernel::HLERequestContext& ctx) {
@@ -465,6 +483,8 @@ public:
     }
 
     void ReadSaveDataInfo(Kernel::HLERequestContext& ctx) {
+        LOG_DEBUG(Service_FS, "called");
+
         // Calculate how many entries we can fit in the output buffer
         const u64 count_entries = ctx.GetWriteBufferSize() / sizeof(SaveDataInfo);
 
@@ -703,6 +723,8 @@ void FSP_SRV::OpenFileSystemWithPatch(Kernel::HLERequestContext& ctx) {
 
     const auto type = rp.PopRaw<FileSystemType>();
     const auto title_id = rp.PopRaw<u64>();
+    LOG_WARNING(Service_FS, "(STUBBED) called with type={}, title_id={:016X}",
+                static_cast<u8>(type), title_id);
 
     IPC::ResponseBuilder rb{ctx, 2, 0, 0};
     rb.Push(ResultCode(-1));
@@ -738,6 +760,7 @@ void FSP_SRV::MountSaveData(Kernel::HLERequestContext& ctx) {
     auto space_id = rp.PopRaw<FileSys::SaveDataSpaceId>();
     auto unk = rp.Pop<u32>();
     LOG_INFO(Service_FS, "called with unknown={:08X}", unk);
+
     auto save_struct = rp.PopRaw<FileSys::SaveDataDescriptor>();
 
     auto dir = OpenSaveData(space_id, save_struct);
@@ -763,6 +786,7 @@ void FSP_SRV::OpenReadOnlySaveDataFileSystem(Kernel::HLERequestContext& ctx) {
 void FSP_SRV::OpenSaveDataInfoReaderBySaveDataSpaceId(Kernel::HLERequestContext& ctx) {
     IPC::RequestParser rp{ctx};
     const auto space = rp.PopRaw<FileSys::SaveDataSpaceId>();
+    LOG_INFO(Service_FS, "called, space={}", static_cast<u8>(space));
 
     IPC::ResponseBuilder rb{ctx, 2, 0, 1};
     rb.Push(RESULT_SUCCESS);
@@ -808,6 +832,15 @@ void FSP_SRV::OpenDataStorageByDataId(Kernel::HLERequestContext& ctx) {
     auto data = OpenRomFS(title_id, storage_id, FileSys::ContentRecordType::Data);
 
     if (data.Failed()) {
+        const auto archive = FileSys::SystemArchive::SynthesizeSystemArchive(title_id);
+
+        if (archive != nullptr) {
+            IPC::ResponseBuilder rb{ctx, 2, 0, 1};
+            rb.Push(RESULT_SUCCESS);
+            rb.PushIpcInterface(std::make_shared<IStorage>(archive));
+            return;
+        }
+
         // TODO(DarkLordZach): Find the right error code to use here
         LOG_ERROR(Service_FS,
                   "could not open data storage with title_id={:016X}, storage_id={:02X}", title_id,

@@ -541,6 +541,8 @@ void GMainWindow::OnDisplayTitleBars(bool show) {
 QStringList GMainWindow::GetUnsupportedGLExtensions() {
     QStringList unsupported_ext;
 
+    if (!GLAD_GL_ARB_direct_state_access)
+        unsupported_ext.append("ARB_direct_state_access");
     if (!GLAD_GL_ARB_vertex_type_10f_11f_11f_rev)
         unsupported_ext.append("ARB_vertex_type_10f_11f_11f_rev");
     if (!GLAD_GL_ARB_texture_mirror_clamp_to_edge)
@@ -929,7 +931,7 @@ void GMainWindow::OnGameListDumpRomFS(u64 program_id, const std::string& game_pa
     }
 
     const auto installed = Service::FileSystem::GetUnionContents();
-    auto romfs_title_id = SelectRomFSDumpTarget(*installed, program_id);
+    const auto romfs_title_id = SelectRomFSDumpTarget(installed, program_id);
 
     if (!romfs_title_id) {
         failed();
@@ -944,7 +946,7 @@ void GMainWindow::OnGameListDumpRomFS(u64 program_id, const std::string& game_pa
     if (*romfs_title_id == program_id) {
         romfs = file;
     } else {
-        romfs = installed->GetEntry(*romfs_title_id, FileSys::ContentRecordType::Data)->GetRomFS();
+        romfs = installed.GetEntry(*romfs_title_id, FileSys::ContentRecordType::Data)->GetRomFS();
     }
 
     const auto extracted = FileSys::ExtractRomFS(romfs, FileSys::RomFSExtractionType::Full);
@@ -1129,14 +1131,14 @@ void GMainWindow::OnMenuInstallToNAND() {
             return;
         }
         const auto res =
-            Service::FileSystem::GetUserNANDContents()->InstallEntry(nsp, false, qt_raw_copy);
+            Service::FileSystem::GetUserNANDContents()->InstallEntry(*nsp, false, qt_raw_copy);
         if (res == FileSys::InstallResult::Success) {
             success();
         } else {
             if (res == FileSys::InstallResult::ErrorAlreadyExists) {
                 if (overwrite()) {
                     const auto res2 = Service::FileSystem::GetUserNANDContents()->InstallEntry(
-                        nsp, true, qt_raw_copy);
+                        *nsp, true, qt_raw_copy);
                     if (res2 == FileSys::InstallResult::Success) {
                         success();
                     } else {
@@ -1191,10 +1193,10 @@ void GMainWindow::OnMenuInstallToNAND() {
         FileSys::InstallResult res;
         if (index >= static_cast<size_t>(FileSys::TitleType::Application)) {
             res = Service::FileSystem::GetUserNANDContents()->InstallEntry(
-                nca, static_cast<FileSys::TitleType>(index), false, qt_raw_copy);
+                *nca, static_cast<FileSys::TitleType>(index), false, qt_raw_copy);
         } else {
             res = Service::FileSystem::GetSystemNANDContents()->InstallEntry(
-                nca, static_cast<FileSys::TitleType>(index), false, qt_raw_copy);
+                *nca, static_cast<FileSys::TitleType>(index), false, qt_raw_copy);
         }
 
         if (res == FileSys::InstallResult::Success) {
@@ -1202,7 +1204,7 @@ void GMainWindow::OnMenuInstallToNAND() {
         } else if (res == FileSys::InstallResult::ErrorAlreadyExists) {
             if (overwrite()) {
                 const auto res2 = Service::FileSystem::GetUserNANDContents()->InstallEntry(
-                    nca, static_cast<FileSys::TitleType>(index), true, qt_raw_copy);
+                    *nca, static_cast<FileSys::TitleType>(index), true, qt_raw_copy);
                 if (res2 == FileSys::InstallResult::Success) {
                     success();
                 } else {

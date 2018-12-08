@@ -246,7 +246,6 @@ std::vector<TicketRaw> GetTicketblob(const FileUtil::IOFile& ticket_save) {
     }
 
     std::vector<TicketRaw> out;
-    u32 magic{};
     for (std::size_t offset = 0; offset + 0x4 < buffer.size(); ++offset) {
         if (buffer[offset] == 0x4 && buffer[offset + 1] == 0x0 && buffer[offset + 2] == 0x1 &&
             buffer[offset + 3] == 0x0) {
@@ -794,7 +793,7 @@ void KeyManager::DeriveBase() {
 
 void KeyManager::DeriveETicket(PartitionDataManager& data) {
     // ETicket keys
-    const auto es = Service::FileSystem::GetUnionContents()->GetEntry(
+    const auto es = Service::FileSystem::GetUnionContents().GetEntry(
         0x0100000000000033, FileSys::ContentRecordType::Program);
 
     if (es == nullptr)

@@ -5,9 +5,12 @@
 #pragma once
 
 #include <memory>
-#include "core/hle/kernel/event.h"
 #include "core/hle/service/nvdrv/nvdrv.h"
 #include "core/hle/service/service.h"
+
+namespace Kernel {
+class WritableEvent;
+}
 
 namespace Service::Nvidia {
 
@@ -24,12 +27,14 @@ private:
     void QueryEvent(Kernel::HLERequestContext& ctx);
     void SetClientPID(Kernel::HLERequestContext& ctx);
     void FinishInitialize(Kernel::HLERequestContext& ctx);
+    void GetStatus(Kernel::HLERequestContext& ctx);
+    void DumpGraphicsMemoryInfo(Kernel::HLERequestContext& ctx);
 
     std::shared_ptr<Module> nvdrv;
 
     u64 pid{};
 
-    Kernel::SharedPtr<Kernel::Event> query_event;
+    Kernel::EventPair query_event;
 };
 
 } // namespace Service::Nvidia

@@ -116,6 +116,18 @@ ResultCode VfsDirectoryServiceWrapper::DeleteDirectoryRecursively(const std::str
     return RESULT_SUCCESS;
 }
 
+ResultCode VfsDirectoryServiceWrapper::CleanDirectoryRecursively(const std::string& path) const {
+    const std::string sanitized_path(FileUtil::SanitizePath(path));
+    auto dir = GetDirectoryRelativeWrapped(backing, FileUtil::GetParentPath(sanitized_path));
+
+    if (!dir->CleanSubdirectoryRecursive(FileUtil::GetFilename(sanitized_path))) {
+        // TODO(DarkLordZach): Find a better error code for this
+        return ResultCode(-1);
+    }
+
+    return RESULT_SUCCESS;
+}
+
 ResultCode VfsDirectoryServiceWrapper::RenameFile(const std::string& src_path_,
                                                   const std::string& dest_path_) const {
     std::string src_path(FileUtil::SanitizePath(src_path_));
@@ -332,20 +344,9 @@ ResultVal<FileSys::VirtualDir> OpenSDMC() {
     return sdmc_factory->Open();
 }
 
-std::shared_ptr<FileSys::RegisteredCacheUnion> registered_cache_union;
-
-std::shared_ptr<FileSys::RegisteredCacheUnion> GetUnionContents() {
-    if (registered_cache_union == nullptr) {
-        registered_cache_union =
-            std::make_shared<FileSys::RegisteredCacheUnion>(std::vector<FileSys::RegisteredCache*>{
-                GetSystemNANDContents(), GetUserNANDContents(), GetSDMCContents()});
-    }
-
-    return registered_cache_union;
-}
-
-void ClearUnionContents() {
-    registered_cache_union = nullptr;
+FileSys::RegisteredCacheUnion GetUnionContents() {
+    return FileSys::RegisteredCacheUnion{
+        {GetSystemNANDContents(), GetUserNANDContents(), GetSDMCContents()}};
 }
 
 FileSys::RegisteredCache* GetSystemNANDContents() {
@@ -398,7 +399,6 @@ void CreateFactories(FileSys::VfsFilesystem& vfs, bool overwrite) {
         bis_factory = nullptr;
         save_data_factory = nullptr;
         sdmc_factory = nullptr;
-        ClearUnionContents();
     }
 
     auto nand_directory = vfs.OpenDirectory(FileUtil::GetUserPath(FileUtil::UserPath::NANDDir),

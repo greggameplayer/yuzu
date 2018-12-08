@@ -97,6 +97,8 @@ public:
         rp.Skip(2, false);
         const VAddr nrr_addr{rp.Pop<VAddr>()};
         const u64 nrr_size{rp.Pop<u64>()};
+        LOG_DEBUG(Service_LDR, "called with nrr_addr={:016X}, nrr_size={:016X}", nrr_addr,
+                  nrr_size);
 
         if (!initialized) {
             LOG_ERROR(Service_LDR, "LDR:RO not initialized before use!");
@@ -189,6 +191,7 @@ public:
         IPC::RequestParser rp{ctx};
         rp.Skip(2, false);
         const auto nrr_addr{rp.Pop<VAddr>()};
+        LOG_DEBUG(Service_LDR, "called with nrr_addr={:016X}", nrr_addr);
 
         if (!Common::Is4KBAligned(nrr_addr)) {
             LOG_ERROR(Service_LDR, "NRR Address has invalid alignment (actual {:016X})!", nrr_addr);
@@ -219,6 +222,10 @@ public:
         const u64 nro_size{rp.Pop<u64>()};
         const VAddr bss_addr{rp.Pop<VAddr>()};
         const u64 bss_size{rp.Pop<u64>()};
+        LOG_DEBUG(
+            Service_LDR,
+            "called with nro_addr={:016X}, nro_size={:016X}, bss_addr={:016X}, bss_size={:016X}",
+            nro_addr, nro_size, bss_addr, bss_size);
 
         if (!initialized) {
             LOG_ERROR(Service_LDR, "LDR:RO not initialized before use!");
@@ -328,10 +335,7 @@ public:
         vm_manager.ReprotectRange(*map_address + header.rw_offset, header.rw_size,
                                   Kernel::VMAPermission::ReadWrite);
 
-        Core::System::GetInstance().ArmInterface(0).ClearInstructionCache();
-        Core::System::GetInstance().ArmInterface(1).ClearInstructionCache();
-        Core::System::GetInstance().ArmInterface(2).ClearInstructionCache();
-        Core::System::GetInstance().ArmInterface(3).ClearInstructionCache();
+        Core::System::GetInstance().InvalidateCpuInstructionCaches();
 
         nro.insert_or_assign(*map_address, NROInfo{hash, nro_size + bss_size});
 
@@ -345,6 +349,8 @@ public:
         rp.Skip(2, false);
         const VAddr mapped_addr{rp.PopRaw<VAddr>()};
         const VAddr heap_addr{rp.PopRaw<VAddr>()};
+        LOG_DEBUG(Service_LDR, "called with mapped_addr={:016X}, heap_addr={:016X}", mapped_addr,
+                  heap_addr);
 
         if (!initialized) {
             LOG_ERROR(Service_LDR, "LDR:RO not initialized before use!");
@@ -382,10 +388,7 @@ public:
                                      Kernel::MemoryState::ModuleCodeStatic) == RESULT_SUCCESS);
         ASSERT(process->UnmapMemory(mapped_addr, 0, nro_size) == RESULT_SUCCESS);
 
-        Core::System::GetInstance().ArmInterface(0).ClearInstructionCache();
-        Core::System::GetInstance().ArmInterface(1).ClearInstructionCache();
-        Core::System::GetInstance().ArmInterface(2).ClearInstructionCache();
-        Core::System::GetInstance().ArmInterface(3).ClearInstructionCache();
+        Core::System::GetInstance().InvalidateCpuInstructionCaches();
 
         nro.erase(iter);
         IPC::ResponseBuilder rb{ctx, 2};
@@ -393,24 +396,25 @@ public:
     }
 
     void Initialize(Kernel::HLERequestContext& ctx) {
+        LOG_WARNING(Service_LDR, "(STUBBED) called");
+
         initialized = true;
 
         IPC::ResponseBuilder rb{ctx, 2};
         rb.Push(RESULT_SUCCESS);
-        LOG_WARNING(Service_LDR, "(STUBBED) called");
     }
 
 private:
     using SHA256Hash = std::array<u8, 0x20>;
 
     struct NROHeader {
-        u32_le entrypoint_insn;
+        INSERT_PADDING_WORDS(1);
         u32_le mod_offset;
         INSERT_PADDING_WORDS(2);
         u32_le magic;
-        INSERT_PADDING_WORDS(1);
+        u32_le version;
         u32_le nro_size;
-        INSERT_PADDING_WORDS(1);
+        u32_le flags;
         u32_le text_offset;
         u32_le text_size;
         u32_le ro_offset;
@@ -426,9 +430,10 @@ private:
 
     struct NRRHeader {
         u32_le magic;
-        INSERT_PADDING_BYTES(0x1C);
+        INSERT_PADDING_BYTES(12);
         u64_le title_id_mask;
         u64_le title_id_pattern;
+        INSERT_PADDING_BYTES(16);
         std::array<u8, 0x100> modulus;
         std::array<u8, 0x100> signature_1;
         std::array<u8, 0x100> signature_2;

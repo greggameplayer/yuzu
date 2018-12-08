@@ -63,6 +63,10 @@ add_library(core STATIC
     file_sys/sdmc_factory.h
     file_sys/submission_package.cpp
     file_sys/submission_package.h
+    file_sys/system_archive/ng_word.cpp
+    file_sys/system_archive/ng_word.h
+    file_sys/system_archive/system_archive.cpp
+    file_sys/system_archive/system_archive.h
     file_sys/vfs.cpp
     file_sys/vfs.h
     file_sys/vfs_concat.cpp
@@ -99,8 +103,6 @@ add_library(core STATIC
     hle/kernel/client_session.cpp
     hle/kernel/client_session.h
     hle/kernel/errors.h
-    hle/kernel/event.cpp
-    hle/kernel/event.h
     hle/kernel/handle_table.cpp
     hle/kernel/handle_table.h
     hle/kernel/hle_ipc.cpp
@@ -113,6 +115,8 @@ add_library(core STATIC
     hle/kernel/object.h
     hle/kernel/process.cpp
     hle/kernel/process.h
+    hle/kernel/readable_event.cpp
+    hle/kernel/readable_event.h
     hle/kernel/resource_limit.cpp
     hle/kernel/resource_limit.h
     hle/kernel/scheduler.cpp
@@ -135,6 +139,8 @@ add_library(core STATIC
     hle/kernel/vm_manager.h
     hle/kernel/wait_object.cpp
     hle/kernel/wait_object.h
+    hle/kernel/writable_event.cpp
+    hle/kernel/writable_event.h
     hle/lock.cpp
     hle/lock.h
     hle/result.h

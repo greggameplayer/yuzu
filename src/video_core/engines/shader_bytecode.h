@@ -1057,6 +1057,7 @@ union Instruction {
         BitField<49, 1, u64> nodep_flag;
         BitField<50, 3, u64> component_mask_selector;
         BitField<53, 4, u64> texture_info;
+        BitField<60, 1, u64> fp32_flag;
 
         TextureType GetTextureType() const {
             // The TEXS instruction has a weird encoding for the texture type.
@@ -1277,6 +1278,7 @@ public:
         BFE_C,
         BFE_R,
         BFE_IMM,
+        BFI_IMM_R,
         BRA,
         PBK,
         LD_A,
@@ -1418,6 +1420,7 @@ public:
         ArithmeticHalf,
         ArithmeticHalfImmediate,
         Bfe,
+        Bfi,
         Shift,
         Ffma,
         Hfma2,
@@ -1555,7 +1558,7 @@ private:
             INST("1110111011011---", Id::STG, Type::Memory, "STG"),
             INST("110000----111---", Id::TEX, Type::Memory, "TEX"),
             INST("1101111101001---", Id::TXQ, Type::Memory, "TXQ"),
-            INST("1101100---------", Id::TEXS, Type::Memory, "TEXS"),
+            INST("1101-00---------", Id::TEXS, Type::Memory, "TEXS"),
             INST("1101101---------", Id::TLDS, Type::Memory, "TLDS"),
             INST("110010----111---", Id::TLD4, Type::Memory, "TLD4"),
             INST("1101111100------", Id::TLD4S, Type::Memory, "TLD4S"),
@@ -1636,6 +1639,7 @@ private:
             INST("0100110000000---", Id::BFE_C, Type::Bfe, "BFE_C"),
             INST("0101110000000---", Id::BFE_R, Type::Bfe, "BFE_R"),
             INST("0011100-00000---", Id::BFE_IMM, Type::Bfe, "BFE_IMM"),
+            INST("0011011-11110---", Id::BFI_IMM_R, Type::Bfi, "BFI_IMM_R"),
             INST("0100110001000---", Id::LOP_C, Type::ArithmeticInteger, "LOP_C"),
             INST("0101110001000---", Id::LOP_R, Type::ArithmeticInteger, "LOP_R"),
             INST("0011100001000---", Id::LOP_IMM, Type::ArithmeticInteger, "LOP_IMM"),

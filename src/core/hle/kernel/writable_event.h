@@ -11,49 +11,52 @@
 namespace Kernel {
 
 class KernelCore;
+class ReadableEvent;
+class WritableEvent;
 
-class Event final : public WaitObject {
+struct EventPair {
+    SharedPtr<ReadableEvent> readable;
+    SharedPtr<WritableEvent> writable;
+};
+
+class WritableEvent final : public Object {
 public:
+    ~WritableEvent() override;
+
     /**
      * Creates an event
      * @param kernel The kernel instance to create this event under.
      * @param reset_type ResetType describing how to create event
      * @param name Optional name of event
      */
-    static SharedPtr<Event> Create(KernelCore& kernel, ResetType reset_type,
-                                   std::string name = "Unknown");
+    static EventPair CreateEventPair(KernelCore& kernel, ResetType reset_type,
+                                     std::string name = "Unknown");
 
     std::string GetTypeName() const override {
-        return "Event";
+        return "WritableEvent";
     }
     std::string GetName() const override {
         return name;
     }
 
-    static const HandleType HANDLE_TYPE = HandleType::Event;
+    static const HandleType HANDLE_TYPE = HandleType::WritableEvent;
     HandleType GetHandleType() const override {
         return HANDLE_TYPE;
     }
 
-    ResetType GetResetType() const {
-        return reset_type;
-    }
+    SharedPtr<ReadableEvent> GetReadableEvent() const;
 
-    bool ShouldWait(Thread* thread) const override;
-    void Acquire(Thread* thread) override;
-
-    void WakeupAllWaitingThreads() override;
+    ResetType GetResetType() const;
 
     void Signal();
     void Clear();
+    bool IsSignaled() const;
 
 private:
-    explicit Event(KernelCore& kernel);
-    ~Event() override;
+    explicit WritableEvent(KernelCore& kernel);
 
-    ResetType reset_type; ///< Current ResetType
+    SharedPtr<ReadableEvent> readable;
 
-    bool signaled;    ///< Whether the event has already been signaled
     std::string name; ///< Name of event (optional)
 };
 

@@ -5,20 +5,12 @@
 #pragma once
 
 #include <array>
-#include <functional>
 #include <memory>
-#include <optional>
-#include <string>
-#include <unordered_map>
 
 #include <QKeyEvent>
 #include <QWidget>
 
-#include "common/param_package.h"
-#include "core/settings.h"
-#include "input_common/main.h"
 #include "ui_configure_input.h"
-#include "yuzu/configuration/config.h"
 
 class QPushButton;
 class QString;
@@ -33,15 +25,13 @@ class ConfigureInput : public QWidget {
 
 public:
     explicit ConfigureInput(QWidget* parent = nullptr);
+    ~ConfigureInput() override;
 
     /// Save all button configurations to settings file
     void applyConfiguration();
 
 private:
     void updateUIEnabled();
-
-    template <typename Dialog, typename... Args>
-    void CallConfigureDialog(Args&&... args);
 
     void OnDockedModeChanged(bool last_state, bool new_state);
 

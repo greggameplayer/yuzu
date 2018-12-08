@@ -13,16 +13,17 @@ Object::~Object() = default;
 
 bool Object::IsWaitable() const {
     switch (GetHandleType()) {
-    case HandleType::Event:
+    case HandleType::ReadableEvent:
     case HandleType::Thread:
+    case HandleType::Process:
     case HandleType::Timer:
     case HandleType::ServerPort:
     case HandleType::ServerSession:
         return true;
 
     case HandleType::Unknown:
+    case HandleType::WritableEvent:
     case HandleType::SharedMemory:
-    case HandleType::Process:
     case HandleType::AddressArbiter:
     case HandleType::ResourceLimit:
     case HandleType::ClientPort:
