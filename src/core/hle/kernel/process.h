@@ -171,8 +171,15 @@ public:
         return program_id;
     }
 
+    /// Gets the extra system resources we can allocate which is typically passed to
+    /// MapPhysicalMemory
     u32 GetSystemResourceSize() const {
         return system_resource_size;
+    }
+
+    /// Gets the resource limit descriptor for this process
+    ResourceLimit& GetResourceLimit() {
+        return *resource_limit;
     }
 
     /// Gets the resource limit descriptor for this process
@@ -298,6 +305,7 @@ private:
     /// Title ID corresponding to the process
     u64 program_id;
 
+    /// The extra system resources we can allocate which is typically passed to MapPhysicalMemory
     u32 system_resource_size = 0;
 
     /// Resource limit descriptor for this process

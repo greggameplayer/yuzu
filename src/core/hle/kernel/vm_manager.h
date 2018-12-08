@@ -180,7 +180,15 @@ public:
     ResultVal<VAddr> FindFreeRegion(u64 size) const;
 
     /**
-     * Maps memory to the PersonalMmHeap region at a given address.
+     * Maps memory to the PersonalMmHeap region at a given address. MapPhysicalMemory will not remap
+     * any regions. The goal of MapPhysicalMemory is to "fill" a regions empty space given an offset
+     * and a size. Any memory which is already mapped in the subsection we want to allocate is
+     * ignored and we only map the remaining data needed. Reminder that we're not remapping, just
+     * filling the space we want to fill. This is typically used with "PersonalMmHeap" which allows
+     * processes to have extra resources mapped. Typically this is seen with 5.0.0+ games and
+     * sysmodule specifically. The PersonalMmHeapSize is pulled from the NPDM and is passed to
+     * loader when the process is created which is in turn passed to the kernel when
+     * svcCreateProcess is called
      *
      * @param target The address of where you want to map
      * @param size The size of the memory you want to map
