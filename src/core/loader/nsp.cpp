@@ -151,4 +151,11 @@ ResultStatus AppLoader_NSP::ReadTitle(std::string& title) {
     title = nacp_file->GetApplicationName();
     return ResultStatus::Success;
 }
+
+ResultStatus AppLoader_NSP::ReadControlData(FileSys::NACP& nacp) {
+    if (nacp_file == nullptr)
+        return ResultStatus::ErrorNoControl;
+    nacp = *nacp_file;
+    return ResultStatus::Success;
+}
 } // namespace Loader

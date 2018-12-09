@@ -14,6 +14,10 @@
 #include "common/common_types.h"
 #include "core/file_sys/vfs.h"
 
+namespace FileSys {
+class NACP;
+} // namespace FileSys
+
 namespace Kernel {
 struct AddressMapping;
 class Process;
@@ -240,6 +244,15 @@ public:
      * @return ResultStatus result of function
      */
     virtual ResultStatus ReadTitle(std::string& title) {
+        return ResultStatus::ErrorNotImplemented;
+    }
+
+    /**
+     * Get the control data (CNMT) of the application
+     * @param control Reference to store the application control data into
+     * @return ResultStatus result of function
+     */
+    virtual ResultStatus ReadControlData(FileSys::NACP& control) {
         return ResultStatus::ErrorNotImplemented;
     }
 
