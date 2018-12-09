@@ -6,7 +6,6 @@
 #include <memory>
 #include <utility>
 #include <QColorDialog>
-#include <QGridLayout>
 #include <QMenu>
 #include <QMessageBox>
 #include <QTimer>

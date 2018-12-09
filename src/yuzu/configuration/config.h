@@ -34,7 +34,6 @@ private:
     void ReadKeyboardValues();
     void ReadMouseValues();
     void ReadTouchscreenValues();
-    void ApplyDefaultProfileIfInputInvalid();
 
     void SaveValues();
     void SavePlayerValues();

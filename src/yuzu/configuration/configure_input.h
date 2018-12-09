@@ -7,8 +7,8 @@
 #include <array>
 #include <memory>
 
-#include <QDialog>
 #include <QKeyEvent>
+#include <QWidget>
 
 #include "ui_configure_input.h"
 
@@ -20,9 +20,7 @@ namespace Ui {
 class ConfigureInput;
 }
 
-void OnDockedModeChanged(bool last_state, bool new_state);
-
-class ConfigureInput : public QDialog {
+class ConfigureInput : public QWidget {
     Q_OBJECT
 
 public:
@@ -34,6 +32,8 @@ public:
 
 private:
     void updateUIEnabled();
+
+    void OnDockedModeChanged(bool last_state, bool new_state);
 
     /// Load configuration settings.
     void loadConfiguration();
