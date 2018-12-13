@@ -672,7 +672,7 @@ static ResultCode GetInfo(u64* result, u64 info_id, u64 handle, u64 info_sub_id)
     case GetInfoType::NewMapRegionSize:
     case GetInfoType::TotalMemoryUsage:
     case GetInfoType::TotalHeapUsage:
-    case GetInfoType::IsVirtualAddressMemoryEnabled:
+    case GetInfoType::SystemResourceSize:
     case GetInfoType::PersonalMmHeapUsage:
     case GetInfoType::TitleId:
     case GetInfoType::UserExceptionContextAddr: {
@@ -735,8 +735,8 @@ static ResultCode GetInfo(u64* result, u64 info_id, u64 handle, u64 info_sub_id)
             *result = process->VMManager().GetTotalHeapUsage();
             return RESULT_SUCCESS;
 
-        case GetInfoType::IsVirtualAddressMemoryEnabled:
-            *result = process->IsVirtualMemoryEnabled();
+        case GetInfoType::SystemResourceSize:
+            *result = process->GetSystemResourceSize();
             return RESULT_SUCCESS;
 
         case GetInfoType::TitleId:
@@ -803,27 +803,6 @@ static ResultCode GetInfo(u64* result, u64 info_id, u64 handle, u64 info_sub_id)
 
         *result = Core::CurrentProcess()->GetRandomEntropy(info_sub_id);
         return RESULT_SUCCESS;
-        break;
-    case GetInfoType::ASLRRegionBaseAddr:
-        *result = vm_manager.GetASLRRegionBaseAddress();
-        break;
-    case GetInfoType::ASLRRegionSize:
-        *result = vm_manager.GetASLRRegionSize();
-        break;
-    case GetInfoType::NewMapRegionBaseAddr:
-        *result = vm_manager.GetNewMapRegionBaseAddress();
-        break;
-    case GetInfoType::NewMapRegionSize:
-        *result = vm_manager.GetNewMapRegionSize();
-        break;
-    case GetInfoType::SystemResourceSize:
-        *result = current_process->GetSystemResourceSize();
-        break;
-    case GetInfoType::PersonalMmHeapUsage:
-        *result = vm_manager.GetPersonalMmHeapUsage();
-        break;
-    case GetInfoType::TitleId:
-        *result = current_process->GetTitleID();
         break;
     case GetInfoType::PrivilegedProcessId:
         LOG_WARNING(Kernel_SVC,
@@ -1628,7 +1607,7 @@ static ResultCode CreateEvent(Handle* write_handle, Handle* read_handle) {
     LOG_DEBUG(Kernel_SVC, "called");
 
     auto& kernel = Core::System::GetInstance().Kernel();
-    const auto [readable_event, writable_event] =
+    auto [readable_event, writable_event] =
         WritableEvent::CreateEventPair(kernel, ResetType::Sticky, "CreateEvent");
 
     HandleTable& handle_table = kernel.CurrentProcess()->GetHandleTable();
