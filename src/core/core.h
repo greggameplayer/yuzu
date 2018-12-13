@@ -9,6 +9,7 @@
 #include <string>
 
 #include "common/common_types.h"
+#include "core/file_sys/vfs_types.h"
 #include "core/hle/kernel/object.h"
 #include "frontend/applets/profile_select.h"
 
@@ -55,6 +56,9 @@ class PerfStats;
 class TelemetrySession;
 
 struct PerfStatsResults;
+
+FileSys::VirtualFile GetGameFileFromPath(const FileSys::VirtualFilesystem& vfs,
+                                         const std::string& path);
 
 class System {
 public:

@@ -17,13 +17,13 @@ namespace Kernel {
 SharedMemory::SharedMemory(KernelCore& kernel) : Object{kernel} {}
 SharedMemory::~SharedMemory() = default;
 
-SharedPtr<SharedMemory> SharedMemory::Create(KernelCore& kernel, SharedPtr<Process> owner_process,
-                                             u64 size, MemoryPermission permissions,
+SharedPtr<SharedMemory> SharedMemory::Create(KernelCore& kernel, Process* owner_process, u64 size,
+                                             MemoryPermission permissions,
                                              MemoryPermission other_permissions, VAddr address,
                                              MemoryRegion region, std::string name) {
     SharedPtr<SharedMemory> shared_memory(new SharedMemory(kernel));
 
-    shared_memory->owner_process = std::move(owner_process);
+    shared_memory->owner_process = owner_process;
     shared_memory->name = std::move(name);
     shared_memory->size = size;
     shared_memory->permissions = permissions;
@@ -39,15 +39,15 @@ SharedPtr<SharedMemory> SharedMemory::Create(KernelCore& kernel, SharedPtr<Proce
                 shared_memory->backing_block.get());
         }
     } else {
-        auto& vm_manager = shared_memory->owner_process->VMManager();
+        const auto& vm_manager = shared_memory->owner_process->VMManager();
 
         // The memory is already available and mapped in the owner process.
-        auto vma = vm_manager.FindVMA(address);
-        ASSERT_MSG(vma != vm_manager.vma_map.end(), "Invalid memory address");
+        const auto vma = vm_manager.FindVMA(address);
+        ASSERT_MSG(vm_manager.IsValidHandle(vma), "Invalid memory address");
         ASSERT_MSG(vma->second.backing_block, "Backing block doesn't exist for address");
 
         // The returned VMA might be a bigger one encompassing the desired address.
-        auto vma_offset = address - vma->first;
+        const auto vma_offset = address - vma->first;
         ASSERT_MSG(vma_offset + size <= vma->second.size,
                    "Shared memory exceeds bounds of mapped block");
 

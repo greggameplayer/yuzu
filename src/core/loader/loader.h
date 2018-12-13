@@ -12,6 +12,7 @@
 #include <vector>
 
 #include "common/common_types.h"
+#include "core/file_sys/control_metadata.h"
 #include "core/file_sys/vfs.h"
 
 namespace FileSys {
@@ -248,11 +249,11 @@ public:
     }
 
     /**
-     * Get the control data (CNMT) of the application
-     * @param control Reference to store the application control data into
+     * Get the developer of the application
+     * @param developer Reference to store the application developer into
      * @return ResultStatus result of function
      */
-    virtual ResultStatus ReadControlData(FileSys::NACP& control) {
+    virtual ResultStatus ReadDeveloper(std::string& developer) {
         return ResultStatus::ErrorNotImplemented;
     }
 

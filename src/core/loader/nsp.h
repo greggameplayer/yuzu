@@ -43,7 +43,7 @@ public:
     ResultStatus ReadProgramId(u64& out_program_id) override;
     ResultStatus ReadIcon(std::vector<u8>& buffer) override;
     ResultStatus ReadTitle(std::string& title) override;
-    ResultStatus ReadControlData(FileSys::NACP& nacp) override;
+    ResultStatus ReadDeveloper(std::string& developer) override;
 
 private:
     std::unique_ptr<FileSys::NSP> nsp;

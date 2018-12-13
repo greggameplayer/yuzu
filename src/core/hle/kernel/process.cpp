@@ -67,6 +67,7 @@ ResultCode Process::ClearSignalState() {
 void Process::LoadFromMetadata(const FileSys::ProgramMetadata& metadata) {
     system_resource_size = metadata.GetSystemResourceSize();
     program_id = metadata.GetTitleID();
+    ideal_processor = metadata.GetMainThreadCore();
     is_64bit_process = metadata.Is64BitProgram();
     vm_manager.Reset(metadata.GetAddressSpaceType());
 }

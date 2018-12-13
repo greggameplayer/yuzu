@@ -214,7 +214,7 @@ static ResultCode SetMemoryPermission(VAddr addr, u64 size, u32 prot) {
     }
 
     const VMManager::VMAHandle iter = vm_manager.FindVMA(addr);
-    if (iter == vm_manager.vma_map.end()) {
+    if (!vm_manager.IsValidHandle(iter)) {
         LOG_ERROR(Kernel_SVC, "Unable to find VMA for address=0x{:016X}", addr);
         return ERR_INVALID_ADDRESS_STATE;
     }
@@ -1073,19 +1073,23 @@ static ResultCode QueryProcessMemory(MemoryInfo* memory_info, PageInfo* /*page_i
                   process_handle);
         return ERR_INVALID_HANDLE;
     }
-    auto vma = process->VMManager().FindVMA(addr);
+
+    const auto& vm_manager = process->VMManager();
+    const auto vma = vm_manager.FindVMA(addr);
+
     memory_info->attributes = 0;
-    if (vma == process->VMManager().vma_map.end()) {
-        memory_info->base_address = 0;
-        memory_info->permission = static_cast<u32>(VMAPermission::None);
-        memory_info->size = 0;
-        memory_info->type = static_cast<u32>(MemoryState::Unmapped);
-    } else {
+    if (vm_manager.IsValidHandle(vma)) {
         memory_info->base_address = vma->second.base;
         memory_info->permission = static_cast<u32>(vma->second.permissions);
         memory_info->size = vma->second.size;
         memory_info->type = static_cast<u32>(vma->second.meminfo_state);
+    } else {
+        memory_info->base_address = 0;
+        memory_info->permission = static_cast<u32>(VMAPermission::None);
+        memory_info->size = 0;
+        memory_info->type = static_cast<u32>(MemoryState::Unmapped);
     }
+
     return RESULT_SUCCESS;
 }
 
@@ -1499,9 +1503,9 @@ static ResultCode CreateTransferMemory(Handle* handle, VAddr addr, u64 size, u32
     }
 
     auto& kernel = Core::System::GetInstance().Kernel();
-    auto& handle_table = Core::CurrentProcess()->GetHandleTable();
-    const auto shared_mem_handle = SharedMemory::Create(
-        kernel, handle_table.Get<Process>(CurrentProcess), size, perms, perms, addr);
+    auto process = kernel.CurrentProcess();
+    auto& handle_table = process->GetHandleTable();
+    const auto shared_mem_handle = SharedMemory::Create(kernel, process, size, perms, perms, addr);
 
     CASCADE_RESULT(*handle, handle_table.Create(shared_mem_handle));
     return RESULT_SUCCESS;
@@ -1612,10 +1616,9 @@ static ResultCode CreateSharedMemory(Handle* handle, u64 size, u32 local_permiss
     }
 
     auto& kernel = Core::System::GetInstance().Kernel();
-    auto& handle_table = Core::CurrentProcess()->GetHandleTable();
-    auto shared_mem_handle =
-        SharedMemory::Create(kernel, handle_table.Get<Process>(KernelHandle::CurrentProcess), size,
-                             local_perms, remote_perms);
+    auto process = kernel.CurrentProcess();
+    auto& handle_table = process->GetHandleTable();
+    auto shared_mem_handle = SharedMemory::Create(kernel, process, size, local_perms, remote_perms);
 
     CASCADE_RESULT(*handle, handle_table.Create(shared_mem_handle));
     return RESULT_SUCCESS;
