@@ -341,8 +341,6 @@ static GLenum SurfaceTargetToGL(SurfaceTarget target) {
     switch (target) {
     case SurfaceTarget::Texture1D:
         return GL_TEXTURE_1D;
-    case SurfaceTarget::Texture1DBuffer:
-        return GL_TEXTURE_BUFFER;
     case SurfaceTarget::Texture2D:
         return GL_TEXTURE_2D;
     case SurfaceTarget::Texture3D:
@@ -475,7 +473,6 @@ static void CopySurface(const Surface& src_surface, const Surface& dst_surface,
         UNREACHABLE();
     } else {
         switch (dst_params.target) {
-        case SurfaceTarget::Texture1DBuffer:
         case SurfaceTarget::Texture1D:
             glTextureSubImage1D(dst_surface->Texture().handle, 0, 0, width, dest_format.format,
                                 dest_format.type, nullptr);
@@ -532,8 +529,6 @@ CachedSurface::CachedSurface(const SurfaceParams& params)
             glTexStorage1D(SurfaceTargetToGL(params.target), params.max_mip_level,
                            format_tuple.internal_format, rect.GetWidth());
             break;
-        case SurfaceTarget::Texture1DBuffer:
-            glTexBuffer(SurfaceTargetToGL(params.target), format_tuple.internal_format, 0);
         case SurfaceTarget::Texture2D:
         case SurfaceTarget::TextureCubemap:
             glTexStorage2D(SurfaceTargetToGL(params.target), params.max_mip_level,
@@ -816,7 +811,6 @@ void CachedSurface::UploadGLMipmapTexture(u32 mip_map, GLuint read_fb_handle,
 
         switch (params.target) {
         case SurfaceTarget::Texture1D:
-        case SurfaceTarget::Texture1DBuffer:
             glTexSubImage1D(SurfaceTargetToGL(params.target), mip_map, x0,
                             static_cast<GLsizei>(rect.GetWidth()), tuple.format, tuple.type,
                             &gl_buffer[mip_map][buffer_offset]);
@@ -1051,7 +1045,6 @@ Surface RasterizerCacheOpenGL::RecreateSurface(const Surface& old_surface,
 
     switch (new_params.target) {
     case SurfaceTarget::Texture2D:
-    case SurfaceTarget::Texture1DBuffer:
         CopySurface(old_surface, new_surface, copy_pbo.handle);
         break;
     case SurfaceTarget::Texture3D:
