@@ -189,7 +189,7 @@ ResultCode VMManager::MapPhysicalMemory(VAddr addr, u64 size) {
     // We have nothing mapped, we can just map directly
     if (personal_heap_usage == 0) {
         const auto result = MapMemoryBlock(addr, std::make_shared<std::vector<u8>>(size, 0), 0,
-                                           size, MemoryState::Mapped);
+                                           size, MemoryState::FlagMapped);
         personal_heap_usage += size;
         return result.Code();
     }
@@ -202,7 +202,7 @@ ResultCode VMManager::MapPhysicalMemory(VAddr addr, u64 size) {
     while (vma != vma_map.end() && vma->second.base <= end && remaining_to_map > 0) {
         const auto vma_start = vma->second.base;
         const auto vma_end = vma_start + vma->second.size;
-        const auto is_mapped = vma->second.meminfo_state == MemoryState::Mapped;
+        const auto is_mapped = vma->second.meminfo_state == MemoryState::FlagMapped;
         // Something failed, lets bail out
         if (last_result.IsError()) {
             break;
@@ -241,7 +241,7 @@ ResultCode VMManager::MapPhysicalMemory(VAddr addr, u64 size) {
                 // We can fit everything in this region, lets finish off the mapping
                 last_result = MapMemoryBlock(offset_in_vma,
                                              std::make_shared<std::vector<u8>>(remaining_to_map, 0),
-                                             0, remaining_to_map, MemoryState::Mapped)
+                                             0, remaining_to_map, MemoryState::FlagMapped)
                                   .Code();
                 if (last_result.IsSuccess()) {
                     personal_heap_usage += remaining_to_map;
@@ -260,7 +260,7 @@ ResultCode VMManager::MapPhysicalMemory(VAddr addr, u64 size) {
                 last_result =
                     MapMemoryBlock(offset_in_vma,
                                    std::make_shared<std::vector<u8>>(remaining_vma_size, 0), 0,
-                                   remaining_vma_size, MemoryState::Mapped)
+                                   remaining_vma_size, MemoryState::FlagMapped)
                         .Code();
 
                 // Update our usage and continue to the next vma
@@ -314,7 +314,7 @@ ResultCode VMManager::UnmapPhysicalMemory(VAddr addr, u64 size) {
     while (vma != vma_map.end() && vma->second.base <= end && remaining_to_unmap > 0) {
         const auto vma_start = vma->second.base;
         const auto vma_end = vma_start + vma->second.size;
-        const auto is_unmapped = vma->second.meminfo_state != MemoryState::Mapped;
+        const auto is_unmapped = vma->second.meminfo_state != MemoryState::FlagMapped;
         // Allows us to use continue without worrying about incrementing the vma
         SCOPE_EXIT({ vma++; });
 
@@ -368,7 +368,7 @@ ResultCode VMManager::UnmapPhysicalMemory(VAddr addr, u64 size) {
                 while (it != unmapped_regions.begin()) {
                     if (MapMemoryBlock((*it).first,
                                        std::make_shared<std::vector<u8>>((*it).second, 0), 0,
-                                       (*it).second, MemoryState::Mapped)
+                                       (*it).second, MemoryState::FlagMapped)
                             .Succeeded()) {
                         personal_heap_usage += (*it).second;
                     }
