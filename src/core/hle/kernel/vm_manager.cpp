@@ -202,7 +202,7 @@ ResultCode VMManager::MapPhysicalMemory(VAddr addr, u64 size) {
     while (vma != vma_map.end() && vma->second.base <= end && remaining_to_map > 0) {
         const auto vma_start = vma->second.base;
         const auto vma_end = vma_start + vma->second.size;
-        const auto is_mapped = vma->second.meminfo_state == MemoryState::FlagMapped;
+        const auto is_mapped = vma->second.state == MemoryState::FlagMapped;
         // Something failed, lets bail out
         if (last_result.IsError()) {
             break;
@@ -314,7 +314,7 @@ ResultCode VMManager::UnmapPhysicalMemory(VAddr addr, u64 size) {
     while (vma != vma_map.end() && vma->second.base <= end && remaining_to_unmap > 0) {
         const auto vma_start = vma->second.base;
         const auto vma_end = vma_start + vma->second.size;
-        const auto is_unmapped = vma->second.meminfo_state != MemoryState::FlagMapped;
+        const auto is_unmapped = vma->second.state != MemoryState::FlagMapped;
         // Allows us to use continue without worrying about incrementing the vma
         SCOPE_EXIT({ vma++; });
 

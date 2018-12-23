@@ -268,7 +268,7 @@ static ResultCode SetMemoryAttribute(VAddr address, u64 size, u32 mask, u32 attr
     }
 
     auto& vm_manager = Core::CurrentProcess()->VMManager();
-    if (!IsInsideAddressSpace(vm_manager, address, size)) {
+    if (!vm_manager.IsInsideAddressSpace(address, size)) {
         LOG_ERROR(Kernel_SVC,
                   "Given address (0x{:016X}) is outside the bounds of the address space.", address);
         return ERR_INVALID_ADDRESS_STATE;
