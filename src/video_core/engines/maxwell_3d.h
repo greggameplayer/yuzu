@@ -171,6 +171,7 @@ public:
                     return 3;
                 default:
                     UNREACHABLE();
+                    return 1;
                 }
             }
 
@@ -878,6 +879,7 @@ public:
                             return 4;
                         }
                         UNREACHABLE();
+                        return 1;
                     }
 
                     GPUVAddr StartAddress() const {
