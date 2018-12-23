@@ -117,6 +117,7 @@ enum class SurfaceType {
 
 enum class SurfaceTarget {
     Texture1D,
+    Texture1DBuffer,
     Texture2D,
     Texture3D,
     Texture1DArray,

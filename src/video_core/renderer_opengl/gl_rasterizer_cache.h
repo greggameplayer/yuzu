@@ -39,6 +39,8 @@ struct SurfaceParams {
         switch (target) {
         case SurfaceTarget::Texture1D:
             return "Texture1D";
+        case SurfaceTarget::Texture1DBuffer:
+            return "Texture1DBuffer";
         case SurfaceTarget::Texture2D:
             return "Texture2D";
         case SurfaceTarget::Texture3D:
