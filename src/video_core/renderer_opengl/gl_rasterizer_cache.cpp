@@ -120,6 +120,7 @@ std::size_t SurfaceParams::InnerMemorySize(bool force_gl, bool layer_only,
 
     switch (params.target) {
     case SurfaceTarget::Texture1D:
+    case SurfaceTarget::Texture1DBuffer:
     case SurfaceTarget::Texture2D:
         params.depth = 1;
         break;
