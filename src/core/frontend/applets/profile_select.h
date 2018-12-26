@@ -15,13 +15,13 @@ public:
     virtual ~ProfileSelectApplet();
 
     virtual void SelectProfile(
-        std::function<void(std::optional<Service::Account::UUID>)> callback) const = 0;
+        std::function<void(std::optional<Common::UUID>)> callback) const = 0;
 };
 
 class DefaultProfileSelectApplet final : public ProfileSelectApplet {
 public:
     void SelectProfile(
-        std::function<void(std::optional<Service::Account::UUID>)> callback) const override;
+        std::function<void(std::optional<Common::UUID>)> callback) const override;
 };
 
 } // namespace Core::Frontend

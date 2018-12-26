@@ -38,7 +38,7 @@ public:
     void ExecuteInteractive() override;
     void Execute() override;
 
-    void SelectionComplete(std::optional<Account::UUID> uuid);
+    void SelectionComplete(std::optional<Common::UUID> uuid);
 
 private:
     UserSelectionConfig config;
