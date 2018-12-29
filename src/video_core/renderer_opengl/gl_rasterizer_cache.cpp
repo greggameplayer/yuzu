@@ -351,7 +351,7 @@ static GLenum SurfaceTargetToGL(SurfaceTarget target) {
     case SurfaceTarget::Texture1D:
         return GL_TEXTURE_1D;
     case SurfaceTarget::Texture1DBuffer:
-        return GL_TEXTURE_BUFFER;
+        return GL_TEXTURE_1D;
     case SurfaceTarget::Texture2D:
         return GL_TEXTURE_2D;
     case SurfaceTarget::Texture3D:
@@ -489,7 +489,7 @@ static void CopySurface(const Surface& src_surface, const Surface& dst_surface,
                                 dest_format.type, nullptr);
             break;
         case SurfaceTarget::Texture1DBuffer:
-            glTextureSubImage1D(GL_TEXTURE_BUFFER_EXT, 0, 0, width, dest_format.format,
+            glTextureSubImage1D(dst_surface->Texture().handle, 0, 0, width, dest_format.format,
                                 dest_format.type, nullptr);
             break;
         case SurfaceTarget::Texture2D:
@@ -545,7 +545,7 @@ CachedSurface::CachedSurface(const SurfaceParams& params)
                            format_tuple.internal_format, rect.GetWidth());
             break;
         case SurfaceTarget::Texture1DBuffer:
-            glTexBuffer(GL_TEXTURE_BUFFER_EXT, format_tuple.internal_format, 0);
+            glTexBuffer(SurfaceTargetToGL(params.target), format_tuple.internal_format, 0);
         case SurfaceTarget::Texture2D:
         case SurfaceTarget::TextureCubemap:
             glTexStorage2D(SurfaceTargetToGL(params.target), params.max_mip_level,
@@ -830,6 +830,10 @@ void CachedSurface::UploadGLMipmapTexture(u32 mip_map, GLuint read_fb_handle,
                             static_cast<GLsizei>(rect.GetWidth()), tuple.format, tuple.type,
                             &gl_buffer[mip_map][buffer_offset]);
             break;
+        case SurfaceTarget::Texture1DBuffer:
+            glTexSubImage1D(SurfaceTargetToGL(params.target), mip_map, x0,
+                            static_cast<GLsizei>(rect.GetWidth()), tuple.format, tuple.type,
+                            &gl_buffer[mip_map][buffer_offset]);
         case SurfaceTarget::Texture2D:
             glTexSubImage2D(SurfaceTargetToGL(params.target), mip_map, x0, y0,
                             static_cast<GLsizei>(rect.GetWidth()),
