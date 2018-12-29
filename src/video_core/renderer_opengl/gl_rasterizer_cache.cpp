@@ -545,7 +545,7 @@ CachedSurface::CachedSurface(const SurfaceParams& params)
                            format_tuple.internal_format, rect.GetWidth());
             break;
         case SurfaceTarget::Texture1DBuffer:
-            glTexBuffer(SurfaceTargetToGL(params.target), format_tuple.internal_format, 0);
+            glTexBuffer(GL_TEXTURE_BUFFER_EXT, format_tuple.internal_format, 0);
         case SurfaceTarget::Texture2D:
         case SurfaceTarget::TextureCubemap:
             glTexStorage2D(SurfaceTargetToGL(params.target), params.max_mip_level,
