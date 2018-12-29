@@ -1196,7 +1196,6 @@ Surface RasterizerCacheOpenGL::RecreateSurface(const Surface& old_surface,
 
     switch (new_params.target) {
     case SurfaceTarget::Texture2D:
-    case SurfaceTarget::Texture1DBuffer:
         CopySurface(old_surface, new_surface, copy_pbo.handle);
         break;
     case SurfaceTarget::Texture3D:
