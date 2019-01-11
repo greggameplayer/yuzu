@@ -19,6 +19,7 @@
 #include "core/core_timing.h"
 #include "core/hle/ipc_helpers.h"
 #include "core/hle/kernel/readable_event.h"
+#include "core/hle/kernel/thread.h"
 #include "core/hle/kernel/writable_event.h"
 #include "core/hle/service/nvdrv/nvdrv.h"
 #include "core/hle/service/nvflinger/buffer_queue.h"
@@ -31,12 +32,26 @@
 
 namespace Service::VI {
 
+constexpr ResultCode ERR_OPERATION_FAILED{ErrorModule::VI, 1};
+constexpr ResultCode ERR_UNSUPPORTED{ErrorModule::VI, 6};
+
 struct DisplayInfo {
+    /// The name of this particular display.
     char display_name[0x40]{"Default"};
-    u64 unknown_1{1};
-    u64 unknown_2{1};
-    u64 width{1280};
-    u64 height{720};
+
+    /// Whether or not the display has a limited number of layers.
+    u8 has_limited_layers{1};
+    INSERT_PADDING_BYTES(7){};
+
+    /// Indicates the total amount of layers supported by the display.
+    /// @note This is only valid if has_limited_layers is set.
+    u64 max_layers{1};
+
+    /// Maximum width in pixels.
+    u64 width{1920};
+
+    /// Maximum height in pixels.
+    u64 height{1080};
 };
 static_assert(sizeof(DisplayInfo) == 0x60, "DisplayInfo has wrong size");
 
@@ -502,10 +517,12 @@ private:
 
     void TransactParcel(Kernel::HLERequestContext& ctx) {
         IPC::RequestParser rp{ctx};
-        u32 id = rp.Pop<u32>();
-        auto transaction = static_cast<TransactionId>(rp.Pop<u32>());
-        u32 flags = rp.Pop<u32>();
-        LOG_DEBUG(Service_VI, "called, transaction={:X}", static_cast<u32>(transaction));
+        const u32 id = rp.Pop<u32>();
+        const auto transaction = static_cast<TransactionId>(rp.Pop<u32>());
+        const u32 flags = rp.Pop<u32>();
+
+        LOG_DEBUG(Service_VI, "called. id=0x{:08X} transaction={:X}, flags=0x{:08X}", id,
+                  static_cast<u32>(transaction), flags);
 
         auto buffer_queue = nv_flinger->GetBufferQueue(id);
 
@@ -593,9 +610,10 @@ private:
 
     void AdjustRefcount(Kernel::HLERequestContext& ctx) {
         IPC::RequestParser rp{ctx};
-        u32 id = rp.Pop<u32>();
-        s32 addval = rp.PopRaw<s32>();
-        u32 type = rp.Pop<u32>();
+        const u32 id = rp.Pop<u32>();
+        const s32 addval = rp.PopRaw<s32>();
+        const u32 type = rp.Pop<u32>();
+
         LOG_WARNING(Service_VI, "(STUBBED) called id={}, addval={:08X}, type={:08X}", id, addval,
                     type);
 
@@ -605,11 +623,12 @@ private:
 
     void GetNativeHandle(Kernel::HLERequestContext& ctx) {
         IPC::RequestParser rp{ctx};
-        u32 id = rp.Pop<u32>();
-        u32 unknown = rp.Pop<u32>();
+        const u32 id = rp.Pop<u32>();
+        const u32 unknown = rp.Pop<u32>();
+
         LOG_WARNING(Service_VI, "(STUBBED) called id={}, unknown={:08X}", id, unknown);
 
-        auto buffer_queue = nv_flinger->GetBufferQueue(id);
+        const auto buffer_queue = nv_flinger->GetBufferQueue(id);
 
         // TODO(Subv): Find out what this actually is.
         IPC::ResponseBuilder rb{ctx, 2, 1};
@@ -674,11 +693,12 @@ public:
 
 private:
     void SetLayerZ(Kernel::HLERequestContext& ctx) {
-        LOG_WARNING(Service_VI, "(STUBBED) called");
-
         IPC::RequestParser rp{ctx};
-        u64 layer_id = rp.Pop<u64>();
-        u64 z_value = rp.Pop<u64>();
+        const u64 layer_id = rp.Pop<u64>();
+        const u64 z_value = rp.Pop<u64>();
+
+        LOG_WARNING(Service_VI, "(STUBBED) called. layer_id=0x{:016X}, z_value=0x{:016X}", layer_id,
+                    z_value);
 
         IPC::ResponseBuilder rb{ctx, 2};
         rb.Push(RESULT_SUCCESS);
@@ -686,8 +706,9 @@ private:
 
     void SetLayerVisibility(Kernel::HLERequestContext& ctx) {
         IPC::RequestParser rp{ctx};
-        u64 layer_id = rp.Pop<u64>();
-        bool visibility = rp.Pop<bool>();
+        const u64 layer_id = rp.Pop<u64>();
+        const bool visibility = rp.Pop<bool>();
+
         LOG_WARNING(Service_VI, "(STUBBED) called, layer_id=0x{:08X}, visibility={}", layer_id,
                     visibility);
 
@@ -796,25 +817,27 @@ public:
 
 private:
     void CloseDisplay(Kernel::HLERequestContext& ctx) {
-        LOG_WARNING(Service_VI, "(STUBBED) called");
-
         IPC::RequestParser rp{ctx};
-        u64 display = rp.Pop<u64>();
+        const u64 display = rp.Pop<u64>();
+
+        LOG_WARNING(Service_VI, "(STUBBED) called. display=0x{:016X}", display);
 
         IPC::ResponseBuilder rb{ctx, 2};
         rb.Push(RESULT_SUCCESS);
     }
 
     void CreateManagedLayer(Kernel::HLERequestContext& ctx) {
-        LOG_WARNING(Service_VI, "(STUBBED) called");
-
         IPC::RequestParser rp{ctx};
-        u32 unknown = rp.Pop<u32>();
+        const u32 unknown = rp.Pop<u32>();
         rp.Skip(1, false);
-        u64 display = rp.Pop<u64>();
-        u64 aruid = rp.Pop<u64>();
+        const u64 display = rp.Pop<u64>();
+        const u64 aruid = rp.Pop<u64>();
 
-        u64 layer_id = nv_flinger->CreateLayer(display);
+        LOG_WARNING(Service_VI,
+                    "(STUBBED) called. unknown=0x{:08X}, display=0x{:016X}, aruid=0x{:016X}",
+                    unknown, display, aruid);
+
+        const u64 layer_id = nv_flinger->CreateLayer(display);
 
         IPC::ResponseBuilder rb{ctx, 4};
         rb.Push(RESULT_SUCCESS);
@@ -822,11 +845,12 @@ private:
     }
 
     void AddToLayerStack(Kernel::HLERequestContext& ctx) {
-        LOG_WARNING(Service_VI, "(STUBBED) called");
-
         IPC::RequestParser rp{ctx};
-        u32 stack = rp.Pop<u32>();
-        u64 layer_id = rp.Pop<u64>();
+        const u32 stack = rp.Pop<u32>();
+        const u64 layer_id = rp.Pop<u64>();
+
+        LOG_WARNING(Service_VI, "(STUBBED) called. stack=0x{:08X}, layer_id=0x{:016X}", stack,
+                    layer_id);
 
         IPC::ResponseBuilder rb{ctx, 2};
         rb.Push(RESULT_SUCCESS);
@@ -834,8 +858,9 @@ private:
 
     void SetLayerVisibility(Kernel::HLERequestContext& ctx) {
         IPC::RequestParser rp{ctx};
-        u64 layer_id = rp.Pop<u64>();
-        bool visibility = rp.Pop<bool>();
+        const u64 layer_id = rp.Pop<u64>();
+        const bool visibility = rp.Pop<bool>();
+
         LOG_WARNING(Service_VI, "(STUBBED) called, layer_id=0x{:X}, visibility={}", layer_id,
                     visibility);
 
@@ -852,6 +877,22 @@ public:
     ~IApplicationDisplayService() = default;
 
 private:
+    enum class ConvertedScaleMode : u64 {
+        Freeze = 0,
+        ScaleToWindow = 1,
+        ScaleAndCrop = 2,
+        None = 3,
+        PreserveAspectRatio = 4,
+    };
+
+    enum class NintendoScaleMode : u32 {
+        None = 0,
+        Freeze = 1,
+        ScaleToWindow = 2,
+        ScaleAndCrop = 3,
+        PreserveAspectRatio = 4,
+    };
+
     void GetRelayService(Kernel::HLERequestContext& ctx) {
         LOG_WARNING(Service_VI, "(STUBBED) called");
 
@@ -888,10 +929,23 @@ private:
         LOG_WARNING(Service_VI, "(STUBBED) called");
 
         IPC::RequestParser rp{ctx};
-        auto name_buf = rp.PopRaw<std::array<u8, 0x40>>();
-        auto end = std::find(name_buf.begin(), name_buf.end(), '\0');
+        const auto name_buf = rp.PopRaw<std::array<char, 0x40>>();
 
-        std::string name(name_buf.begin(), end);
+        OpenDisplayImpl(ctx, std::string_view{name_buf.data(), name_buf.size()});
+    }
+
+    void OpenDefaultDisplay(Kernel::HLERequestContext& ctx) {
+        LOG_DEBUG(Service_VI, "called");
+
+        OpenDisplayImpl(ctx, "Default");
+    }
+
+    void OpenDisplayImpl(Kernel::HLERequestContext& ctx, std::string_view name) {
+        const auto trim_pos = name.find('\0');
+
+        if (trim_pos != std::string_view::npos) {
+            name.remove_suffix(name.size() - trim_pos);
+        }
 
         ASSERT_MSG(name == "Default", "Non-default displays aren't supported yet");
 
@@ -901,45 +955,65 @@ private:
     }
 
     void CloseDisplay(Kernel::HLERequestContext& ctx) {
-        LOG_WARNING(Service_VI, "(STUBBED) called");
-
         IPC::RequestParser rp{ctx};
-        u64 display_id = rp.Pop<u64>();
+        const u64 display_id = rp.Pop<u64>();
+
+        LOG_WARNING(Service_VI, "(STUBBED) called. display_id=0x{:016X}", display_id);
+
+        IPC::ResponseBuilder rb{ctx, 2};
+        rb.Push(RESULT_SUCCESS);
+    }
+
+    // This literally does nothing internally in the actual service itself,
+    // and just returns a successful result code regardless of the input.
+    void SetDisplayEnabled(Kernel::HLERequestContext& ctx) {
+        LOG_DEBUG(Service_VI, "called.");
 
         IPC::ResponseBuilder rb{ctx, 2};
         rb.Push(RESULT_SUCCESS);
     }
 
     void GetDisplayResolution(Kernel::HLERequestContext& ctx) {
-        LOG_WARNING(Service_VI, "(STUBBED) called");
-
         IPC::RequestParser rp{ctx};
-        u64 display_id = rp.Pop<u64>();
+        const u64 display_id = rp.Pop<u64>();
+
+        LOG_DEBUG(Service_VI, "called. display_id=0x{:016X}", display_id);
 
         IPC::ResponseBuilder rb{ctx, 6};
         rb.Push(RESULT_SUCCESS);
 
-        if (Settings::values.use_docked_mode) {
-            rb.Push(static_cast<u64>(DisplayResolution::DockedWidth) *
-                    static_cast<u32>(Settings::values.resolution_factor));
-            rb.Push(static_cast<u64>(DisplayResolution::DockedHeight) *
-                    static_cast<u32>(Settings::values.resolution_factor));
-        } else {
-            rb.Push(static_cast<u64>(DisplayResolution::UndockedWidth) *
-                    static_cast<u32>(Settings::values.resolution_factor));
-            rb.Push(static_cast<u64>(DisplayResolution::UndockedHeight) *
-                    static_cast<u32>(Settings::values.resolution_factor));
-        }
+        // This only returns the fixed values of 1280x720 and makes no distinguishing
+        // between docked and undocked dimensions. We take the liberty of applying
+        // the resolution scaling factor here.
+        rb.Push(static_cast<u64>(DisplayResolution::UndockedWidth) *
+                static_cast<u32>(Settings::values.resolution_factor));
+        rb.Push(static_cast<u64>(DisplayResolution::UndockedHeight) *
+                static_cast<u32>(Settings::values.resolution_factor));
     }
 
     void SetLayerScalingMode(Kernel::HLERequestContext& ctx) {
-        LOG_WARNING(Service_VI, "(STUBBED) called");
-
         IPC::RequestParser rp{ctx};
-        u32 scaling_mode = rp.Pop<u32>();
-        u64 unknown = rp.Pop<u64>();
+        const auto scaling_mode = rp.PopEnum<NintendoScaleMode>();
+        const u64 unknown = rp.Pop<u64>();
+
+        LOG_DEBUG(Service_VI, "called. scaling_mode=0x{:08X}, unknown=0x{:016X}",
+                  static_cast<u32>(scaling_mode), unknown);
 
         IPC::ResponseBuilder rb{ctx, 2};
+
+        if (scaling_mode > NintendoScaleMode::PreserveAspectRatio) {
+            LOG_ERROR(Service_VI, "Invalid scaling mode provided.");
+            rb.Push(ERR_OPERATION_FAILED);
+            return;
+        }
+
+        if (scaling_mode != NintendoScaleMode::ScaleToWindow &&
+            scaling_mode != NintendoScaleMode::PreserveAspectRatio) {
+            LOG_ERROR(Service_VI, "Unsupported scaling mode supplied.");
+            rb.Push(ERR_UNSUPPORTED);
+            return;
+        }
+
         rb.Push(RESULT_SUCCESS);
     }
 
@@ -957,19 +1031,19 @@ private:
     }
 
     void OpenLayer(Kernel::HLERequestContext& ctx) {
-        LOG_DEBUG(Service_VI, "called");
-
         IPC::RequestParser rp{ctx};
-        auto name_buf = rp.PopRaw<std::array<u8, 0x40>>();
-        auto end = std::find(name_buf.begin(), name_buf.end(), '\0');
+        const auto name_buf = rp.PopRaw<std::array<u8, 0x40>>();
+        const auto end = std::find(name_buf.begin(), name_buf.end(), '\0');
 
-        std::string display_name(name_buf.begin(), end);
+        const std::string display_name(name_buf.begin(), end);
 
-        u64 layer_id = rp.Pop<u64>();
-        u64 aruid = rp.Pop<u64>();
+        const u64 layer_id = rp.Pop<u64>();
+        const u64 aruid = rp.Pop<u64>();
 
-        u64 display_id = nv_flinger->OpenDisplay(display_name);
-        u32 buffer_queue_id = nv_flinger->GetBufferQueueId(display_id, layer_id);
+        LOG_DEBUG(Service_VI, "called. layer_id=0x{:016X}, aruid=0x{:016X}", layer_id, aruid);
+
+        const u64 display_id = nv_flinger->OpenDisplay(display_name);
+        const u32 buffer_queue_id = nv_flinger->GetBufferQueueId(display_id, layer_id);
 
         NativeWindow native_window{buffer_queue_id};
         IPC::ResponseBuilder rb{ctx, 4};
@@ -978,17 +1052,17 @@ private:
     }
 
     void CreateStrayLayer(Kernel::HLERequestContext& ctx) {
-        LOG_DEBUG(Service_VI, "called");
-
         IPC::RequestParser rp{ctx};
-        u32 flags = rp.Pop<u32>();
+        const u32 flags = rp.Pop<u32>();
         rp.Pop<u32>(); // padding
-        u64 display_id = rp.Pop<u64>();
+        const u64 display_id = rp.Pop<u64>();
+
+        LOG_DEBUG(Service_VI, "called. flags=0x{:08X}, display_id=0x{:016X}", flags, display_id);
 
         // TODO(Subv): What's the difference between a Stray and a Managed layer?
 
-        u64 layer_id = nv_flinger->CreateLayer(display_id);
-        u32 buffer_queue_id = nv_flinger->GetBufferQueueId(display_id, layer_id);
+        const u64 layer_id = nv_flinger->CreateLayer(display_id);
+        const u32 buffer_queue_id = nv_flinger->GetBufferQueueId(display_id, layer_id);
 
         NativeWindow native_window{buffer_queue_id};
         IPC::ResponseBuilder rb{ctx, 6};
@@ -998,73 +1072,59 @@ private:
     }
 
     void DestroyStrayLayer(Kernel::HLERequestContext& ctx) {
-        LOG_WARNING(Service_VI, "(STUBBED) called");
-
         IPC::RequestParser rp{ctx};
-        u64 layer_id = rp.Pop<u64>();
+        const u64 layer_id = rp.Pop<u64>();
+
+        LOG_WARNING(Service_VI, "(STUBBED) called. layer_id=0x{:016X}", layer_id);
 
         IPC::ResponseBuilder rb{ctx, 2};
         rb.Push(RESULT_SUCCESS);
     }
 
     void GetDisplayVsyncEvent(Kernel::HLERequestContext& ctx) {
-        LOG_WARNING(Service_VI, "(STUBBED) called");
-
         IPC::RequestParser rp{ctx};
-        u64 display_id = rp.Pop<u64>();
+        const u64 display_id = rp.Pop<u64>();
 
-        auto vsync_event = nv_flinger->GetVsyncEvent(display_id);
+        LOG_WARNING(Service_VI, "(STUBBED) called. display_id=0x{:016X}", display_id);
+
+        const auto vsync_event = nv_flinger->GetVsyncEvent(display_id);
 
         IPC::ResponseBuilder rb{ctx, 2, 1};
         rb.Push(RESULT_SUCCESS);
         rb.PushCopyObjects(vsync_event);
     }
 
-    enum class ConvertedScaleMode : u64 {
-        None = 0, // VI seems to name this as "Unknown" but lots of games pass it, assume it's no
-                  // scaling/default
-        Freeze = 1,
-        ScaleToWindow = 2,
-        Crop = 3,
-        NoCrop = 4,
-    };
-
-    // This struct is different, currently it's 1:1 but this might change in the future.
-    enum class NintendoScaleMode : u32 {
-        None = 0,
-        Freeze = 1,
-        ScaleToWindow = 2,
-        Crop = 3,
-        NoCrop = 4,
-    };
-
     void ConvertScalingMode(Kernel::HLERequestContext& ctx) {
         IPC::RequestParser rp{ctx};
-        auto mode = rp.PopEnum<NintendoScaleMode>();
+        const auto mode = rp.PopEnum<NintendoScaleMode>();
         LOG_DEBUG(Service_VI, "called mode={}", static_cast<u32>(mode));
 
-        IPC::ResponseBuilder rb{ctx, 4};
-        rb.Push(RESULT_SUCCESS);
+        const auto converted_mode = ConvertScalingModeImpl(mode);
+
+        if (converted_mode.Succeeded()) {
+            IPC::ResponseBuilder rb{ctx, 4};
+            rb.Push(RESULT_SUCCESS);
+            rb.PushEnum(*converted_mode);
+        } else {
+            IPC::ResponseBuilder rb{ctx, 2};
+            rb.Push(converted_mode.Code());
+        }
+    }
+
+    static ResultVal<ConvertedScaleMode> ConvertScalingModeImpl(NintendoScaleMode mode) {
         switch (mode) {
         case NintendoScaleMode::None:
-            rb.PushEnum(ConvertedScaleMode::None);
-            break;
+            return MakeResult(ConvertedScaleMode::None);
         case NintendoScaleMode::Freeze:
-            rb.PushEnum(ConvertedScaleMode::Freeze);
-            break;
+            return MakeResult(ConvertedScaleMode::Freeze);
         case NintendoScaleMode::ScaleToWindow:
-            rb.PushEnum(ConvertedScaleMode::ScaleToWindow);
-            break;
-        case NintendoScaleMode::Crop:
-            rb.PushEnum(ConvertedScaleMode::Crop);
-            break;
-        case NintendoScaleMode::NoCrop:
-            rb.PushEnum(ConvertedScaleMode::NoCrop);
-            break;
+            return MakeResult(ConvertedScaleMode::ScaleToWindow);
+        case NintendoScaleMode::ScaleAndCrop:
+            return MakeResult(ConvertedScaleMode::ScaleAndCrop);
+        case NintendoScaleMode::PreserveAspectRatio:
+            return MakeResult(ConvertedScaleMode::PreserveAspectRatio);
         default:
-            UNIMPLEMENTED_MSG("Unknown scaling mode {}", static_cast<u32>(mode));
-            rb.PushEnum(ConvertedScaleMode::None);
-            break;
+            return ERR_OPERATION_FAILED;
         }
     }
 
@@ -1082,9 +1142,9 @@ IApplicationDisplayService::IApplicationDisplayService(
          "GetIndirectDisplayTransactionService"},
         {1000, &IApplicationDisplayService::ListDisplays, "ListDisplays"},
         {1010, &IApplicationDisplayService::OpenDisplay, "OpenDisplay"},
-        {1011, nullptr, "OpenDefaultDisplay"},
+        {1011, &IApplicationDisplayService::OpenDefaultDisplay, "OpenDefaultDisplay"},
         {1020, &IApplicationDisplayService::CloseDisplay, "CloseDisplay"},
-        {1101, nullptr, "SetDisplayEnabled"},
+        {1101, &IApplicationDisplayService::SetDisplayEnabled, "SetDisplayEnabled"},
         {1102, &IApplicationDisplayService::GetDisplayResolution, "GetDisplayResolution"},
         {2020, &IApplicationDisplayService::OpenLayer, "OpenLayer"},
         {2021, nullptr, "CloseLayer"},

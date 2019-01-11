@@ -182,8 +182,6 @@ QString WaitTreeWaitObject::GetResetTypeQString(Kernel::ResetType reset_type) {
         return tr("one shot");
     case Kernel::ResetType::Sticky:
         return tr("sticky");
-    case Kernel::ResetType::Pulse:
-        return tr("pulse");
     }
     UNREACHABLE();
     return {};
@@ -293,8 +291,8 @@ std::vector<std::unique_ptr<WaitTreeItem>> WaitTreeThread::GetChildren() const {
 
     QString processor;
     switch (thread.GetProcessorID()) {
-    case Kernel::ThreadProcessorId::THREADPROCESSORID_DEFAULT:
-        processor = tr("default");
+    case Kernel::ThreadProcessorId::THREADPROCESSORID_IDEAL:
+        processor = tr("ideal");
         break;
     case Kernel::ThreadProcessorId::THREADPROCESSORID_0:
     case Kernel::ThreadProcessorId::THREADPROCESSORID_1:

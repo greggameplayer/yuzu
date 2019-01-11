@@ -69,6 +69,10 @@ public:
     static_assert(MaxConstbufferSize % sizeof(GLvec4) == 0,
                   "The maximum size of a constbuffer must be a multiple of the size of GLvec4");
 
+    static constexpr std::size_t MaxGlobalMemorySize = 0x10000;
+    static_assert(MaxGlobalMemorySize % sizeof(float) == 0,
+                  "The maximum size of a global memory must be a multiple of the size of float");
+
 private:
     class SamplerInfo {
     public:
@@ -117,16 +121,6 @@ private:
      */
     u32 SetupConstBuffers(Tegra::Engines::Maxwell3D::Regs::ShaderStage stage, Shader& shader,
                           GLenum primitive_mode, u32 current_bindpoint);
-
-    /**
-     * Configures the current global memory regions to use for the draw command.
-     * @param stage The shader stage to configure buffers for.
-     * @param shader The shader object that contains the specified stage.
-     * @param current_bindpoint The offset at which to start counting new buffer bindpoints.
-     * @returns The next available bindpoint for use in the next shader stage.
-     */
-    u32 SetupGlobalRegions(Tegra::Engines::Maxwell3D::Regs::ShaderStage stage, Shader& shader,
-                           GLenum primitive_mode, u32 current_bindpoint);
 
     /**
      * Configures the current textures to use for the draw command.

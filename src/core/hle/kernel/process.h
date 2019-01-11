@@ -14,7 +14,6 @@
 #include "common/common_types.h"
 #include "core/hle/kernel/handle_table.h"
 #include "core/hle/kernel/process_capability.h"
-#include "core/hle/kernel/thread.h"
 #include "core/hle/kernel/vm_manager.h"
 #include "core/hle/kernel/wait_object.h"
 #include "core/hle/result.h"
@@ -27,6 +26,7 @@ namespace Kernel {
 
 class KernelCore;
 class ResourceLimit;
+class Thread;
 
 struct AddressMapping {
     // Address and size must be page-aligned
@@ -174,18 +174,18 @@ public:
     /// Gets the resource limit descriptor for this process
     SharedPtr<ResourceLimit> GetResourceLimit() const;
 
-    /// Gets the default CPU ID for this process
-    u8 GetDefaultProcessorID() const {
-        return ideal_processor;
+    /// Gets the ideal CPU core ID for this process
+    u8 GetIdealCore() const {
+        return ideal_core;
     }
 
-    /// Gets the bitmask of allowed CPUs that this process' threads can run on.
-    u64 GetAllowedProcessorMask() const {
+    /// Gets the bitmask of allowed cores that this process' threads can run on.
+    u64 GetCoreMask() const {
         return capabilities.GetCoreMask();
     }
 
     /// Gets the bitmask of allowed thread priorities.
-    u64 GetAllowedThreadPriorityMask() const {
+    u64 GetPriorityMask() const {
         return capabilities.GetPriorityMask();
     }
 
@@ -289,8 +289,8 @@ private:
     /// Resource limit descriptor for this process
     SharedPtr<ResourceLimit> resource_limit;
 
-    /// The default CPU for this process, threads are scheduled on this cpu by default.
-    u8 ideal_processor = 0;
+    /// The ideal CPU core for this process, threads are scheduled on this core by default.
+    u8 ideal_core = 0;
     u32 is_virtual_address_memory_enabled = 0;
 
     /// The Thread Local Storage area is allocated as processes create threads,

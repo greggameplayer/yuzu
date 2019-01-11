@@ -659,6 +659,9 @@ static void Break(u32 reason, u64 info1, u64 info2) {
                      "info2=0x{:016X}",
                      reason, info1, info2);
         handle_debug_buffer(info1, info2);
+        Core::System::GetInstance()
+            .ArmInterface(static_cast<std::size_t>(GetCurrentThread()->GetProcessorID()))
+            .LogBacktrace();
         ASSERT(false);
 
         Core::CurrentProcess()->PrepareForTermination();
@@ -687,8 +690,8 @@ static ResultCode GetInfo(u64* result, u64 info_id, u64 handle, u64 info_sub_id)
 
     enum class GetInfoType : u64 {
         // 1.0.0+
-        AllowedCpuIdBitmask = 0,
-        AllowedThreadPrioBitmask = 1,
+        AllowedCPUCoreMask = 0,
+        AllowedThreadPriorityMask = 1,
         MapRegionBaseAddr = 2,
         MapRegionSize = 3,
         HeapRegionBaseAddr = 4,
@@ -719,8 +722,8 @@ static ResultCode GetInfo(u64* result, u64 info_id, u64 handle, u64 info_sub_id)
     const auto info_id_type = static_cast<GetInfoType>(info_id);
 
     switch (info_id_type) {
-    case GetInfoType::AllowedCpuIdBitmask:
-    case GetInfoType::AllowedThreadPrioBitmask:
+    case GetInfoType::AllowedCPUCoreMask:
+    case GetInfoType::AllowedThreadPriorityMask:
     case GetInfoType::MapRegionBaseAddr:
     case GetInfoType::MapRegionSize:
     case GetInfoType::HeapRegionBaseAddr:
@@ -746,12 +749,12 @@ static ResultCode GetInfo(u64* result, u64 info_id, u64 handle, u64 info_sub_id)
         }
 
         switch (info_id_type) {
-        case GetInfoType::AllowedCpuIdBitmask:
-            *result = process->GetAllowedProcessorMask();
+        case GetInfoType::AllowedCPUCoreMask:
+            *result = process->GetCoreMask();
             return RESULT_SUCCESS;
 
-        case GetInfoType::AllowedThreadPrioBitmask:
-            *result = process->GetAllowedThreadPriorityMask();
+        case GetInfoType::AllowedThreadPriorityMask:
+            *result = process->GetPriorityMask();
             return RESULT_SUCCESS;
 
         case GetInfoType::MapRegionBaseAddr:
@@ -1191,29 +1194,35 @@ static ResultCode CreateThread(Handle* out_handle, VAddr entry_point, u64 arg, V
               "threadpriority=0x{:08X}, processorid=0x{:08X} : created handle=0x{:08X}",
               entry_point, arg, stack_top, priority, processor_id, *out_handle);
 
+    auto* const current_process = Core::CurrentProcess();
+
+    if (processor_id == THREADPROCESSORID_IDEAL) {
+        // Set the target CPU to the one specified by the process.
+        processor_id = current_process->GetIdealCore();
+        ASSERT(processor_id != THREADPROCESSORID_IDEAL);
+    }
+
+    if (processor_id < THREADPROCESSORID_0 || processor_id > THREADPROCESSORID_3) {
+        LOG_ERROR(Kernel_SVC, "Invalid thread processor ID: {}", processor_id);
+        return ERR_INVALID_PROCESSOR_ID;
+    }
+
+    const u64 core_mask = current_process->GetCoreMask();
+    if ((core_mask | (1ULL << processor_id)) != core_mask) {
+        LOG_ERROR(Kernel_SVC, "Invalid thread core specified ({})", processor_id);
+        return ERR_INVALID_PROCESSOR_ID;
+    }
+
     if (priority > THREADPRIO_LOWEST) {
-        LOG_ERROR(Kernel_SVC, "An invalid priority was specified, expected {} but got {}",
-                  THREADPRIO_LOWEST, priority);
+        LOG_ERROR(Kernel_SVC,
+                  "Invalid thread priority specified ({}). Must be within the range 0-64",
+                  priority);
         return ERR_INVALID_THREAD_PRIORITY;
     }
 
-    auto* const current_process = Core::CurrentProcess();
-
-    if (processor_id == THREADPROCESSORID_DEFAULT) {
-        // Set the target CPU to the one specified in the process' exheader.
-        processor_id = current_process->GetDefaultProcessorID();
-        ASSERT(processor_id != THREADPROCESSORID_DEFAULT);
-    }
-
-    switch (processor_id) {
-    case THREADPROCESSORID_0:
-    case THREADPROCESSORID_1:
-    case THREADPROCESSORID_2:
-    case THREADPROCESSORID_3:
-        break;
-    default:
-        LOG_ERROR(Kernel_SVC, "Invalid thread processor ID: {}", processor_id);
-        return ERR_INVALID_PROCESSOR_ID;
+    if (((1ULL << priority) & current_process->GetPriorityMask()) == 0) {
+        LOG_ERROR(Kernel_SVC, "Invalid thread priority specified ({})", priority);
+        return ERR_INVALID_THREAD_PRIORITY;
     }
 
     const std::string name = fmt::format("thread-{:X}", entry_point);
@@ -1611,13 +1620,13 @@ static ResultCode SetThreadCoreMask(Handle thread_handle, u32 core, u64 mask) {
         return ERR_INVALID_HANDLE;
     }
 
-    if (core == static_cast<u32>(THREADPROCESSORID_DEFAULT)) {
-        const u8 default_processor_id = thread->GetOwnerProcess()->GetDefaultProcessorID();
+    if (core == static_cast<u32>(THREADPROCESSORID_IDEAL)) {
+        const u8 ideal_cpu_core = thread->GetOwnerProcess()->GetIdealCore();
 
-        ASSERT(default_processor_id != static_cast<u8>(THREADPROCESSORID_DEFAULT));
+        ASSERT(ideal_cpu_core != static_cast<u8>(THREADPROCESSORID_IDEAL));
 
-        // Set the target CPU to the one specified in the process' exheader.
-        core = default_processor_id;
+        // Set the target CPU to the ideal core specified by the process.
+        core = ideal_cpu_core;
         mask = 1ULL << core;
     }
 
