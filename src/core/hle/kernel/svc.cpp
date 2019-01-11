@@ -35,6 +35,7 @@
 #include "core/hle/lock.h"
 #include "core/hle/result.h"
 #include "core/hle/service/service.h"
+#include "core/memory.h"
 
 namespace Kernel {
 namespace {
@@ -189,10 +190,16 @@ static ResultCode SetHeapSize(VAddr* heap_addr, u64 heap_size) {
         return ERR_INVALID_SIZE;
     }
 
-    auto& process = *Core::CurrentProcess();
-    const VAddr heap_base = process.VMManager().GetHeapRegionBaseAddress();
-    CASCADE_RESULT(*heap_addr,
-                   process.HeapAllocate(heap_base, heap_size, VMAPermission::ReadWrite));
+    auto& vm_manager = Core::CurrentProcess()->VMManager();
+    const VAddr heap_base = vm_manager.GetHeapRegionBaseAddress();
+    const auto alloc_result =
+        vm_manager.HeapAllocate(heap_base, heap_size, VMAPermission::ReadWrite);
+
+    if (alloc_result.Failed()) {
+        return alloc_result.Code();
+    }
+
+    *heap_addr = *alloc_result;
     return RESULT_SUCCESS;
 }
 
@@ -239,7 +246,7 @@ static ResultCode SetMemoryPermission(VAddr addr, u64 size, u32 prot) {
     }
 
     const VMManager::VMAHandle iter = vm_manager.FindVMA(addr);
-    if (iter == vm_manager.vma_map.end()) {
+    if (!vm_manager.IsValidHandle(iter)) {
         LOG_ERROR(Kernel_SVC, "Unable to find VMA for address=0x{:016X}", addr);
         return ERR_INVALID_ADDRESS_STATE;
     }
@@ -253,11 +260,52 @@ static ResultCode SetMemoryPermission(VAddr addr, u64 size, u32 prot) {
     return vm_manager.ReprotectRange(addr, size, converted_permissions);
 }
 
-static ResultCode SetMemoryAttribute(VAddr addr, u64 size, u32 state0, u32 state1) {
-    LOG_WARNING(Kernel_SVC,
-                "(STUBBED) called, addr=0x{:X}, size=0x{:X}, state0=0x{:X}, state1=0x{:X}", addr,
-                size, state0, state1);
-    return RESULT_SUCCESS;
+static ResultCode SetMemoryAttribute(VAddr address, u64 size, u32 mask, u32 attribute) {
+    LOG_DEBUG(Kernel_SVC,
+              "called, address=0x{:016X}, size=0x{:X}, mask=0x{:08X}, attribute=0x{:08X}", address,
+              size, mask, attribute);
+
+    if (!Common::Is4KBAligned(address)) {
+        LOG_ERROR(Kernel_SVC, "Address not page aligned (0x{:016X})", address);
+        return ERR_INVALID_ADDRESS;
+    }
+
+    if (size == 0 || !Common::Is4KBAligned(size)) {
+        LOG_ERROR(Kernel_SVC, "Invalid size (0x{:X}). Size must be non-zero and page aligned.",
+                  size);
+        return ERR_INVALID_ADDRESS;
+    }
+
+    if (!IsValidAddressRange(address, size)) {
+        LOG_ERROR(Kernel_SVC, "Address range overflowed (Address: 0x{:016X}, Size: 0x{:016X})",
+                  address, size);
+        return ERR_INVALID_ADDRESS_STATE;
+    }
+
+    const auto mem_attribute = static_cast<MemoryAttribute>(attribute);
+    const auto mem_mask = static_cast<MemoryAttribute>(mask);
+    const auto attribute_with_mask = mem_attribute | mem_mask;
+
+    if (attribute_with_mask != mem_mask) {
+        LOG_ERROR(Kernel_SVC,
+                  "Memory attribute doesn't match the given mask (Attribute: 0x{:X}, Mask: {:X}",
+                  attribute, mask);
+        return ERR_INVALID_COMBINATION;
+    }
+
+    if ((attribute_with_mask | MemoryAttribute::Uncached) != MemoryAttribute::Uncached) {
+        LOG_ERROR(Kernel_SVC, "Specified attribute isn't equal to MemoryAttributeUncached (8).");
+        return ERR_INVALID_COMBINATION;
+    }
+
+    auto& vm_manager = Core::CurrentProcess()->VMManager();
+    if (!IsInsideAddressSpace(vm_manager, address, size)) {
+        LOG_ERROR(Kernel_SVC,
+                  "Given address (0x{:016X}) is outside the bounds of the address space.", address);
+        return ERR_INVALID_ADDRESS_STATE;
+    }
+
+    return vm_manager.SetMemoryAttribute(address, size, mem_mask, mem_attribute);
 }
 
 /// Maps a memory range into a different range.
@@ -265,15 +313,14 @@ static ResultCode MapMemory(VAddr dst_addr, VAddr src_addr, u64 size) {
     LOG_TRACE(Kernel_SVC, "called, dst_addr=0x{:X}, src_addr=0x{:X}, size=0x{:X}", dst_addr,
               src_addr, size);
 
-    auto* const current_process = Core::CurrentProcess();
-    const auto& vm_manager = current_process->VMManager();
-
+    auto& vm_manager = Core::CurrentProcess()->VMManager();
     const auto result = MapUnmapMemorySanityChecks(vm_manager, dst_addr, src_addr, size);
-    if (result != RESULT_SUCCESS) {
+
+    if (result.IsError()) {
         return result;
     }
 
-    return current_process->MirrorMemory(dst_addr, src_addr, size);
+    return vm_manager.MirrorMemory(dst_addr, src_addr, size, MemoryState::Stack);
 }
 
 /// Unmaps a region that was previously mapped with svcMapMemory
@@ -281,15 +328,14 @@ static ResultCode UnmapMemory(VAddr dst_addr, VAddr src_addr, u64 size) {
     LOG_TRACE(Kernel_SVC, "called, dst_addr=0x{:X}, src_addr=0x{:X}, size=0x{:X}", dst_addr,
               src_addr, size);
 
-    auto* const current_process = Core::CurrentProcess();
-    const auto& vm_manager = current_process->VMManager();
-
+    auto& vm_manager = Core::CurrentProcess()->VMManager();
     const auto result = MapUnmapMemorySanityChecks(vm_manager, dst_addr, src_addr, size);
-    if (result != RESULT_SUCCESS) {
+
+    if (result.IsError()) {
         return result;
     }
 
-    return current_process->UnmapMemory(dst_addr, src_addr, size);
+    return vm_manager.UnmapRange(dst_addr, size);
 }
 
 /// Connect to an OS service given the port name, returns the handle to the port to out
@@ -349,7 +395,7 @@ static ResultCode SendSyncRequest(Handle handle) {
 }
 
 /// Get the ID for the specified thread.
-static ResultCode GetThreadId(u32* thread_id, Handle thread_handle) {
+static ResultCode GetThreadId(u64* thread_id, Handle thread_handle) {
     LOG_TRACE(Kernel_SVC, "called thread=0x{:08X}", thread_handle);
 
     const auto& handle_table = Core::CurrentProcess()->GetHandleTable();
@@ -363,20 +409,33 @@ static ResultCode GetThreadId(u32* thread_id, Handle thread_handle) {
     return RESULT_SUCCESS;
 }
 
-/// Get the ID of the specified process
-static ResultCode GetProcessId(u32* process_id, Handle process_handle) {
-    LOG_TRACE(Kernel_SVC, "called process=0x{:08X}", process_handle);
+/// Gets the ID of the specified process or a specified thread's owning process.
+static ResultCode GetProcessId(u64* process_id, Handle handle) {
+    LOG_DEBUG(Kernel_SVC, "called handle=0x{:08X}", handle);
 
     const auto& handle_table = Core::CurrentProcess()->GetHandleTable();
-    const SharedPtr<Process> process = handle_table.Get<Process>(process_handle);
-    if (!process) {
-        LOG_ERROR(Kernel_SVC, "Process handle does not exist, process_handle=0x{:08X}",
-                  process_handle);
-        return ERR_INVALID_HANDLE;
+    const SharedPtr<Process> process = handle_table.Get<Process>(handle);
+    if (process) {
+        *process_id = process->GetProcessID();
+        return RESULT_SUCCESS;
     }
 
-    *process_id = process->GetProcessID();
-    return RESULT_SUCCESS;
+    const SharedPtr<Thread> thread = handle_table.Get<Thread>(handle);
+    if (thread) {
+        const Process* const owner_process = thread->GetOwnerProcess();
+        if (!owner_process) {
+            LOG_ERROR(Kernel_SVC, "Non-existent owning process encountered.");
+            return ERR_INVALID_HANDLE;
+        }
+
+        *process_id = owner_process->GetProcessID();
+        return RESULT_SUCCESS;
+    }
+
+    // NOTE: This should also handle debug objects before returning.
+
+    LOG_ERROR(Kernel_SVC, "Handle does not exist, handle=0x{:08X}", handle);
+    return ERR_INVALID_HANDLE;
 }
 
 /// Default thread wakeup callback for WaitSynchronization
@@ -625,6 +684,9 @@ static void Break(u32 reason, u64 info1, u64 info2) {
             "Emulated program broke execution! reason=0x{:016X}, info1=0x{:016X}, info2=0x{:016X}",
             reason, info1, info2);
         handle_debug_buffer(info1, info2);
+        Core::System::GetInstance()
+            .ArmInterface(static_cast<std::size_t>(GetCurrentThread()->GetProcessorID()))
+            .LogBacktrace();
         ASSERT(false);
 
         Core::CurrentProcess()->PrepareForTermination();
@@ -653,8 +715,8 @@ static ResultCode GetInfo(u64* result, u64 info_id, u64 handle, u64 info_sub_id)
 
     enum class GetInfoType : u64 {
         // 1.0.0+
-        AllowedCpuIdBitmask = 0,
-        AllowedThreadPrioBitmask = 1,
+        AllowedCPUCoreMask = 0,
+        AllowedThreadPriorityMask = 1,
         MapRegionBaseAddr = 2,
         MapRegionSize = 3,
         HeapRegionBaseAddr = 4,
@@ -685,8 +747,8 @@ static ResultCode GetInfo(u64* result, u64 info_id, u64 handle, u64 info_sub_id)
     const auto info_id_type = static_cast<GetInfoType>(info_id);
 
     switch (info_id_type) {
-    case GetInfoType::AllowedCpuIdBitmask:
-    case GetInfoType::AllowedThreadPrioBitmask:
+    case GetInfoType::AllowedCPUCoreMask:
+    case GetInfoType::AllowedThreadPriorityMask:
     case GetInfoType::MapRegionBaseAddr:
     case GetInfoType::MapRegionSize:
     case GetInfoType::HeapRegionBaseAddr:
@@ -712,12 +774,12 @@ static ResultCode GetInfo(u64* result, u64 info_id, u64 handle, u64 info_sub_id)
         }
 
         switch (info_id_type) {
-        case GetInfoType::AllowedCpuIdBitmask:
-            *result = process->GetAllowedProcessorMask();
+        case GetInfoType::AllowedCPUCoreMask:
+            *result = process->GetCoreMask();
             return RESULT_SUCCESS;
 
-        case GetInfoType::AllowedThreadPrioBitmask:
-            *result = process->GetAllowedThreadPriorityMask();
+        case GetInfoType::AllowedThreadPriorityMask:
+            *result = process->GetPriorityMask();
             return RESULT_SUCCESS;
 
         case GetInfoType::MapRegionBaseAddr:
@@ -877,8 +939,35 @@ static ResultCode GetInfo(u64* result, u64 info_id, u64 handle, u64 info_sub_id)
 }
 
 /// Sets the thread activity
-static ResultCode SetThreadActivity(Handle handle, u32 unknown) {
-    LOG_WARNING(Kernel_SVC, "(STUBBED) called, handle=0x{:08X}, unknown=0x{:08X}", handle, unknown);
+static ResultCode SetThreadActivity(Handle handle, u32 activity) {
+    LOG_DEBUG(Kernel_SVC, "called, handle=0x{:08X}, activity=0x{:08X}", handle, activity);
+    if (activity > static_cast<u32>(ThreadActivity::Paused)) {
+        return ERR_INVALID_ENUM_VALUE;
+    }
+
+    const auto* current_process = Core::CurrentProcess();
+    const SharedPtr<Thread> thread = current_process->GetHandleTable().Get<Thread>(handle);
+    if (!thread) {
+        LOG_ERROR(Kernel_SVC, "Thread handle does not exist, handle=0x{:08X}", handle);
+        return ERR_INVALID_HANDLE;
+    }
+
+    if (thread->GetOwnerProcess() != current_process) {
+        LOG_ERROR(Kernel_SVC,
+                  "The current process does not own the current thread, thread_handle={:08X} "
+                  "thread_pid={}, "
+                  "current_process_pid={}",
+                  handle, thread->GetOwnerProcess()->GetProcessID(),
+                  current_process->GetProcessID());
+        return ERR_INVALID_HANDLE;
+    }
+
+    if (thread == GetCurrentThread()) {
+        LOG_ERROR(Kernel_SVC, "The thread handle specified is the current running thread");
+        return ERR_BUSY;
+    }
+
+    thread->SetActivity(static_cast<ThreadActivity>(activity));
     return RESULT_SUCCESS;
 }
 
@@ -905,7 +994,7 @@ static ResultCode GetThreadContext(VAddr thread_context, Handle handle) {
 
     if (thread == GetCurrentThread()) {
         LOG_ERROR(Kernel_SVC, "The thread handle specified is the current running thread");
-        return ERR_ALREADY_REGISTERED;
+        return ERR_BUSY;
     }
 
     Core::ARM_Interface::ThreadContext ctx = thread->GetContext();
@@ -1066,10 +1155,9 @@ static ResultCode UnmapSharedMemory(Handle shared_memory_handle, VAddr addr, u64
     return shared_memory->Unmap(*current_process, addr);
 }
 
-/// Query process memory
-static ResultCode QueryProcessMemory(MemoryInfo* memory_info, PageInfo* /*page_info*/,
-                                     Handle process_handle, u64 addr) {
-    LOG_TRACE(Kernel_SVC, "called process=0x{:08X} addr={:X}", process_handle, addr);
+static ResultCode QueryProcessMemory(VAddr memory_info_address, VAddr page_info_address,
+                                     Handle process_handle, VAddr address) {
+    LOG_TRACE(Kernel_SVC, "called process=0x{:08X} address={:X}", process_handle, address);
     const auto& handle_table = Core::CurrentProcess()->GetHandleTable();
     SharedPtr<Process> process = handle_table.Get<Process>(process_handle);
     if (!process) {
@@ -1077,26 +1165,34 @@ static ResultCode QueryProcessMemory(MemoryInfo* memory_info, PageInfo* /*page_i
                   process_handle);
         return ERR_INVALID_HANDLE;
     }
-    auto vma = process->VMManager().FindVMA(addr);
-    memory_info->attributes = 0;
-    if (vma == process->VMManager().vma_map.end()) {
-        memory_info->base_address = 0;
-        memory_info->permission = static_cast<u32>(VMAPermission::None);
-        memory_info->size = 0;
-        memory_info->type = static_cast<u32>(MemoryState::Unmapped);
-    } else {
-        memory_info->base_address = vma->second.base;
-        memory_info->permission = static_cast<u32>(vma->second.permissions);
-        memory_info->size = vma->second.size;
-        memory_info->type = static_cast<u32>(vma->second.meminfo_state);
-    }
+
+    const auto& vm_manager = process->VMManager();
+    const MemoryInfo memory_info = vm_manager.QueryMemory(address);
+
+    Memory::Write64(memory_info_address, memory_info.base_address);
+    Memory::Write64(memory_info_address + 8, memory_info.size);
+    Memory::Write32(memory_info_address + 16, memory_info.state);
+    Memory::Write32(memory_info_address + 20, memory_info.attributes);
+    Memory::Write32(memory_info_address + 24, memory_info.permission);
+    Memory::Write32(memory_info_address + 32, memory_info.ipc_ref_count);
+    Memory::Write32(memory_info_address + 28, memory_info.device_ref_count);
+    Memory::Write32(memory_info_address + 36, 0);
+
+    // Page info appears to be currently unused by the kernel and is always set to zero.
+    Memory::Write32(page_info_address, 0);
+
     return RESULT_SUCCESS;
 }
 
-/// Query memory
-static ResultCode QueryMemory(MemoryInfo* memory_info, PageInfo* page_info, VAddr addr) {
-    LOG_TRACE(Kernel_SVC, "called, addr={:X}", addr);
-    return QueryProcessMemory(memory_info, page_info, CurrentProcess, addr);
+static ResultCode QueryMemory(VAddr memory_info_address, VAddr page_info_address,
+                              VAddr query_address) {
+    LOG_TRACE(Kernel_SVC,
+              "called, memory_info_address=0x{:016X}, page_info_address=0x{:016X}, "
+              "query_address=0x{:016X}",
+              memory_info_address, page_info_address, query_address);
+
+    return QueryProcessMemory(memory_info_address, page_info_address, CurrentProcess,
+                              query_address);
 }
 
 /// Exits the current process
@@ -1123,29 +1219,35 @@ static ResultCode CreateThread(Handle* out_handle, VAddr entry_point, u64 arg, V
               "threadpriority=0x{:08X}, processorid=0x{:08X} : created handle=0x{:08X}",
               entry_point, arg, stack_top, priority, processor_id, *out_handle);
 
+    auto* const current_process = Core::CurrentProcess();
+
+    if (processor_id == THREADPROCESSORID_IDEAL) {
+        // Set the target CPU to the one specified by the process.
+        processor_id = current_process->GetIdealCore();
+        ASSERT(processor_id != THREADPROCESSORID_IDEAL);
+    }
+
+    if (processor_id < THREADPROCESSORID_0 || processor_id > THREADPROCESSORID_3) {
+        LOG_ERROR(Kernel_SVC, "Invalid thread processor ID: {}", processor_id);
+        return ERR_INVALID_PROCESSOR_ID;
+    }
+
+    const u64 core_mask = current_process->GetCoreMask();
+    if ((core_mask | (1ULL << processor_id)) != core_mask) {
+        LOG_ERROR(Kernel_SVC, "Invalid thread core specified ({})", processor_id);
+        return ERR_INVALID_PROCESSOR_ID;
+    }
+
     if (priority > THREADPRIO_LOWEST) {
-        LOG_ERROR(Kernel_SVC, "An invalid priority was specified, expected {} but got {}",
-                  THREADPRIO_LOWEST, priority);
+        LOG_ERROR(Kernel_SVC,
+                  "Invalid thread priority specified ({}). Must be within the range 0-64",
+                  priority);
         return ERR_INVALID_THREAD_PRIORITY;
     }
 
-    auto* const current_process = Core::CurrentProcess();
-
-    if (processor_id == THREADPROCESSORID_DEFAULT) {
-        // Set the target CPU to the one specified in the process' exheader.
-        processor_id = current_process->GetDefaultProcessorID();
-        ASSERT(processor_id != THREADPROCESSORID_DEFAULT);
-    }
-
-    switch (processor_id) {
-    case THREADPROCESSORID_0:
-    case THREADPROCESSORID_1:
-    case THREADPROCESSORID_2:
-    case THREADPROCESSORID_3:
-        break;
-    default:
-        LOG_ERROR(Kernel_SVC, "Invalid thread processor ID: {}", processor_id);
-        return ERR_INVALID_PROCESSOR_ID;
+    if (((1ULL << priority) & current_process->GetPriorityMask()) == 0) {
+        LOG_ERROR(Kernel_SVC, "Invalid thread priority specified ({})", priority);
+        return ERR_INVALID_THREAD_PRIORITY;
     }
 
     const std::string name = fmt::format("thread-{:X}", entry_point);
@@ -1183,7 +1285,10 @@ static ResultCode StartThread(Handle thread_handle) {
     ASSERT(thread->GetStatus() == ThreadStatus::Dormant);
 
     thread->ResumeFromWait();
-    Core::System::GetInstance().CpuCore(thread->GetProcessorID()).PrepareReschedule();
+
+    if (thread->GetStatus() == ThreadStatus::Ready) {
+        Core::System::GetInstance().CpuCore(thread->GetProcessorID()).PrepareReschedule();
+    }
 
     return RESULT_SUCCESS;
 }
@@ -1200,18 +1305,38 @@ static void ExitThread() {
 static void SleepThread(s64 nanoseconds) {
     LOG_TRACE(Kernel_SVC, "called nanoseconds={}", nanoseconds);
 
-    // Don't attempt to yield execution if there are no available threads to run,
-    // this way we avoid a useless reschedule to the idle thread.
-    if (nanoseconds == 0 && !Core::System::GetInstance().CurrentScheduler().HaveReadyThreads())
-        return;
+    enum class SleepType : s64 {
+        YieldWithoutLoadBalancing = 0,
+        YieldWithLoadBalancing = -1,
+        YieldAndWaitForLoadBalancing = -2,
+    };
 
-    // Sleep current thread and check for next thread to schedule
-    WaitCurrentThread_Sleep();
+    if (nanoseconds <= 0) {
+        auto& scheduler{Core::System::GetInstance().CurrentScheduler()};
+        switch (static_cast<SleepType>(nanoseconds)) {
+        case SleepType::YieldWithoutLoadBalancing:
+            scheduler.YieldWithoutLoadBalancing(GetCurrentThread());
+            break;
+        case SleepType::YieldWithLoadBalancing:
+            scheduler.YieldWithLoadBalancing(GetCurrentThread());
+            break;
+        case SleepType::YieldAndWaitForLoadBalancing:
+            scheduler.YieldAndWaitForLoadBalancing(GetCurrentThread());
+            break;
+        default:
+            UNREACHABLE_MSG("Unimplemented sleep yield type '{:016X}'!", nanoseconds);
+        }
+    } else {
+        // Sleep current thread and check for next thread to schedule
+        WaitCurrentThread_Sleep();
 
-    // Create an event to wake the thread up after the specified nanosecond delay has passed
-    GetCurrentThread()->WakeAfterDelay(nanoseconds);
+        // Create an event to wake the thread up after the specified nanosecond delay has passed
+        GetCurrentThread()->WakeAfterDelay(nanoseconds);
+    }
 
-    Core::System::GetInstance().PrepareReschedule();
+    // Reschedule all CPU cores
+    for (std::size_t i = 0; i < Core::NUM_CPU_CORES; ++i)
+        Core::System::GetInstance().CpuCore(i).PrepareReschedule();
 }
 
 /// Wait process wide key atomic
@@ -1483,9 +1608,9 @@ static ResultCode CreateTransferMemory(Handle* handle, VAddr addr, u64 size, u32
     }
 
     auto& kernel = Core::System::GetInstance().Kernel();
-    auto& handle_table = Core::CurrentProcess()->GetHandleTable();
-    const auto shared_mem_handle = SharedMemory::Create(
-        kernel, handle_table.Get<Process>(CurrentProcess), size, perms, perms, addr);
+    auto process = kernel.CurrentProcess();
+    auto& handle_table = process->GetHandleTable();
+    const auto shared_mem_handle = SharedMemory::Create(kernel, process, size, perms, perms, addr);
 
     CASCADE_RESULT(*handle, handle_table.Create(shared_mem_handle));
     return RESULT_SUCCESS;
@@ -1520,13 +1645,13 @@ static ResultCode SetThreadCoreMask(Handle thread_handle, u32 core, u64 mask) {
         return ERR_INVALID_HANDLE;
     }
 
-    if (core == static_cast<u32>(THREADPROCESSORID_DEFAULT)) {
-        const u8 default_processor_id = thread->GetOwnerProcess()->GetDefaultProcessorID();
+    if (core == static_cast<u32>(THREADPROCESSORID_IDEAL)) {
+        const u8 ideal_cpu_core = thread->GetOwnerProcess()->GetIdealCore();
 
-        ASSERT(default_processor_id != static_cast<u8>(THREADPROCESSORID_DEFAULT));
+        ASSERT(ideal_cpu_core != static_cast<u8>(THREADPROCESSORID_IDEAL));
 
-        // Set the target CPU to the one specified in the process' exheader.
-        core = default_processor_id;
+        // Set the target CPU to the ideal core specified by the process.
+        core = ideal_cpu_core;
         mask = 1ULL << core;
     }
 
@@ -1595,10 +1720,9 @@ static ResultCode CreateSharedMemory(Handle* handle, u64 size, u32 local_permiss
     }
 
     auto& kernel = Core::System::GetInstance().Kernel();
-    auto& handle_table = Core::CurrentProcess()->GetHandleTable();
-    auto shared_mem_handle =
-        SharedMemory::Create(kernel, handle_table.Get<Process>(KernelHandle::CurrentProcess), size,
-                             local_perms, remote_perms);
+    auto process = kernel.CurrentProcess();
+    auto& handle_table = process->GetHandleTable();
+    auto shared_mem_handle = SharedMemory::Create(kernel, process, size, local_perms, remote_perms);
 
     CASCADE_RESULT(*handle, handle_table.Create(shared_mem_handle));
     return RESULT_SUCCESS;
@@ -1904,7 +2028,7 @@ static const FunctionDef SVC_Table[] = {
     {0x73, nullptr, "SetProcessMemoryPermission"},
     {0x74, nullptr, "MapProcessMemory"},
     {0x75, nullptr, "UnmapProcessMemory"},
-    {0x76, nullptr, "QueryProcessMemory"},
+    {0x76, SvcWrap<QueryProcessMemory>, "QueryProcessMemory"},
     {0x77, nullptr, "MapProcessCodeMemory"},
     {0x78, nullptr, "UnmapProcessCodeMemory"},
     {0x79, nullptr, "CreateProcess"},

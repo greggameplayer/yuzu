@@ -75,7 +75,7 @@ std::vector<std::unique_ptr<WaitTreeThread>> WaitTreeItem::MakeThreadItemList() 
     return item_list;
 }
 
-WaitTreeText::WaitTreeText(const QString& t) : text(t) {}
+WaitTreeText::WaitTreeText(QString t) : text(std::move(t)) {}
 WaitTreeText::~WaitTreeText() = default;
 
 QString WaitTreeText::GetText() const {
@@ -182,8 +182,6 @@ QString WaitTreeWaitObject::GetResetTypeQString(Kernel::ResetType reset_type) {
         return tr("one shot");
     case Kernel::ResetType::Sticky:
         return tr("sticky");
-    case Kernel::ResetType::Pulse:
-        return tr("pulse");
     }
     UNREACHABLE();
     return {};
@@ -220,6 +218,9 @@ QString WaitTreeThread::GetText() const {
         break;
     case Kernel::ThreadStatus::Ready:
         status = tr("ready");
+        break;
+    case Kernel::ThreadStatus::Paused:
+        status = tr("paused");
         break;
     case Kernel::ThreadStatus::WaitHLEEvent:
         status = tr("waiting for HLE return");
@@ -262,6 +263,8 @@ QColor WaitTreeThread::GetColor() const {
         return QColor(Qt::GlobalColor::darkGreen);
     case Kernel::ThreadStatus::Ready:
         return QColor(Qt::GlobalColor::darkBlue);
+    case Kernel::ThreadStatus::Paused:
+        return QColor(Qt::GlobalColor::lightGray);
     case Kernel::ThreadStatus::WaitHLEEvent:
     case Kernel::ThreadStatus::WaitIPC:
         return QColor(Qt::GlobalColor::darkRed);
@@ -288,8 +291,8 @@ std::vector<std::unique_ptr<WaitTreeItem>> WaitTreeThread::GetChildren() const {
 
     QString processor;
     switch (thread.GetProcessorID()) {
-    case Kernel::ThreadProcessorId::THREADPROCESSORID_DEFAULT:
-        processor = tr("default");
+    case Kernel::ThreadProcessorId::THREADPROCESSORID_IDEAL:
+        processor = tr("ideal");
         break;
     case Kernel::ThreadProcessorId::THREADPROCESSORID_0:
     case Kernel::ThreadProcessorId::THREADPROCESSORID_1:

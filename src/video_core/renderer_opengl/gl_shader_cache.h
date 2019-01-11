@@ -4,6 +4,7 @@
 
 #pragma once
 
+#include <array>
 #include <map>
 #include <memory>
 
@@ -67,6 +68,7 @@ public:
                                        6, "ShaderTrianglesAdjacency");
         default:
             UNREACHABLE_MSG("Unknown primitive mode.");
+            return LazyGeometryProgram(geometry_programs.points, "points", 1, "ShaderPoints");
         }
     }
 
@@ -80,6 +82,8 @@ private:
     /// Generates a geometry shader or returns one that already exists.
     GLuint LazyGeometryProgram(OGLProgram& target_program, const std::string& glsl_topology,
                                u32 max_vertices, const std::string& debug_name);
+
+    void CalculateProperties();
 
     VAddr addr;
     std::size_t shader_length;
@@ -112,6 +116,9 @@ public:
 
     /// Gets the current specified shader stage program
     Shader GetStageProgram(Maxwell::ShaderProgram program);
+
+private:
+    std::array<Shader, Maxwell::MaxShaderProgram> last_shaders;
 };
 
 } // namespace OpenGL

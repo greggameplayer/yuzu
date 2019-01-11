@@ -10,6 +10,7 @@
 #include <QByteArray>
 #include <QString>
 #include <QStringList>
+#include "common/common_types.h"
 
 namespace UISettings {
 
@@ -39,11 +40,16 @@ struct Values {
     bool confirm_before_closing;
     bool first_start;
 
+    bool select_user_on_boot;
+
     // Discord RPC
     bool enable_discord_presence;
 
+    u16 screenshot_resolution_factor;
+
     QString roms_path;
     QString symbols_path;
+    QString screenshot_path;
     QString gamedir;
     bool gamedir_deepscan;
     QStringList recent_files;
@@ -57,6 +63,9 @@ struct Values {
 
     // logging
     bool show_console;
+
+    // Controllers
+    int profile_index;
 
     // Game List
     bool show_unknown;

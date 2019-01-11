@@ -101,7 +101,7 @@ struct FramebufferCacheKey {
 
 RasterizerOpenGL::RasterizerOpenGL(Core::Frontend::EmuWindow& window, ScreenInfo& info)
     : res_cache{*this}, shader_cache{*this}, emu_window{window}, screen_info{info},
-      buffer_cache(*this, STREAM_BUFFER_SIZE) {
+      buffer_cache(*this, STREAM_BUFFER_SIZE), global_cache{*this} {
     // Create sampler objects
     for (std::size_t i = 0; i < texture_samplers.size(); ++i) {
         texture_samplers[i].Create();
@@ -293,7 +293,7 @@ DrawParameters RasterizerOpenGL::SetupDraw() {
 
 void RasterizerOpenGL::SetupShaders(GLenum primitive_mode) {
     MICROPROFILE_SCOPE(OpenGL_Shader);
-    const auto& gpu = Core::System::GetInstance().GPU().Maxwell3D();
+    auto& gpu = Core::System::GetInstance().GPU().Maxwell3D();
 
     // Next available bindpoints to use when uploading the const buffers and textures to the GLSL
     // shaders. The constbuffer bindpoint starts after the shader stage configuration bind points.
@@ -376,6 +376,8 @@ void RasterizerOpenGL::SetupShaders(GLenum primitive_mode) {
     }
 
     SyncClipEnabled(clip_distances);
+
+    gpu.dirty_flags.shaders = false;
 }
 
 void RasterizerOpenGL::SetupCachedFramebuffer(const FramebufferCacheKey& fbkey,
@@ -761,6 +763,7 @@ void RasterizerOpenGL::InvalidateRegion(VAddr addr, u64 size) {
     MICROPROFILE_SCOPE(OpenGL_CacheManagement);
     res_cache.InvalidateRegion(addr, size);
     shader_cache.InvalidateRegion(addr, size);
+    global_cache.InvalidateRegion(addr, size);
     buffer_cache.InvalidateRegion(addr, size);
 }
 
@@ -1014,8 +1017,11 @@ u32 RasterizerOpenGL::SetupTextures(Maxwell::ShaderStage stage, Shader& shader,
         texture_samplers[current_bindpoint].SyncWithConfig(texture.tsc);
         Surface surface = res_cache.GetTextureSurface(texture, entry);
         if (surface != nullptr) {
-            state.texture_units[current_bindpoint].texture = surface->Texture().handle;
-            state.texture_units[current_bindpoint].target = surface->Target();
+            const GLuint handle =
+                entry.IsArray() ? surface->TextureLayer().handle : surface->Texture().handle;
+            const GLenum target = entry.IsArray() ? surface->TargetLayer() : surface->Target();
+            state.texture_units[current_bindpoint].texture = handle;
+            state.texture_units[current_bindpoint].target = target;
             state.texture_units[current_bindpoint].swizzle.r =
                 MaxwellToGL::SwizzleSource(texture.tic.x_source);
             state.texture_units[current_bindpoint].swizzle.g =

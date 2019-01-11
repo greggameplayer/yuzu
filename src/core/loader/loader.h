@@ -12,7 +12,12 @@
 #include <vector>
 
 #include "common/common_types.h"
+#include "core/file_sys/control_metadata.h"
 #include "core/file_sys/vfs.h"
+
+namespace FileSys {
+class NACP;
+} // namespace FileSys
 
 namespace Kernel {
 struct AddressMapping;
@@ -66,6 +71,7 @@ enum class ResultStatus : u16 {
     ErrorBadACIHeader,
     ErrorBadFileAccessControl,
     ErrorBadFileAccessHeader,
+    ErrorBadKernelCapabilityDescriptors,
     ErrorBadPFSHeader,
     ErrorIncorrectPFSFileSize,
     ErrorBadNCAHeader,
@@ -88,6 +94,7 @@ enum class ResultStatus : u16 {
     ErrorNullFile,
     ErrorMissingNPDM,
     Error32BitISA,
+    ErrorUnableToParseKernelMetadata,
     ErrorNoRomFS,
     ErrorIncorrectELFFileSize,
     ErrorLoadingNRO,
@@ -240,6 +247,24 @@ public:
      * @return ResultStatus result of function
      */
     virtual ResultStatus ReadTitle(std::string& title) {
+        return ResultStatus::ErrorNotImplemented;
+    }
+
+    /**
+     * Get the control data (CNMT) of the application
+     * @param control Reference to store the application control data into
+     * @return ResultStatus result of function
+     */
+    virtual ResultStatus ReadControlData(FileSys::NACP& control) {
+        return ResultStatus::ErrorNotImplemented;
+    }
+
+    /**
+     * Get the RomFS of the manual of the application
+     * @param file The raw manual RomFS of the game
+     * @return ResultStatus result of function
+     */
+    virtual ResultStatus ReadManualRomFS(FileSys::VirtualFile& file) {
         return ResultStatus::ErrorNotImplemented;
     }
 

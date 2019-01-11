@@ -7,9 +7,7 @@
 #include "common/common_types.h"
 #include "core/arm/arm_interface.h"
 #include "core/core.h"
-#include "core/hle/kernel/svc.h"
 #include "core/hle/result.h"
-#include "core/memory.h"
 
 namespace Kernel {
 
@@ -75,7 +73,15 @@ void SvcWrap() {
 template <ResultCode func(u32*, u64)>
 void SvcWrap() {
     u32 param_1 = 0;
-    u32 retval = func(&param_1, Param(1)).raw;
+    const u32 retval = func(&param_1, Param(1)).raw;
+    Core::CurrentArmInterface().SetReg(1, param_1);
+    FuncReturn(retval);
+}
+
+template <ResultCode func(u64*, u32)>
+void SvcWrap() {
+    u64 param_1 = 0;
+    const u32 retval = func(&param_1, static_cast<u32>(Param(1))).raw;
     Core::CurrentArmInterface().SetReg(1, param_1);
     FuncReturn(retval);
 }
@@ -129,7 +135,12 @@ void SvcWrap() {
 template <ResultCode func(u64, u64, u32, u32)>
 void SvcWrap() {
     FuncReturn(
-        func(Param(0), Param(1), static_cast<u32>(Param(3)), static_cast<u32>(Param(3))).raw);
+        func(Param(0), Param(1), static_cast<u32>(Param(2)), static_cast<u32>(Param(3))).raw);
+}
+
+template <ResultCode func(u64, u64, u32, u64)>
+void SvcWrap() {
+    FuncReturn(func(Param(0), Param(1), static_cast<u32>(Param(2)), Param(3)).raw);
 }
 
 template <ResultCode func(u32, u64, u32)>
@@ -188,21 +199,6 @@ void SvcWrap() {
                       static_cast<s32>(Param(5)))
                      .raw;
     Core::CurrentArmInterface().SetReg(1, param_1);
-    FuncReturn(retval);
-}
-
-template <ResultCode func(MemoryInfo*, PageInfo*, u64)>
-void SvcWrap() {
-    MemoryInfo memory_info = {};
-    PageInfo page_info = {};
-    u32 retval = func(&memory_info, &page_info, Param(2)).raw;
-
-    Memory::Write64(Param(0), memory_info.base_address);
-    Memory::Write64(Param(0) + 8, memory_info.size);
-    Memory::Write32(Param(0) + 16, memory_info.type);
-    Memory::Write32(Param(0) + 20, memory_info.attributes);
-    Memory::Write32(Param(0) + 24, memory_info.permission);
-
     FuncReturn(retval);
 }
 

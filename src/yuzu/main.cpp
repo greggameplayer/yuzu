@@ -8,11 +8,16 @@
 #include <thread>
 
 // VFS includes must be before glad as they will conflict with Windows file api, which uses defines.
+#include "applets/profile_select.h"
 #include "applets/software_keyboard.h"
+#include "applets/web_browser.h"
+#include "configuration/configure_per_general.h"
 #include "core/file_sys/vfs.h"
 #include "core/file_sys/vfs_real.h"
 #include "core/hle/service/acc/profile_manager.h"
 #include "core/hle/service/am/applets/applets.h"
+#include "core/hle/service/hid/controllers/npad.h"
+#include "core/hle/service/hid/hid.h"
 
 // These are wrappers to avoid the calls to CreateDirectory and CreateFile because of the Windows
 // defines.
@@ -92,6 +97,14 @@ static FileSys::VirtualFile VfsDirectoryCreateFileWrapper(const FileSys::Virtual
 
 #ifdef USE_DISCORD_PRESENCE
 #include "yuzu/discord_impl.h"
+#endif
+
+#ifdef YUZU_USE_QT_WEB_ENGINE
+#include <QWebEngineProfile>
+#include <QWebEngineScript>
+#include <QWebEngineScriptCollection>
+#include <QWebEngineSettings>
+#include <QWebEngineView>
 #endif
 
 #ifdef QT_STATICPLUGIN
@@ -207,6 +220,28 @@ GMainWindow::~GMainWindow() {
         delete render_window;
 }
 
+void GMainWindow::ProfileSelectorSelectProfile() {
+    QtProfileSelectionDialog dialog(this);
+    dialog.setWindowFlags(Qt::Dialog | Qt::CustomizeWindowHint | Qt::WindowTitleHint |
+                          Qt::WindowSystemMenuHint | Qt::WindowCloseButtonHint);
+    dialog.setWindowModality(Qt::WindowModal);
+    dialog.exec();
+
+    if (!dialog.GetStatus()) {
+        emit ProfileSelectorFinishedSelection(std::nullopt);
+        return;
+    }
+
+    Service::Account::ProfileManager manager;
+    const auto uuid = manager.GetUser(dialog.GetIndex());
+    if (!uuid.has_value()) {
+        emit ProfileSelectorFinishedSelection(std::nullopt);
+        return;
+    }
+
+    emit ProfileSelectorFinishedSelection(uuid);
+}
+
 void GMainWindow::SoftwareKeyboardGetText(
     const Core::Frontend::SoftwareKeyboardParameters& parameters) {
     QtSoftwareKeyboardDialog dialog(this, parameters);
@@ -227,6 +262,144 @@ void GMainWindow::SoftwareKeyboardInvokeCheckDialog(std::u16string error_message
     QMessageBox::warning(this, tr("Text Check Failed"), QString::fromStdU16String(error_message));
     emit SoftwareKeyboardFinishedCheckDialog();
 }
+
+#ifdef YUZU_USE_QT_WEB_ENGINE
+
+void GMainWindow::WebBrowserOpenPage(std::string_view filename, std::string_view additional_args) {
+    NXInputWebEngineView web_browser_view(this);
+
+    // Scope to contain the QProgressDialog for initalization
+    {
+        QProgressDialog progress(this);
+        progress.setMinimumDuration(200);
+        progress.setLabelText(tr("Loading Web Applet..."));
+        progress.setRange(0, 4);
+        progress.setValue(0);
+        progress.show();
+
+        auto future = QtConcurrent::run([this] { emit WebBrowserUnpackRomFS(); });
+
+        while (!future.isFinished())
+            QApplication::processEvents();
+
+        progress.setValue(1);
+
+        // Load the special shim script to handle input and exit.
+        QWebEngineScript nx_shim;
+        nx_shim.setSourceCode(GetNXShimInjectionScript());
+        nx_shim.setWorldId(QWebEngineScript::MainWorld);
+        nx_shim.setName("nx_inject.js");
+        nx_shim.setInjectionPoint(QWebEngineScript::DocumentCreation);
+        nx_shim.setRunsOnSubFrames(true);
+        web_browser_view.page()->profile()->scripts()->insert(nx_shim);
+
+        web_browser_view.load(
+            QUrl(QUrl::fromLocalFile(QString::fromStdString(std::string(filename))).toString() +
+                 QString::fromStdString(std::string(additional_args))));
+
+        progress.setValue(2);
+
+        render_window->hide();
+        web_browser_view.setFocus();
+
+        const auto& layout = render_window->GetFramebufferLayout();
+        web_browser_view.resize(layout.screen.GetWidth(), layout.screen.GetHeight());
+        web_browser_view.move(layout.screen.left, layout.screen.top + menuBar()->height());
+        web_browser_view.setZoomFactor(static_cast<qreal>(layout.screen.GetWidth()) /
+                                       Layout::ScreenUndocked::Width);
+        web_browser_view.settings()->setAttribute(
+            QWebEngineSettings::LocalContentCanAccessRemoteUrls, true);
+
+        web_browser_view.show();
+
+        progress.setValue(3);
+
+        QApplication::processEvents();
+
+        progress.setValue(4);
+    }
+
+    bool finished = false;
+    QAction* exit_action = new QAction(tr("Exit Web Applet"), this);
+    connect(exit_action, &QAction::triggered, this, [&finished] { finished = true; });
+    ui.menubar->addAction(exit_action);
+
+    auto& npad =
+        Core::System::GetInstance()
+            .ServiceManager()
+            .GetService<Service::HID::Hid>("hid")
+            ->GetAppletResource()
+            ->GetController<Service::HID::Controller_NPad>(Service::HID::HidController::NPad);
+
+    const auto fire_js_keypress = [&web_browser_view](u32 key_code) {
+        web_browser_view.page()->runJavaScript(
+            QStringLiteral("document.dispatchEvent(new KeyboardEvent('keydown', {'key': %1}));")
+                .arg(QString::fromStdString(std::to_string(key_code))));
+    };
+
+    bool running_exit_check = false;
+    while (!finished) {
+        QApplication::processEvents();
+
+        if (!running_exit_check) {
+            web_browser_view.page()->runJavaScript(QStringLiteral("applet_done;"),
+                                                   [&](const QVariant& res) {
+                                                       running_exit_check = false;
+                                                       if (res.toBool())
+                                                           finished = true;
+                                                   });
+            running_exit_check = true;
+        }
+
+        const auto input = npad.GetAndResetPressState();
+        for (std::size_t i = 0; i < Settings::NativeButton::NumButtons; ++i) {
+            if ((input & (1 << i)) != 0) {
+                LOG_DEBUG(Frontend, "firing input for button id={:02X}", i);
+                web_browser_view.page()->runJavaScript(
+                    QStringLiteral("yuzu_key_callbacks[%1]();").arg(i));
+            }
+        }
+
+        if (input & 0x00888000)      // RStick Down | LStick Down | DPad Down
+            fire_js_keypress(40);    // Down Arrow Key
+        else if (input & 0x00444000) // RStick Right | LStick Right | DPad Right
+            fire_js_keypress(39);    // Right Arrow Key
+        else if (input & 0x00222000) // RStick Up | LStick Up | DPad Up
+            fire_js_keypress(38);    // Up Arrow Key
+        else if (input & 0x00111000) // RStick Left | LStick Left | DPad Left
+            fire_js_keypress(37);    // Left Arrow Key
+        else if (input & 0x00000001) // A Button
+            fire_js_keypress(13);    // Enter Key
+    }
+
+    web_browser_view.hide();
+    render_window->show();
+    render_window->setFocus();
+    ui.menubar->removeAction(exit_action);
+
+    // Needed to update render window focus/show and remove menubar action
+    QApplication::processEvents();
+    emit WebBrowserFinishedBrowsing();
+}
+
+#else
+
+void GMainWindow::WebBrowserOpenPage(std::string_view filename, std::string_view additional_args) {
+    QMessageBox::warning(
+        this, tr("Web Applet"),
+        tr("This version of yuzu was built without QtWebEngine support, meaning that yuzu cannot "
+           "properly display the game manual or web page requested."),
+        QMessageBox::Ok, QMessageBox::Ok);
+
+    LOG_INFO(Frontend,
+             "(STUBBED) called - Missing QtWebEngine dependency needed to open website page at "
+             "'{}' with arguments '{}'!",
+             filename, additional_args);
+
+    emit WebBrowserFinishedBrowsing();
+}
+
+#endif
 
 void GMainWindow::InitializeWidgets() {
 #ifdef YUZU_ENABLE_COMPATIBILITY_REPORTING
@@ -334,6 +507,9 @@ void GMainWindow::InitializeHotkeys() {
                                    Qt::ApplicationShortcut);
     hotkey_registry.RegisterHotkey("Main Window", "Load Amiibo", QKeySequence(Qt::Key_F2),
                                    Qt::ApplicationShortcut);
+    hotkey_registry.RegisterHotkey("Main Window", "Capture Screenshot",
+                                   QKeySequence(QKeySequence::Print));
+
     hotkey_registry.LoadHotkeys();
 
     connect(hotkey_registry.GetHotkey("Main Window", "Load File", this), &QShortcut::activated,
@@ -393,6 +569,12 @@ void GMainWindow::InitializeHotkeys() {
                     OnLoadAmiibo();
                 }
             });
+    connect(hotkey_registry.GetHotkey("Main Window", "Capture Screenshot", this),
+            &QShortcut::activated, this, [&] {
+                if (emu_thread->IsRunning()) {
+                    OnCaptureScreenshot();
+                }
+            });
 }
 
 void GMainWindow::SetDefaultUIGeometry() {
@@ -441,6 +623,8 @@ void GMainWindow::ConnectWidgetEvents() {
     connect(game_list, &GameList::CopyTIDRequested, this, &GMainWindow::OnGameListCopyTID);
     connect(game_list, &GameList::NavigateToGamedbEntryRequested, this,
             &GMainWindow::OnGameListNavigateToGamedbEntry);
+    connect(game_list, &GameList::OpenPerGameGeneralRequested, this,
+            &GMainWindow::OnGameListOpenPerGameProperties);
 
     connect(this, &GMainWindow::EmulationStarting, render_window,
             &GRenderWindow::OnEmulationStarting);
@@ -487,6 +671,10 @@ void GMainWindow::ConnectMenuEvents() {
     ui.action_Fullscreen->setShortcut(
         hotkey_registry.GetHotkey("Main Window", "Fullscreen", this)->key());
     connect(ui.action_Fullscreen, &QAction::triggered, this, &GMainWindow::ToggleFullscreen);
+
+    // Movie
+    connect(ui.action_Capture_Screenshot, &QAction::triggered, this,
+            &GMainWindow::OnCaptureScreenshot);
 
     // Help
     connect(ui.action_Open_yuzu_Folder, &QAction::triggered, this, &GMainWindow::OnOpenYuzuFolder);
@@ -571,7 +759,9 @@ bool GMainWindow::LoadROM(const QString& filename) {
 
     system.SetGPUDebugContext(debug_context);
 
+    system.SetProfileSelector(std::make_unique<QtProfileSelector>(*this));
     system.SetSoftwareKeyboard(std::make_unique<QtSoftwareKeyboard>(*this));
+    system.SetWebBrowser(std::make_unique<QtWebBrowser>(*this));
 
     const Core::System::ResultStatus result{system.Load(*render_window, filename.toStdString())};
 
@@ -647,9 +837,25 @@ bool GMainWindow::LoadROM(const QString& filename) {
     return true;
 }
 
+void GMainWindow::SelectAndSetCurrentUser() {
+    QtProfileSelectionDialog dialog(this);
+    dialog.setWindowFlags(Qt::Dialog | Qt::CustomizeWindowHint | Qt::WindowTitleHint |
+                          Qt::WindowSystemMenuHint | Qt::WindowCloseButtonHint);
+    dialog.setWindowModality(Qt::WindowModal);
+    dialog.exec();
+
+    if (dialog.GetStatus()) {
+        Settings::values.current_user = static_cast<s32>(dialog.GetIndex());
+    }
+}
+
 void GMainWindow::BootGame(const QString& filename) {
     LOG_INFO(Frontend, "yuzu starting...");
     StoreRecentFile(filename); // Put the filename on top of the list
+
+    if (UISettings::values.select_user_on_boot) {
+        SelectAndSetCurrentUser();
+    }
 
     if (!LoadROM(filename))
         return;
@@ -724,6 +930,7 @@ void GMainWindow::ShutdownGame() {
     ui.action_Restart->setEnabled(false);
     ui.action_Report_Compatibility->setEnabled(false);
     ui.action_Load_Amiibo->setEnabled(false);
+    ui.action_Capture_Screenshot->setEnabled(false);
     render_window->hide();
     game_list->show();
     game_list->setFilterFocus();
@@ -786,31 +993,25 @@ void GMainWindow::OnGameListOpenFolder(u64 program_id, GameListOpenTarget target
         const std::string nand_dir = FileUtil::GetUserPath(FileUtil::UserPath::NANDDir);
         ASSERT(program_id != 0);
 
-        Service::Account::ProfileManager manager{};
-        const auto user_ids = manager.GetAllUsers();
-        QStringList list;
-        for (const auto& user_id : user_ids) {
-            if (user_id == Service::Account::UUID{})
-                continue;
-            Service::Account::ProfileBase base;
-            if (!manager.GetProfileBase(user_id, base))
-                continue;
+        const auto select_profile = [this]() -> s32 {
+            QtProfileSelectionDialog dialog(this);
+            dialog.setWindowFlags(Qt::Dialog | Qt::CustomizeWindowHint | Qt::WindowTitleHint |
+                                  Qt::WindowSystemMenuHint | Qt::WindowCloseButtonHint);
+            dialog.setWindowModality(Qt::WindowModal);
+            dialog.exec();
 
-            list.push_back(QString::fromStdString(Common::StringFromFixedZeroTerminatedBuffer(
-                reinterpret_cast<const char*>(base.username.data()), base.username.size())));
-        }
+            if (!dialog.GetStatus()) {
+                return -1;
+            }
 
-        bool ok = false;
-        const auto index_string =
-            QInputDialog::getItem(this, tr("Select User"),
-                                  tr("Please select the user's save data you would like to open."),
-                                  list, Settings::values.current_user, false, &ok);
-        if (!ok)
+            return dialog.GetIndex();
+        };
+
+        const auto index = select_profile();
+        if (index == -1)
             return;
 
-        const auto index = list.indexOf(index_string);
-        ASSERT(index != -1 && index < 8);
-
+        Service::Account::ProfileManager manager;
         const auto user_id = manager.GetUser(index);
         ASSERT(user_id);
         path = nand_dir + FileSys::SaveDataFactory::GetFullPath(FileSys::SaveDataSpaceId::NandUser,
@@ -986,6 +1187,32 @@ void GMainWindow::OnGameListNavigateToGamedbEntry(u64 program_id,
         directory = it->second.second;
 
     QDesktopServices::openUrl(QUrl("https://yuzu-emu.org/game/" + directory));
+}
+
+void GMainWindow::OnGameListOpenPerGameProperties(const std::string& file) {
+    u64 title_id{};
+    const auto v_file = Core::GetGameFileFromPath(vfs, file);
+    const auto loader = Loader::GetLoader(v_file);
+    if (loader == nullptr || loader->ReadProgramId(title_id) != Loader::ResultStatus::Success) {
+        QMessageBox::information(this, tr("Properties"),
+                                 tr("The game properties could not be loaded."));
+        return;
+    }
+
+    ConfigurePerGameGeneral dialog(this, title_id);
+    dialog.loadFromFile(v_file);
+    auto result = dialog.exec();
+    if (result == QDialog::Accepted) {
+        dialog.applyConfiguration();
+
+        const auto reload = UISettings::values.is_game_list_reload_pending.exchange(false);
+        if (reload) {
+            game_list->PopulateAsync(UISettings::values.gamedir,
+                                     UISettings::values.gamedir_deepscan);
+        }
+
+        config->Save();
+    }
 }
 
 void GMainWindow::OnMenuLoadFile() {
@@ -1248,6 +1475,7 @@ void GMainWindow::OnStartGame() {
     qRegisterMetaType<Core::System::ResultStatus>("Core::System::ResultStatus");
     qRegisterMetaType<std::string>("std::string");
     qRegisterMetaType<std::optional<std::u16string>>("std::optional<std::u16string>");
+    qRegisterMetaType<std::string_view>("std::string_view");
 
     connect(emu_thread.get(), &EmuThread::ErrorThrown, this, &GMainWindow::OnCoreError);
 
@@ -1261,6 +1489,7 @@ void GMainWindow::OnStartGame() {
 
     discord_rpc->Update();
     ui.action_Load_Amiibo->setEnabled(true);
+    ui.action_Capture_Screenshot->setEnabled(true);
 }
 
 void GMainWindow::OnPauseGame() {
@@ -1269,6 +1498,7 @@ void GMainWindow::OnPauseGame() {
     ui.action_Start->setEnabled(true);
     ui.action_Pause->setEnabled(false);
     ui.action_Stop->setEnabled(true);
+    ui.action_Capture_Screenshot->setEnabled(false);
 }
 
 void GMainWindow::OnStopGame() {
@@ -1429,6 +1659,18 @@ void GMainWindow::OnToggleFilterBar() {
     } else {
         game_list->clearFilter();
     }
+}
+
+void GMainWindow::OnCaptureScreenshot() {
+    OnPauseGame();
+    const QString path =
+        QFileDialog::getSaveFileName(this, tr("Capture Screenshot"),
+                                     UISettings::values.screenshot_path, tr("PNG Image (*.png)"));
+    if (!path.isEmpty()) {
+        UISettings::values.screenshot_path = QFileInfo(path).path();
+        render_window->CaptureScreenshot(UISettings::values.screenshot_resolution_factor, path);
+    }
+    OnStartGame();
 }
 
 void GMainWindow::UpdateStatusBar() {

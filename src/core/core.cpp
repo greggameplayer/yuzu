@@ -8,6 +8,7 @@
 #include <thread>
 #include <utility>
 
+#include "common/file_util.h"
 #include "common/logging/log.h"
 #include "common/string_util.h"
 #include "core/arm/exclusive_monitor.h"
@@ -29,8 +30,11 @@
 #include "core/hle/service/sm/sm.h"
 #include "core/loader/loader.h"
 #include "core/perf_stats.h"
+#include "core/settings.h"
 #include "core/telemetry_session.h"
+#include "frontend/applets/profile_select.h"
 #include "frontend/applets/software_keyboard.h"
+#include "frontend/applets/web_browser.h"
 #include "video_core/debug_utils/debug_utils.h"
 #include "video_core/gpu.h"
 #include "video_core/renderer_base.h"
@@ -40,7 +44,6 @@ namespace Core {
 
 /*static*/ System System::s_instance;
 
-namespace {
 FileSys::VirtualFile GetGameFileFromPath(const FileSys::VirtualFilesystem& vfs,
                                          const std::string& path) {
     // To account for split 00+01+etc files.
@@ -69,11 +72,13 @@ FileSys::VirtualFile GetGameFileFromPath(const FileSys::VirtualFilesystem& vfs,
         return FileSys::ConcatenatedVfsFile::MakeConcatenatedFile(concat, dir->GetName());
     }
 
+    if (FileUtil::IsDirectory(path))
+        return vfs->OpenFile(path + "/" + "main", FileSys::Mode::Read);
+
     return vfs->OpenFile(path, FileSys::Mode::Read);
 }
-} // Anonymous namespace
-
 struct System::Impl {
+
     Cpu& CurrentCpuCore() {
         return cpu_core_manager.GetCurrentCore();
     }
@@ -92,13 +97,22 @@ struct System::Impl {
         CoreTiming::Init();
         kernel.Initialize();
 
+        const auto current_time = std::chrono::duration_cast<std::chrono::seconds>(
+            std::chrono::system_clock::now().time_since_epoch());
+        Settings::values.custom_rtc_differential =
+            Settings::values.custom_rtc.value_or(current_time) - current_time;
+
         // Create a default fs if one doesn't already exist.
         if (virtual_filesystem == nullptr)
             virtual_filesystem = std::make_shared<FileSys::RealVfsFilesystem>();
 
         /// Create default implementations of applets if one is not provided.
+        if (profile_selector == nullptr)
+            profile_selector = std::make_unique<Core::Frontend::DefaultProfileSelectApplet>();
         if (software_keyboard == nullptr)
             software_keyboard = std::make_unique<Core::Frontend::DefaultSoftwareKeyboardApplet>();
+        if (web_browser == nullptr)
+            web_browser = std::make_unique<Core::Frontend::DefaultWebBrowserApplet>();
 
         auto main_process = Kernel::Process::Create(kernel, "main");
         kernel.MakeCurrentProcess(main_process.get());
@@ -195,6 +209,11 @@ struct System::Impl {
         // Close app loader
         app_loader.reset();
 
+        // Clear all applets
+        profile_selector.reset();
+        software_keyboard.reset();
+        web_browser.reset();
+
         LOG_DEBUG(Core, "Shutdown OK");
     }
 
@@ -227,7 +246,9 @@ struct System::Impl {
     bool is_powered_on = false;
 
     /// Frontend applets
+    std::unique_ptr<Core::Frontend::ProfileSelectApplet> profile_selector;
     std::unique_ptr<Core::Frontend::SoftwareKeyboardApplet> software_keyboard;
+    std::unique_ptr<Core::Frontend::WebBrowserApplet> web_browser;
 
     /// Service manager
     std::shared_ptr<Service::SM::ServiceManager> service_manager;
@@ -422,12 +443,28 @@ std::shared_ptr<FileSys::VfsFilesystem> System::GetFilesystem() const {
     return impl->virtual_filesystem;
 }
 
+void System::SetProfileSelector(std::unique_ptr<Core::Frontend::ProfileSelectApplet> applet) {
+    impl->profile_selector = std::move(applet);
+}
+
+const Core::Frontend::ProfileSelectApplet& System::GetProfileSelector() const {
+    return *impl->profile_selector;
+}
+
 void System::SetSoftwareKeyboard(std::unique_ptr<Core::Frontend::SoftwareKeyboardApplet> applet) {
     impl->software_keyboard = std::move(applet);
 }
 
 const Core::Frontend::SoftwareKeyboardApplet& System::GetSoftwareKeyboard() const {
     return *impl->software_keyboard;
+}
+
+void System::SetWebBrowser(std::unique_ptr<Core::Frontend::WebBrowserApplet> applet) {
+    impl->web_browser = std::move(applet);
+}
+
+const Core::Frontend::WebBrowserApplet& System::GetWebBrowser() const {
+    return *impl->web_browser;
 }
 
 System::ResultStatus System::Init(Frontend::EmuWindow& emu_window) {

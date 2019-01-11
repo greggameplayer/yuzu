@@ -260,8 +260,7 @@ void AudioRenderer::VoiceState::RefreshBuffer() {
         break;
     }
     default:
-        LOG_CRITICAL(Audio, "Unimplemented sample_format={}", info.sample_format);
-        UNREACHABLE();
+        UNIMPLEMENTED_MSG("Unimplemented sample_format={}", info.sample_format);
         break;
     }
 
@@ -280,13 +279,15 @@ void AudioRenderer::VoiceState::RefreshBuffer() {
         break;
     }
     default:
-        LOG_CRITICAL(Audio, "Unimplemented channel_count={}", info.channel_count);
-        UNREACHABLE();
+        UNIMPLEMENTED_MSG("Unimplemented channel_count={}", info.channel_count);
         break;
     }
 
-    samples =
-        Interpolate(interp_state, std::move(samples), GetInfo().sample_rate, STREAM_SAMPLE_RATE);
+    // Only interpolate when necessary, expensive.
+    if (GetInfo().sample_rate != STREAM_SAMPLE_RATE) {
+        samples = Interpolate(interp_state, std::move(samples), GetInfo().sample_rate,
+                              STREAM_SAMPLE_RATE);
+    }
 
     is_refresh_pending = false;
 }

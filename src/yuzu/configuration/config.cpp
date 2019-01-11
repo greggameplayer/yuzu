@@ -4,6 +4,7 @@
 
 #include <QSettings>
 #include "common/file_util.h"
+#include "configure_input_simple.h"
 #include "core/hle/service/acc/profile_manager.h"
 #include "core/hle/service/hid/controllers/npad.h"
 #include "input_common/main.h"
@@ -339,6 +340,13 @@ void Config::ReadTouchscreenValues() {
     qt_config->endGroup();
 }
 
+void Config::ApplyDefaultProfileIfInputInvalid() {
+    if (!std::any_of(Settings::values.players.begin(), Settings::values.players.end(),
+                     [](const Settings::PlayerInput& in) { return in.connected; })) {
+        ApplyInputProfileConfiguration(UISettings::values.profile_index);
+    }
+}
+
 void Config::ReadValues() {
     qt_config->beginGroup("Controls");
 
@@ -411,11 +419,19 @@ void Config::ReadValues() {
 
     Settings::values.language_index = qt_config->value("language_index", 1).toInt();
 
-    const auto enabled = qt_config->value("rng_seed_enabled", false).toBool();
-    if (enabled) {
+    const auto rng_seed_enabled = qt_config->value("rng_seed_enabled", false).toBool();
+    if (rng_seed_enabled) {
         Settings::values.rng_seed = qt_config->value("rng_seed", 0).toULongLong();
     } else {
         Settings::values.rng_seed = std::nullopt;
+    }
+
+    const auto custom_rtc_enabled = qt_config->value("custom_rtc_enabled", false).toBool();
+    if (custom_rtc_enabled) {
+        Settings::values.custom_rtc =
+            std::chrono::seconds(qt_config->value("custom_rtc", 0).toULongLong());
+    } else {
+        Settings::values.custom_rtc = std::nullopt;
     }
 
     qt_config->endGroup();
@@ -441,10 +457,29 @@ void Config::ReadValues() {
     Settings::values.yuzu_token = qt_config->value("yuzu_token").toString().toStdString();
     qt_config->endGroup();
 
+    const auto size = qt_config->beginReadArray("DisabledAddOns");
+    for (int i = 0; i < size; ++i) {
+        qt_config->setArrayIndex(i);
+        const auto title_id = qt_config->value("title_id", 0).toULongLong();
+        std::vector<std::string> out;
+        const auto d_size = qt_config->beginReadArray("disabled");
+        for (int j = 0; j < d_size; ++j) {
+            qt_config->setArrayIndex(j);
+            out.push_back(qt_config->value("d", "").toString().toStdString());
+        }
+        qt_config->endArray();
+        Settings::values.disabled_addons.insert_or_assign(title_id, out);
+    }
+    qt_config->endArray();
+
     qt_config->beginGroup("UI");
     UISettings::values.theme = qt_config->value("theme", UISettings::themes[0].second).toString();
     UISettings::values.enable_discord_presence =
         qt_config->value("enable_discord_presence", true).toBool();
+    UISettings::values.screenshot_resolution_factor =
+        static_cast<u16>(qt_config->value("screenshot_resolution_factor", 0).toUInt());
+    UISettings::values.select_user_on_boot =
+        qt_config->value("select_user_on_boot", false).toBool();
 
     qt_config->beginGroup("UIGameList");
     UISettings::values.show_unknown = qt_config->value("show_unknown", true).toBool();
@@ -503,6 +538,9 @@ void Config::ReadValues() {
     UISettings::values.first_start = qt_config->value("firstStart", true).toBool();
     UISettings::values.callout_flags = qt_config->value("calloutFlags", 0).toUInt();
     UISettings::values.show_console = qt_config->value("showConsole", false).toBool();
+    UISettings::values.profile_index = qt_config->value("profileIndex", 0).toUInt();
+
+    ApplyDefaultProfileIfInputInvalid();
 
     qt_config->endGroup();
 }
@@ -623,6 +661,11 @@ void Config::SaveValues() {
     qt_config->setValue("rng_seed_enabled", Settings::values.rng_seed.has_value());
     qt_config->setValue("rng_seed", Settings::values.rng_seed.value_or(0));
 
+    qt_config->setValue("custom_rtc_enabled", Settings::values.custom_rtc.has_value());
+    qt_config->setValue("custom_rtc",
+                        QVariant::fromValue<long long>(
+                            Settings::values.custom_rtc.value_or(std::chrono::seconds{}).count()));
+
     qt_config->endGroup();
 
     qt_config->beginGroup("Miscellaneous");
@@ -645,9 +688,27 @@ void Config::SaveValues() {
     qt_config->setValue("yuzu_token", QString::fromStdString(Settings::values.yuzu_token));
     qt_config->endGroup();
 
+    qt_config->beginWriteArray("DisabledAddOns");
+    int i = 0;
+    for (const auto& elem : Settings::values.disabled_addons) {
+        qt_config->setArrayIndex(i);
+        qt_config->setValue("title_id", QVariant::fromValue<u64>(elem.first));
+        qt_config->beginWriteArray("disabled");
+        for (std::size_t j = 0; j < elem.second.size(); ++j) {
+            qt_config->setArrayIndex(static_cast<int>(j));
+            qt_config->setValue("d", QString::fromStdString(elem.second[j]));
+        }
+        qt_config->endArray();
+        ++i;
+    }
+    qt_config->endArray();
+
     qt_config->beginGroup("UI");
     qt_config->setValue("theme", UISettings::values.theme);
     qt_config->setValue("enable_discord_presence", UISettings::values.enable_discord_presence);
+    qt_config->setValue("screenshot_resolution_factor",
+                        UISettings::values.screenshot_resolution_factor);
+    qt_config->setValue("select_user_on_boot", UISettings::values.select_user_on_boot);
 
     qt_config->beginGroup("UIGameList");
     qt_config->setValue("show_unknown", UISettings::values.show_unknown);
@@ -669,6 +730,7 @@ void Config::SaveValues() {
     qt_config->beginGroup("Paths");
     qt_config->setValue("romsPath", UISettings::values.roms_path);
     qt_config->setValue("symbolsPath", UISettings::values.symbols_path);
+    qt_config->setValue("screenshotPath", UISettings::values.screenshot_path);
     qt_config->setValue("gameListRootDir", UISettings::values.gamedir);
     qt_config->setValue("gameListDeepScan", UISettings::values.gamedir_deepscan);
     qt_config->setValue("recentFiles", UISettings::values.recent_files);
@@ -690,6 +752,7 @@ void Config::SaveValues() {
     qt_config->setValue("firstStart", UISettings::values.first_start);
     qt_config->setValue("calloutFlags", UISettings::values.callout_flags);
     qt_config->setValue("showConsole", UISettings::values.show_console);
+    qt_config->setValue("profileIndex", UISettings::values.profile_index);
     qt_config->endGroup();
 }
 

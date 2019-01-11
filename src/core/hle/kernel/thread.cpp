@@ -12,7 +12,6 @@
 #include "common/assert.h"
 #include "common/common_types.h"
 #include "common/logging/log.h"
-#include "common/math_util.h"
 #include "common/thread_queue_list.h"
 #include "core/arm/arm_interface.h"
 #include "core/core.h"
@@ -50,7 +49,7 @@ void Thread::Stop() {
 
     // Clean up thread from ready queue
     // This is only needed when the thread is terminated forcefully (SVC TerminateProcess)
-    if (status == ThreadStatus::Ready) {
+    if (status == ThreadStatus::Ready || status == ThreadStatus::Paused) {
         scheduler->UnscheduleThread(this, current_priority);
     }
 
@@ -140,6 +139,11 @@ void Thread::ResumeFromWait() {
 
     wakeup_callback = nullptr;
 
+    if (activity == ThreadActivity::Paused) {
+        status = ThreadStatus::Paused;
+        return;
+    }
+
     status = ThreadStatus::Ready;
 
     ChangeScheduler();
@@ -158,6 +162,9 @@ static void ResetThreadContext(Core::ARM_Interface::ThreadContext& context, VAdd
     context.cpu_registers[0] = arg;
     context.pc = entry_point;
     context.sp = stack_top;
+    // TODO(merry): Perform a hardware test to determine the below value.
+    // AHP = 0, DN = 1, FTZ = 1, RMode = Round towards zero
+    context.fpcr = 0x03C00000;
 }
 
 ResultVal<SharedPtr<Thread>> Thread::Create(KernelCore& kernel, std::string name, VAddr entry_point,
@@ -222,29 +229,6 @@ void Thread::SetPriority(u32 priority) {
 void Thread::BoostPriority(u32 priority) {
     scheduler->SetThreadPriority(this, priority);
     current_priority = priority;
-}
-
-SharedPtr<Thread> SetupMainThread(KernelCore& kernel, VAddr entry_point, u32 priority,
-                                  Process& owner_process) {
-    // Setup page table so we can write to memory
-    SetCurrentPageTable(&owner_process.VMManager().page_table);
-
-    // Initialize new "main" thread
-    const VAddr stack_top = owner_process.VMManager().GetTLSIORegionEndAddress();
-    auto thread_res = Thread::Create(kernel, "main", entry_point, priority, 0, THREADPROCESSORID_0,
-                                     stack_top, owner_process);
-
-    SharedPtr<Thread> thread = std::move(thread_res).Unwrap();
-
-    // Register 1 must be a handle to the main thread
-    const Handle guest_handle = owner_process.GetHandleTable().Create(thread).Unwrap();
-    thread->SetGuestHandle(guest_handle);
-    thread->GetContext().cpu_registers[1] = guest_handle;
-
-    // Threads by default are dormant, wake up the main thread so it runs when the scheduler fires
-    thread->ResumeFromWait();
-
-    return thread;
 }
 
 void Thread::SetWaitSynchronizationResult(ResultCode result) {
@@ -386,6 +370,23 @@ bool Thread::InvokeWakeupCallback(ThreadWakeupReason reason, SharedPtr<Thread> t
                                   SharedPtr<WaitObject> object, std::size_t index) {
     ASSERT(wakeup_callback);
     return wakeup_callback(reason, std::move(thread), std::move(object), index);
+}
+
+void Thread::SetActivity(ThreadActivity value) {
+    activity = value;
+
+    if (value == ThreadActivity::Paused) {
+        // Set status if not waiting
+        if (status == ThreadStatus::Ready) {
+            status = ThreadStatus::Paused;
+        } else if (status == ThreadStatus::Running) {
+            status = ThreadStatus::Paused;
+            Core::System::GetInstance().CpuCore(processor_id).PrepareReschedule();
+        }
+    } else if (status == ThreadStatus::Paused) {
+        // Ready to reschedule
+        ResumeFromWait();
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////

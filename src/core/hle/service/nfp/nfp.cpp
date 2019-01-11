@@ -9,9 +9,9 @@
 #include "core/hle/ipc_helpers.h"
 #include "core/hle/kernel/kernel.h"
 #include "core/hle/kernel/readable_event.h"
+#include "core/hle/kernel/thread.h"
 #include "core/hle/kernel/writable_event.h"
 #include "core/hle/lock.h"
-#include "core/hle/service/hid/hid.h"
 #include "core/hle/service/nfp/nfp.h"
 #include "core/hle/service/nfp/nfp_user.h"
 
@@ -20,7 +20,8 @@ namespace Service::NFP {
 namespace ErrCodes {
 constexpr ResultCode ERR_TAG_FAILED(ErrorModule::NFP,
                                     -1); // TODO(ogniK): Find the actual error code
-}
+constexpr ResultCode ERR_NO_APPLICATION_AREA(ErrorModule::NFP, 152);
+} // namespace ErrCodes
 
 Module::Interface::Interface(std::shared_ptr<Module> module, const char* name)
     : ServiceFramework(name), module(std::move(module)) {
@@ -292,10 +293,9 @@ private:
     }
 
     void OpenApplicationArea(Kernel::HLERequestContext& ctx) {
-        LOG_DEBUG(Service_NFP, "called");
-        // We don't need to worry about this since we can just open the file
+        LOG_WARNING(Service_NFP, "(STUBBED) called");
         IPC::ResponseBuilder rb{ctx, 2};
-        rb.Push(RESULT_SUCCESS);
+        rb.Push(ErrCodes::ERR_NO_APPLICATION_AREA);
     }
 
     void GetApplicationAreaSize(Kernel::HLERequestContext& ctx) {
@@ -317,8 +317,8 @@ private:
     }
 
     bool has_attached_handle{};
-    const u64 device_handle{Common::MakeMagic('Y', 'U', 'Z', 'U')};
-    const u32 npad_id{0}; // Player 1 controller
+    const u64 device_handle{0}; // Npad device 1
+    const u32 npad_id{0};       // Player 1 controller
     State state{State::NonInitialized};
     DeviceState device_state{DeviceState::Initialized};
     Kernel::EventPair deactivate_event;

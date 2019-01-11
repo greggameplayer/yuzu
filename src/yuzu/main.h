@@ -13,6 +13,7 @@
 
 #include "common/common_types.h"
 #include "core/core.h"
+#include "core/hle/service/acc/profile_manager.h"
 #include "ui_main.h"
 #include "yuzu/compatibility_list.h"
 #include "yuzu/hotkeys.h"
@@ -26,6 +27,7 @@ class GraphicsSurfaceWidget;
 class GRenderWindow;
 class MicroProfileDialog;
 class ProfilerWidget;
+class QLabel;
 class WaitTreeWidget;
 enum class GameListOpenTarget;
 
@@ -99,12 +101,19 @@ signals:
     // Signal that tells widgets to update icons to use the current theme
     void UpdateThemedIcons();
 
+    void ProfileSelectorFinishedSelection(std::optional<Service::Account::UUID> uuid);
     void SoftwareKeyboardFinishedText(std::optional<std::u16string> text);
     void SoftwareKeyboardFinishedCheckDialog();
 
+    void WebBrowserUnpackRomFS();
+    void WebBrowserFinishedBrowsing();
+
 public slots:
+    void ProfileSelectorSelectProfile();
     void SoftwareKeyboardGetText(const Core::Frontend::SoftwareKeyboardParameters& parameters);
     void SoftwareKeyboardInvokeCheckDialog(std::u16string error_message);
+
+    void WebBrowserOpenPage(std::string_view filename, std::string_view arguments);
 
 private:
     void InitializeWidgets();
@@ -125,6 +134,8 @@ private:
 
     void ShowTelemetryCallout();
     void SetDiscordEnabled(bool state);
+
+    void SelectAndSetCurrentUser();
 
     /**
      * Stores the filename in the recently loaded files list.
@@ -168,6 +179,7 @@ private slots:
     void OnGameListCopyTID(u64 program_id);
     void OnGameListNavigateToGamedbEntry(u64 program_id,
                                          const CompatibilityList& compatibility_list);
+    void OnGameListOpenPerGameProperties(const std::string& file);
     void OnMenuLoadFile();
     void OnMenuLoadFolder();
     void OnMenuInstallToNAND();
@@ -186,6 +198,7 @@ private slots:
     void ShowFullscreen();
     void HideFullscreen();
     void ToggleWindowMode();
+    void OnCaptureScreenshot();
     void OnCoreError(Core::System::ResultStatus, std::string);
     void OnReinitializeKeys(ReinitializeKeyBehavior behavior);
 

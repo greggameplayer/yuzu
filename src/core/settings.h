@@ -6,8 +6,11 @@
 
 #include <array>
 #include <atomic>
+#include <chrono>
+#include <map>
 #include <optional>
 #include <string>
+#include <vector>
 #include "common/common_types.h"
 
 namespace Settings {
@@ -348,6 +351,11 @@ struct Values {
     bool use_docked_mode;
     bool enable_nfc;
     std::optional<u32> rng_seed;
+    // Measured in seconds since epoch
+    std::optional<std::chrono::seconds> custom_rtc;
+    // Set on game boot, reset on stop. Seconds difference between current time and `custom_rtc`
+    std::chrono::seconds custom_rtc_differential;
+
     s32 current_user;
     s32 language_index;
 
@@ -411,6 +419,9 @@ struct Values {
     std::string web_api_url;
     std::string yuzu_username;
     std::string yuzu_token;
+
+    // Add-Ons
+    std::map<u64, std::vector<std::string>> disabled_addons;
 } extern values;
 
 void Apply();

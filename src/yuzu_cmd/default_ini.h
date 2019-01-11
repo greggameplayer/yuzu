@@ -183,6 +183,12 @@ enable_nfc =
 rng_seed_enabled =
 rng_seed =
 
+# Sets the current time (in seconds since 12:00 AM Jan 1, 1970) that will be used by the time service
+# This will auto-increment, with the time set being the time the game is started
+# This override will only occur if custom_rtc_enabled is true, otherwise the current time is used
+custom_rtc_enabled =
+custom_rtc =
+
 # Sets the account username, max length is 32 characters
 # yuzu (default)
 username = yuzu
@@ -221,5 +227,12 @@ web_api_url = https://api.yuzu-emu.org
 # See https://profile.yuzu-emu.org/ for more info
 yuzu_username =
 yuzu_token =
+
+[AddOns]
+# Used to disable add-ons
+# List of title IDs of games that will have add-ons disabled (separated by '|'):
+title_ids =
+# For each title ID, have a key/value pair called `disabled_<title_id>` equal to the names of the add-ons to disable (sep. by '|')
+# e.x. disabled_0100000000010000 = Update|DLC <- disables Updates and DLC on Super Mario Odyssey
 )";
 }

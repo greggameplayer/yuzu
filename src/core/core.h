@@ -9,11 +9,14 @@
 #include <string>
 
 #include "common/common_types.h"
+#include "core/file_sys/vfs_types.h"
 #include "core/hle/kernel/object.h"
 
 namespace Core::Frontend {
 class EmuWindow;
+class ProfileSelectApplet;
 class SoftwareKeyboardApplet;
+class WebBrowserApplet;
 } // namespace Core::Frontend
 
 namespace FileSys {
@@ -54,6 +57,9 @@ class PerfStats;
 class TelemetrySession;
 
 struct PerfStatsResults;
+
+FileSys::VirtualFile GetGameFileFromPath(const FileSys::VirtualFilesystem& vfs,
+                                         const std::string& path);
 
 class System {
 public:
@@ -237,9 +243,17 @@ public:
 
     std::shared_ptr<FileSys::VfsFilesystem> GetFilesystem() const;
 
+    void SetProfileSelector(std::unique_ptr<Core::Frontend::ProfileSelectApplet> applet);
+
+    const Core::Frontend::ProfileSelectApplet& GetProfileSelector() const;
+
     void SetSoftwareKeyboard(std::unique_ptr<Core::Frontend::SoftwareKeyboardApplet> applet);
 
     const Core::Frontend::SoftwareKeyboardApplet& GetSoftwareKeyboard() const;
+
+    void SetWebBrowser(std::unique_ptr<Core::Frontend::WebBrowserApplet> applet);
+
+    const Core::Frontend::WebBrowserApplet& GetWebBrowser() const;
 
 private:
     System();

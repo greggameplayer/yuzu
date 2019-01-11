@@ -6,7 +6,7 @@
 #include "common/assert.h"
 #include "core/core.h"
 #include "core/hle/kernel/readable_event.h"
-#include "core/hle/kernel/server_port.h"
+#include "core/hle/kernel/server_session.h"
 #include "core/hle/kernel/writable_event.h"
 #include "core/hle/service/am/am.h"
 #include "core/hle/service/am/applets/applets.h"
@@ -16,11 +16,11 @@ namespace Service::AM::Applets {
 AppletDataBroker::AppletDataBroker() {
     auto& kernel = Core::System::GetInstance().Kernel();
     state_changed_event = Kernel::WritableEvent::CreateEventPair(
-        kernel, Kernel::ResetType::OneShot, "ILibraryAppletAccessor:StateChangedEvent");
+        kernel, Kernel::ResetType::Sticky, "ILibraryAppletAccessor:StateChangedEvent");
     pop_out_data_event = Kernel::WritableEvent::CreateEventPair(
-        kernel, Kernel::ResetType::OneShot, "ILibraryAppletAccessor:PopDataOutEvent");
+        kernel, Kernel::ResetType::Sticky, "ILibraryAppletAccessor:PopDataOutEvent");
     pop_interactive_out_data_event = Kernel::WritableEvent::CreateEventPair(
-        kernel, Kernel::ResetType::OneShot, "ILibraryAppletAccessor:PopInteractiveDataOutEvent");
+        kernel, Kernel::ResetType::Sticky, "ILibraryAppletAccessor:PopInteractiveDataOutEvent");
 }
 
 AppletDataBroker::~AppletDataBroker() = default;
