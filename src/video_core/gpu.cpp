@@ -19,9 +19,8 @@ u32 FramebufferConfig::BytesPerPixel(PixelFormat format) {
     switch (format) {
     case PixelFormat::ABGR8:
     case PixelFormat::BGRA8:
-        return 4;
     case PixelFormat::RGB565:
-        return 2;
+        return 4;
     default:
         return 4;
     }
