@@ -990,7 +990,8 @@ void ILibraryAppletCreator::CreateTransferMemoryStorage(Kernel::HLERequestContex
     rb.PushIpcInterface(std::make_shared<IStorage>(std::move(memory)));
 }
 
-IApplicationFunctions::IApplicationFunctions() : ServiceFramework("IApplicationFunctions") {
+IApplicationFunctions::IApplicationFunctions(FileSystem::FileSystemController& fsc)
+    : ServiceFramework("IApplicationFunctions"), fsc(fsc) {
     // clang-format off
     static const FunctionInfo functions[] = {
         {1, &IApplicationFunctions::PopLaunchParameter, "PopLaunchParameter"},

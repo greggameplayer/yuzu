@@ -11,6 +11,10 @@
 #include "core/hle/service/service.h"
 
 namespace Service {
+namespace FileSystem {
+class FileSystemController;
+}
+
 namespace NVFlinger {
 class NVFlinger;
 }
@@ -218,7 +222,7 @@ private:
 
 class IApplicationFunctions final : public ServiceFramework<IApplicationFunctions> {
 public:
-    IApplicationFunctions();
+    IApplicationFunctions(FileSystem::FileSystemController& fsc);
     ~IApplicationFunctions() override;
 
 private:
@@ -239,6 +243,8 @@ private:
     void BeginBlockingHomeButton(Kernel::HLERequestContext& ctx);
     void EndBlockingHomeButton(Kernel::HLERequestContext& ctx);
     void EnableApplicationCrashReport(Kernel::HLERequestContext& ctx);
+
+    FileSystem::FileSystemController& fsc;
 };
 
 class IHomeMenuFunctions final : public ServiceFramework<IHomeMenuFunctions> {
