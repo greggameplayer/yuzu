@@ -209,7 +209,7 @@ GMainWindow::GMainWindow()
         std::make_unique<FileSys::ContentProviderUnion>());
     Core::System::GetInstance().RegisterContentProvider(
         FileSys::ContentProviderUnionSlot::FrontendManual, provider.get());
-    Service::FileSystem::CreateFactories(*vfs);
+    Core::System::GetInstance().GetFileSystemController().CreateFactories(*vfs);
 
     // Gen keys if necessary
     OnReinitializeKeys(ReinitializeKeyBehavior::NoWarning);
@@ -1431,15 +1431,19 @@ void GMainWindow::OnMenuInstallToNAND() {
             failed();
             return;
         }
-        const auto res =
-            Service::FileSystem::GetUserNANDContents()->InstallEntry(*nsp, false, qt_raw_copy);
+        const auto res = Core::System::GetInstance()
+                             .GetFileSystemController()
+                             .GetUserNANDContents()
+                             ->InstallEntry(*nsp, false, qt_raw_copy);
         if (res == FileSys::InstallResult::Success) {
             success();
         } else {
             if (res == FileSys::InstallResult::ErrorAlreadyExists) {
                 if (overwrite()) {
-                    const auto res2 = Service::FileSystem::GetUserNANDContents()->InstallEntry(
-                        *nsp, true, qt_raw_copy);
+                    const auto res2 = Core::System::GetInstance()
+                                          .GetFileSystemController()
+                                          .GetUserNANDContents()
+                                          ->InstallEntry(*nsp, true, qt_raw_copy);
                     if (res2 == FileSys::InstallResult::Success) {
                         success();
                     } else {
@@ -1493,19 +1497,28 @@ void GMainWindow::OnMenuInstallToNAND() {
 
         FileSys::InstallResult res;
         if (index >= static_cast<size_t>(FileSys::TitleType::Application)) {
-            res = Service::FileSystem::GetUserNANDContents()->InstallEntry(
-                *nca, static_cast<FileSys::TitleType>(index), false, qt_raw_copy);
+            res = Core::System::GetInstance()
+                      .GetFileSystemController()
+                      .GetUserNANDContents()
+                      ->InstallEntry(*nca, static_cast<FileSys::TitleType>(index), false,
+                                     qt_raw_copy);
         } else {
-            res = Service::FileSystem::GetSystemNANDContents()->InstallEntry(
-                *nca, static_cast<FileSys::TitleType>(index), false, qt_raw_copy);
+            res = Core::System::GetInstance()
+                      .GetFileSystemController()
+                      .GetSystemNANDContents()
+                      ->InstallEntry(*nca, static_cast<FileSys::TitleType>(index), false,
+                                     qt_raw_copy);
         }
 
         if (res == FileSys::InstallResult::Success) {
             success();
         } else if (res == FileSys::InstallResult::ErrorAlreadyExists) {
             if (overwrite()) {
-                const auto res2 = Service::FileSystem::GetUserNANDContents()->InstallEntry(
-                    *nca, static_cast<FileSys::TitleType>(index), true, qt_raw_copy);
+                const auto res2 = Core::System::GetInstance()
+                                      .GetFileSystemController()
+                                      .GetUserNANDContents()
+                                      ->InstallEntry(*nca, static_cast<FileSys::TitleType>(index),
+                                                     true, qt_raw_copy);
                 if (res2 == FileSys::InstallResult::Success) {
                     success();
                 } else {
@@ -1543,7 +1556,7 @@ void GMainWindow::OnMenuSelectEmulatedDirectory(EmulatedDirectoryTarget target) 
         FileUtil::GetUserPath(target == EmulatedDirectoryTarget::SDMC ? FileUtil::UserPath::SDMCDir
                                                                       : FileUtil::UserPath::NANDDir,
                               dir_path.toStdString());
-        Service::FileSystem::CreateFactories(*vfs);
+        Core::System::GetInstance().GetFileSystemController().CreateFactories(*vfs);
         game_list->PopulateAsync(UISettings::values.game_directory_path,
                                  UISettings::values.game_directory_deepscan);
     }
@@ -1924,7 +1937,7 @@ void GMainWindow::OnReinitializeKeys(ReinitializeKeyBehavior behavior) {
 
         const auto function = [this, &keys, &pdm] {
             keys.PopulateFromPartitionData(pdm);
-            Service::FileSystem::CreateFactories(*vfs);
+            Core::System::GetInstance().GetFileSystemController().CreateFactories(*vfs);
             keys.DeriveETicket(pdm);
         };
 
@@ -1969,7 +1982,7 @@ void GMainWindow::OnReinitializeKeys(ReinitializeKeyBehavior behavior) {
         prog.close();
     }
 
-    Service::FileSystem::CreateFactories(*vfs);
+    Core::System::GetInstance().GetFileSystemController().CreateFactories(*vfs);
 
     if (behavior == ReinitializeKeyBehavior::Warning) {
         game_list->PopulateAsync(UISettings::values.game_directory_path,
