@@ -27,6 +27,8 @@ add_executable(yuzu
     configuration/configure_debug.h
     configuration/configure_dialog.cpp
     configuration/configure_dialog.h
+    configuration/configure_filesystem.cpp
+    configuration/configure_filesystem.h
     configuration/configure_gamelist.cpp
     configuration/configure_gamelist.h
     configuration/configure_general.cpp
@@ -94,6 +96,7 @@ set(UIS
     configuration/configure.ui
     configuration/configure_audio.ui
     configuration/configure_debug.ui
+    configuration/configure_filesystem.ui
     configuration/configure_gamelist.ui
     configuration/configure_general.ui
     configuration/configure_graphics.ui
