@@ -570,7 +570,8 @@ static ResultCode ArbitrateUnlock(Core::System& system, VAddr mutex_addr) {
     }
 
     auto* const current_process = system.Kernel().CurrentProcess();
-    return current_process->GetMutex().Release(mutex_addr);
+    return current_process->GetMutex().Release(mutex_addr,
+                                               system.CurrentScheduler().GetCurrentThread());
 }
 
 enum class BreakType : u32 {
@@ -1498,12 +1499,14 @@ static ResultCode WaitProcessWideKeyAtomic(Core::System& system, VAddr mutex_add
     SharedPtr<Thread> thread = handle_table.Get<Thread>(thread_handle);
     ASSERT(thread);
 
-    const auto release_result = current_process->GetMutex().Release(mutex_addr);
+    SharedPtr<Thread> current_thread = system.CurrentScheduler().GetCurrentThread();
+
+    const auto release_result =
+        current_process->GetMutex().Release(mutex_addr, current_thread.get());
     if (release_result.IsError()) {
         return release_result;
     }
 
-    SharedPtr<Thread> current_thread = system.CurrentScheduler().GetCurrentThread();
     current_thread->SetCondVarWaitAddress(condition_variable_addr);
     current_thread->SetMutexWaitAddress(mutex_addr);
     current_thread->SetWaitHandle(thread_handle);
@@ -1638,8 +1641,7 @@ static ResultCode WaitForAddress(Core::System& system, VAddr address, u32 type, 
     }
 
     const auto arbitration_type = static_cast<AddressArbiter::ArbitrationType>(type);
-    auto& address_arbiter =
-        system.Kernel().CurrentProcess()->GetAddressArbiter();
+    auto& address_arbiter = system.Kernel().CurrentProcess()->GetAddressArbiter();
     ResultCode result = address_arbiter.WaitForAddress(address, arbitration_type, value, timeout);
     if (result == RESULT_SUCCESS)
         system.PrepareReschedule();
