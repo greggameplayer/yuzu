@@ -39,9 +39,11 @@ struct BaseBindings {
     u32 cbuf{};
     u32 gmem{};
     u32 sampler{};
+    u32 image{};
 
     bool operator==(const BaseBindings& rhs) const {
-        return std::tie(cbuf, gmem, sampler) == std::tie(rhs.cbuf, rhs.gmem, rhs.sampler);
+        return std::tie(cbuf, gmem, sampler, image) ==
+               std::tie(rhs.cbuf, rhs.gmem, rhs.sampler, rhs.image);
     }
 
     bool operator!=(const BaseBindings& rhs) const {
@@ -86,7 +88,19 @@ namespace std {
 template <>
 struct hash<OpenGL::BaseBindings> {
     std::size_t operator()(const OpenGL::BaseBindings& bindings) const {
-        return bindings.cbuf | bindings.gmem << 8 | bindings.sampler << 16;
+        return static_cast<std::size_t>(bindings.cbuf) ^
+               (static_cast<std::size_t>(bindings.gmem) << 8) ^
+               (static_cast<std::size_t>(bindings.sampler) << 16) ^
+               (static_cast<std::size_t>(bindings.image) << 24);
+    }
+};
+
+template <>
+struct hash<OpenGL::ProgramVariant> {
+    std::size_t operator()(const OpenGL::ProgramVariant& variant) const {
+        return std::hash<OpenGL::BaseBindings>()(variant.base_bindings) ^
+               std::hash<OpenGL::TextureBufferUsage>()(variant.texture_buffer_usage) ^
+               (static_cast<std::size_t>(variant.primitive_mode) << 6);
     }
 };
 
