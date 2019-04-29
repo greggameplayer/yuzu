@@ -105,15 +105,6 @@ struct hash<OpenGL::ProgramVariant> {
 };
 
 template <>
-struct hash<OpenGL::ProgramVariant> {
-    std::size_t operator()(const OpenGL::ProgramVariant& variant) const {
-        return std::hash<OpenGL::BaseBindings>()(variant.base_bindings) ^
-               std::hash<OpenGL::TextureBufferUsage>()(variant.texture_buffer_usage) ^
-               (static_cast<std::size_t>(variant.primitive_mode) << 6);
-    }
-};
-
-template <>
 struct hash<OpenGL::ShaderDiskCacheUsage> {
     std::size_t operator()(const OpenGL::ShaderDiskCacheUsage& usage) const {
         return static_cast<std::size_t>(usage.unique_identifier) ^
