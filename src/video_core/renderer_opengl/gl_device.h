@@ -11,7 +11,8 @@ namespace OpenGL {
 
 class Device {
 public:
-    Device();
+    explicit Device();
+    explicit Device(std::nullptr_t);
 
     std::size_t GetUniformBufferAlignment() const {
         return uniform_buffer_alignment;
