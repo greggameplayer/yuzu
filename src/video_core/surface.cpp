@@ -12,6 +12,8 @@ SurfaceTarget SurfaceTargetFromTextureType(Tegra::Texture::TextureType texture_t
     switch (texture_type) {
     case Tegra::Texture::TextureType::Texture1D:
         return SurfaceTarget::Texture1D;
+    case Tegra::Texture::TextureType::Texture1DBuffer:
+        return SurfaceTarget::TextureBuffer;
     case Tegra::Texture::TextureType::Texture2D:
     case Tegra::Texture::TextureType::Texture2DNoMipmap:
         return SurfaceTarget::Texture2D;
@@ -35,6 +37,7 @@ SurfaceTarget SurfaceTargetFromTextureType(Tegra::Texture::TextureType texture_t
 bool SurfaceTargetIsLayered(SurfaceTarget target) {
     switch (target) {
     case SurfaceTarget::Texture1D:
+    case SurfaceTarget::TextureBuffer:
     case SurfaceTarget::Texture2D:
     case SurfaceTarget::Texture3D:
         return false;
@@ -53,6 +56,7 @@ bool SurfaceTargetIsLayered(SurfaceTarget target) {
 bool SurfaceTargetIsArray(SurfaceTarget target) {
     switch (target) {
     case SurfaceTarget::Texture1D:
+    case SurfaceTarget::TextureBuffer:
     case SurfaceTarget::Texture2D:
     case SurfaceTarget::Texture3D:
     case SurfaceTarget::TextureCubemap:
