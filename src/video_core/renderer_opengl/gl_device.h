@@ -5,7 +5,7 @@
 #pragma once
 
 #include <cstddef>
-#include <glad/glad.h>
+#include "common/common_types.h"
 
 namespace OpenGL {
 
@@ -16,6 +16,14 @@ public:
 
     std::size_t GetUniformBufferAlignment() const {
         return uniform_buffer_alignment;
+    }
+
+    u32 GetMaxVertexAttributes() const {
+        return max_vertex_attributes;
+    }
+
+    u32 GetMaxVaryings() const {
+        return max_varyings;
     }
 
     bool HasVariableAoffi() const {
@@ -30,6 +38,8 @@ private:
     static bool TestVariableAoffi();
 
     std::size_t uniform_buffer_alignment{};
+    u32 max_vertex_attributes{};
+    u32 max_varyings{};
     bool has_variable_aoffi{};
 };
 
