@@ -31,7 +31,7 @@ ACC_U0::ACC_U0(std::shared_ptr<Module> module, std::shared_ptr<ProfileManager> p
         {120, nullptr, "CreateGuestLoginRequest"},
         {130, nullptr, "LoadOpenContext"},
         {131, nullptr, "ListOpenContextStoredUsers"},
-        {140, nullptr, "InitializeApplicationInfo"},
+        {140, &ACC_U0::InitializeApplicationInfoOld, "InitializeApplicationInfo"},
         {141, nullptr, "ListQualifiedUsers"},
         {150, &ACC_U0::IsUserAccountSwitchLocked, "IsUserAccountSwitchLocked"},
     };
