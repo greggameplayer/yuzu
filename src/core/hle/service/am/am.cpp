@@ -273,6 +273,7 @@ ISelfController::ISelfController(std::shared_ptr<NVFlinger::NVFlinger> nvflinger
         {90, nullptr, "GetAccumulatedSuspendedTickValue"},
         {91, &ISelfController::GetAccumulatedSuspendedTickChangedEvent, "GetAccumulatedSuspendedTickChangedEvent"},
         {100, nullptr, "SetAlbumImageTakenNotificationEnabled"},
+        {110, nullptr, "SetApplicationAlbumUserData"},
         {1000, nullptr, "GetDebugStorageChannel"},
     };
     // clang-format on
@@ -1005,6 +1006,7 @@ IApplicationFunctions::IApplicationFunctions() : ServiceFramework("IApplicationF
         {120, nullptr, "ExecuteProgram"},
         {121, nullptr, "ClearUserChannel"},
         {122, nullptr, "UnpopToUserChannel"},
+        {130, nullptr, "GetGpuErrorDetectedSystemEvent"},
         {500, nullptr, "StartContinuousRecordingFlushForDebug"},
         {1000, nullptr, "CreateMovieMaker"},
         {1001, nullptr, "PrepareForJit"},
@@ -1258,6 +1260,7 @@ IHomeMenuFunctions::IHomeMenuFunctions() : ServiceFramework("IHomeMenuFunctions"
         {30, nullptr, "GetHomeButtonWriterLockAccessor"},
         {31, nullptr, "GetWriterLockAccessorEx"},
         {100, nullptr, "PopRequestLaunchApplicationForDebug"},
+        {200, nullptr, "LaunchDevMenu"},
     };
     // clang-format on
 

@@ -106,6 +106,7 @@ IApplicationManagerInterface::IApplicationManagerInterface()
         {96, nullptr, "AcquireApplicationLaunchInfo"},
         {97, nullptr, "GetMainApplicationProgramIndex2"},
         {98, nullptr, "EnableApplicationAllThreadDumpOnCrash"},
+        {99, nullptr, "Unknown99"},
         {100, nullptr, "ResetToFactorySettings"},
         {101, nullptr, "ResetToFactorySettingsWithoutUserSaveData"},
         {102, nullptr, "ResetToFactorySettingsForRefurbishment"},
@@ -130,6 +131,8 @@ IApplicationManagerInterface::IApplicationManagerInterface()
         {404, nullptr, "InvalidateApplicationControlCache"},
         {405, nullptr, "ListApplicationControlCacheEntryInfo"},
         {406, nullptr, "GetApplicationControlProperty"},
+        {407, nullptr, "Unknown407"},
+        {408, nullptr, "Unknown408"},
         {502, nullptr, "RequestCheckGameCardRegistration"},
         {503, nullptr, "RequestGameCardRegistrationGoldPoint"},
         {504, nullptr, "RequestRegisterGameCard"},
@@ -196,6 +199,7 @@ IApplicationManagerInterface::IApplicationManagerInterface()
         {1701, nullptr, "GetApplicationView"},
         {1702, nullptr, "GetApplicationDownloadTaskStatus"},
         {1703, nullptr, "GetApplicationViewDownloadErrorContext"},
+        {1704, nullptr, "Unknown1704"},
         {1800, nullptr, "IsNotificationSetupCompleted"},
         {1801, nullptr, "GetLastNotificationInfoCount"},
         {1802, nullptr, "ListLastNotificationInfo"},
@@ -230,6 +234,7 @@ IApplicationManagerInterface::IApplicationManagerInterface()
         {2152, nullptr, "ActivateRightsEnvironment"},
         {2153, nullptr, "DeactivateRightsEnvironment"},
         {2154, nullptr, "ForceActivateRightsContextForExit"},
+        {2155, nullptr, "UpdateRightsEnvironmentStatus"},
         {2160, nullptr, "AddTargetApplicationToRightsEnvironment"},
         {2161, nullptr, "SetUsersToRightsEnvironment"},
         {2170, nullptr, "GetRightsEnvironmentStatus"},
@@ -243,6 +248,13 @@ IApplicationManagerInterface::IApplicationManagerInterface()
         {2201, nullptr, "GetInstalledApplicationCopyIdentifier"},
         {2250, nullptr, "RequestReportActiveELicence"},
         {2300, nullptr, "ListEventLog"},
+        {2350, nullptr, "Unknown2350"},
+        {2400, nullptr, "Unknown2400"},
+        {2401, nullptr, "Unknown2401"},
+        {2402, nullptr, "Unknown2402"},
+        {2403, nullptr, "Unknown2403"},
+        {2404, nullptr, "Unknown2404"},
+        {2500, nullptr, "Unknown2500"}
     };
     // clang-format on
 

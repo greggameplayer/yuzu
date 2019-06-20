@@ -656,6 +656,8 @@ FSP_SRV::FSP_SRV() : ServiceFramework("fsp-srv") {
         {66, nullptr, "WriteSaveDataFileSystemExtraData2"},
         {67, nullptr, "FindSaveDataWithFilter"},
         {68, nullptr, "OpenSaveDataInfoReaderBySaveDataFilter"},
+        {69, nullptr, "ReadSaveDataFileSystemExtraDataBySaveDataAttribute"},
+        {70, nullptr, "WriteSaveDataFileSystemExtraDataBySaveDataAttribute"},
         {80, nullptr, "OpenSaveDataMetaFile"},
         {81, nullptr, "OpenSaveDataTransferManager"},
         {82, nullptr, "OpenSaveDataTransferManagerVersion2"},

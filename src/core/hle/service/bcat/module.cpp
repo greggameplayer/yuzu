@@ -18,14 +18,18 @@ public:
             {10200, nullptr, "CancelSyncDeliveryCacheRequest"},
             {20100, nullptr, "RequestSyncDeliveryCacheWithApplicationId"},
             {20101, nullptr, "RequestSyncDeliveryCacheWithApplicationIdAndDirectoryName"},
+            {20300, nullptr, "GetDeliveryCacheStorageUpdateNotifier"},
+            {20301, nullptr, "RequestSuspendDeliveryTask"},
             {30100, nullptr, "SetPassphrase"},
             {30200, nullptr, "RegisterBackgroundDeliveryTask"},
             {30201, nullptr, "UnregisterBackgroundDeliveryTask"},
             {30202, nullptr, "BlockDeliveryTask"},
             {30203, nullptr, "UnblockDeliveryTask"},
+            {30300, nullptr, "RegisterSystemApplicationDeliveryTasks"},
             {90100, nullptr, "EnumerateBackgroundDeliveryTask"},
             {90200, nullptr, "GetDeliveryList"},
             {90201, nullptr, "ClearDeliveryCacheStorage"},
+            {90202, nullptr, "ClearDeliveryTaskSubscriptionStatus"},
             {90300, nullptr, "GetPushNotificationLog"},
         };
         RegisterHandlers(functions);

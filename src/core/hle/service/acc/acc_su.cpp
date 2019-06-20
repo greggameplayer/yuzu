@@ -44,6 +44,8 @@ ACC_SU::ACC_SU(std::shared_ptr<Module> module, std::shared_ptr<ProfileManager> p
         {205, nullptr, "GetProfileEditor"},
         {206, nullptr, "CompleteUserRegistrationForcibly"},
         {210, nullptr, "CreateFloatingRegistrationRequest"},
+        {211, nullptr, "CreateProcedureToRegisterUserWithNintendoAccount"},
+        {212, nullptr, "ResumeProcedureToRegisterUserWithNintendoAccount"},
         {230, nullptr, "AuthenticateServiceAsync"},
         {250, nullptr, "GetBaasAccountAdministrator"},
         {290, nullptr, "ProxyProcedureForGuestLoginWithNintendoAccount"},
