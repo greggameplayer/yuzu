@@ -272,6 +272,12 @@ public:
         return ResultStatus::ErrorNotImplemented;
     }
 
+    using Modules = std::map<VAddr, std::string>;
+
+    virtual ResultStatus ReadNSOModules(Modules& modules) {
+        return ResultStatus::ErrorNotImplemented;
+    }
+
 protected:
     FileSys::VirtualFile file;
     bool is_loaded = false;

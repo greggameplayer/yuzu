@@ -30,6 +30,7 @@
 #include "core/hle/service/sm/sm.h"
 #include "core/loader/loader.h"
 #include "core/perf_stats.h"
+#include "core/reporter.h"
 #include "core/settings.h"
 #include "core/telemetry_session.h"
 #include "file_sys/cheat_engine.h"
@@ -75,7 +76,7 @@ FileSys::VirtualFile GetGameFileFromPath(const FileSys::VirtualFilesystem& vfs,
     return vfs->OpenFile(path, FileSys::Mode::Read);
 }
 struct System::Impl {
-    explicit Impl(System& system) : kernel{system}, cpu_core_manager{system} {}
+    explicit Impl(System& system) : kernel{system}, cpu_core_manager{system}, reporter{system} {}
 
     Cpu& CurrentCpuCore() {
         return cpu_core_manager.GetCurrentCore();
@@ -254,6 +255,8 @@ struct System::Impl {
 
     /// Telemetry session for this emulation session
     std::unique_ptr<Core::TelemetrySession> telemetry_session;
+
+    Reporter reporter;
 
     ResultStatus status = ResultStatus::Success;
     std::string status_details = "";
@@ -515,6 +518,10 @@ void System::RegisterContentProvider(FileSys::ContentProviderUnionSlot slot,
 
 void System::ClearContentProvider(FileSys::ContentProviderUnionSlot slot) {
     impl->content_provider->ClearSlot(slot);
+}
+
+const Reporter& System::GetReporter() const {
+    return impl->reporter;
 }
 
 System::ResultStatus System::Init(Frontend::EmuWindow& emu_window) {

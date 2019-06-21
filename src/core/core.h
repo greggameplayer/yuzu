@@ -8,6 +8,7 @@
 #include <memory>
 #include <string>
 
+#include <map>
 #include "common/common_types.h"
 #include "core/file_sys/vfs_types.h"
 #include "core/hle/kernel/object.h"
@@ -73,6 +74,7 @@ class Cpu;
 class ExclusiveMonitor;
 class FrameLimiter;
 class PerfStats;
+class Reporter;
 class TelemetrySession;
 
 struct PerfStatsResults;
@@ -303,6 +305,8 @@ public:
                                  FileSys::ContentProvider* provider);
 
     void ClearContentProvider(FileSys::ContentProviderUnionSlot slot);
+
+    const Reporter& GetReporter() const;
 
 private:
     System();
