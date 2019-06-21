@@ -2,14 +2,12 @@
 
 Scroll down for the original README.md!
 
-Base revision: 908a5a00c5eb9c0da370184498a6240488a9bb09
+Base revision: e2f7933b3f104e7e198d283f39a1b45956da4d3c
 
 |Pull Request|Commit|Title|Author|Merged?|
 |----|----|----|----|----|
 |[1](https://github.com/yuzu-emu/yuzu-canary/pull/1)|[a8dfe54](https://github.com/yuzu-emu/yuzu-canary/pull/1/files/)|Canary Base|[chris062689](https://github.com/chris062689)|Yes|
-|[2596](https://github.com/yuzu-emu/yuzu/pull/2596)|[26fcdf0](https://github.com/yuzu-emu/yuzu/pull/2596/files/)|Revert PR 2590.|[FernandoS27](https://github.com/FernandoS27)|Yes|
 |[2583](https://github.com/yuzu-emu/yuzu/pull/2583)|[90792cd](https://github.com/yuzu-emu/yuzu/pull/2583/files/)|Core_Timing: Make core_timing threadsafe by default.|[FernandoS27](https://github.com/FernandoS27)|Yes|
-|[2546](https://github.com/yuzu-emu/yuzu/pull/2546)|[9db119f](https://github.com/yuzu-emu/yuzu/pull/2546/files/)|loader, file_sys: Add support for parsing and loading KIP (Kernel Internal Process) files|[DarkLordZach](https://github.com/DarkLordZach)|Yes|
 |[2542](https://github.com/yuzu-emu/yuzu/pull/2542)|[7aeb676](https://github.com/yuzu-emu/yuzu/pull/2542/files/)|lbl: Implement brightness and backlight services|[DarkLordZach](https://github.com/DarkLordZach)|Yes|
 |[2418](https://github.com/yuzu-emu/yuzu/pull/2418)|[4b1560b](https://github.com/yuzu-emu/yuzu/pull/2418/files/)|es: Implement various ticket accessor commands from IEticketService|[DarkLordZach](https://github.com/DarkLordZach)|Yes|
 |[2365](https://github.com/yuzu-emu/yuzu/pull/2365)|[cfe7a70](https://github.com/yuzu-emu/yuzu/pull/2365/files/)|Workaround to Mutex Corruption|[FernandoS27](https://github.com/FernandoS27)|Yes|
