@@ -8,8 +8,12 @@
 #include <vector>
 #include <glad/glad.h>
 #include "common/common_types.h"
+#include "common/math_util.h"
+#include "video_core/renderer_opengl/gl_resource_manager.h"
 
 namespace OpenGL {
+
+class CachedSurfaceView;
 
 class BindBuffersRangePushBuffer {
 public:
