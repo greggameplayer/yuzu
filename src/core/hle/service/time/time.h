@@ -11,6 +11,8 @@
 namespace Service::Time {
 class SharedMemory;
 
+class SharedMemory;
+
 struct LocationName {
     std::array<u8, 0x24> name;
 };
