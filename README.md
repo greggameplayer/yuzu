@@ -2,12 +2,13 @@
 
 Scroll down for the original README.md!
 
-Base revision: 221996a19402dd53affa99f45bc888a248d3412f
+Base revision: 5829ba1ccc18c083a4d2a6e42ad27ebe1c6fbac8
 
 |Pull Request|Commit|Title|Author|Merged?|
 |----|----|----|----|----|
 |[1](https://github.com/yuzu-emu/yuzu-canary/pull/1)|[a8dfe54](https://github.com/yuzu-emu/yuzu-canary/pull/1/files/)|Canary Base|[chris062689](https://github.com/chris062689)|Yes|
-|[2601](https://github.com/yuzu-emu/yuzu/pull/2601)|[7565389](https://github.com/yuzu-emu/yuzu/pull/2601/files/)|Implement a new Texture Cache|[FernandoS27](https://github.com/FernandoS27)|Yes|
+|[2608](https://github.com/yuzu-emu/yuzu/pull/2608)|[f67039c](https://github.com/yuzu-emu/yuzu/pull/2608/files/)|Implement Time::GetSharedMemoryNativeHandle|[ogniK5377](https://github.com/ogniK5377)|Yes|
+|[2601](https://github.com/yuzu-emu/yuzu/pull/2601)|[223ca80](https://github.com/yuzu-emu/yuzu/pull/2601/files/)|Implement a new Texture Cache|[FernandoS27](https://github.com/FernandoS27)|Yes|
 |[2592](https://github.com/yuzu-emu/yuzu/pull/2592)|[0962968](https://github.com/yuzu-emu/yuzu/pull/2592/files/)|Implement GPU Synchronization Mechanisms & Correct NVFlinger|[FernandoS27](https://github.com/FernandoS27)|Yes|
 |[2583](https://github.com/yuzu-emu/yuzu/pull/2583)|[90792cd](https://github.com/yuzu-emu/yuzu/pull/2583/files/)|Core_Timing: Make core_timing threadsafe by default.|[FernandoS27](https://github.com/FernandoS27)|Yes|
 |[2542](https://github.com/yuzu-emu/yuzu/pull/2542)|[7aeb676](https://github.com/yuzu-emu/yuzu/pull/2542/files/)|lbl: Implement brightness and backlight services|[DarkLordZach](https://github.com/DarkLordZach)|Yes|
