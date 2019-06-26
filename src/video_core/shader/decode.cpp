@@ -39,20 +39,20 @@ void ShaderIR::Decode() {
     std::memcpy(&header, program_code.data(), sizeof(Tegra::Shader::Header));
 
     disable_flow_stack = false;
-    ShaderCharacteristics shader_info{};
-    bool can_proceed = ScanFlow(program_code, program_code.size(), main_offset, shader_info);
-    if (can_proceed) {
+    const auto info = ScanFlow(program_code, MAX_PROGRAM_LENGTH * sizeof(u64), main_offset);
+    if (info) {
+        const auto& shader_info = *info;
         coverage_begin = shader_info.start;
         coverage_end = shader_info.end;
         if (shader_info.decompilable) {
             disable_flow_stack = true;
-            auto insert_block = ([this](NodeBlock& nodes, u32 label) {
+            const auto insert_block = ([this](NodeBlock& nodes, u32 label) {
                 if (label == exit_branch) {
                     return;
                 }
                 basic_blocks.insert({label, nodes});
             });
-            std::list<ShaderBlock>& blocks = shader_info.blocks;
+            const auto& blocks = shader_info.blocks;
             NodeBlock current_block;
             u32 current_label = exit_branch;
             for (auto& block : blocks) {
@@ -82,13 +82,12 @@ void ShaderIR::Decode() {
 
     // Now we need to deal with an undecompilable shader. We need to brute force
     // a shader that captures every position.
-    coverage_begin = shader_info.start;
+    coverage_begin = main_offset;
     const u32 shader_end = static_cast<u32>(program_size / sizeof(u64));
     coverage_end = shader_end;
     for (u32 label = main_offset; label < shader_end; label++) {
         basic_blocks.insert({label, DecodeRange(label, label + 1)});
     }
-    return;
 }
 
 NodeBlock ShaderIR::DecodeRange(u32 begin, u32 end) {
@@ -104,16 +103,17 @@ void ShaderIR::DecodeRangeInner(NodeBlock& bb, u32 begin, u32 end) {
 }
 
 void ShaderIR::InsertControlFlow(NodeBlock& bb, const ShaderBlock& block) {
-    auto apply_conditions = ([&](const Condition& cond, Node n) -> Node {
+    const auto apply_conditions = ([&](const Condition& cond, Node n) -> Node {
         Node result = n;
         if (cond.cc != ConditionCode::T) {
             result = Conditional(GetConditionCode(cond.cc), {result});
         }
         if (cond.predicate != Pred::UnusedIndex) {
             u32 pred = static_cast<u32>(cond.predicate);
-            bool is_neg = pred > 7;
-            if (is_neg)
+            const bool is_neg = pred > 7;
+            if (is_neg) {
                 pred -= 8;
+            }
             result = Conditional(GetPredicate(pred, is_neg), {result});
         }
         return result;
