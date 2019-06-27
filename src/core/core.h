@@ -44,6 +44,10 @@ struct AppletFrontendSet;
 class AppletManager;
 } // namespace AM::Applets
 
+namespace Glue {
+class ARPManager;
+}
+
 namespace SM {
 class ServiceManager;
 } // namespace SM
@@ -307,6 +311,10 @@ public:
     void ClearContentProvider(FileSys::ContentProviderUnionSlot slot);
 
     const Reporter& GetReporter() const;
+
+    Service::Glue::ARPManager& GetARPManager();
+
+    const Service::Glue::ARPManager& GetARPManager() const;
 
 private:
     System();
