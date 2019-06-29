@@ -44,6 +44,10 @@ struct AppletFrontendSet;
 class AppletManager;
 } // namespace AM::Applets
 
+namespace APM {
+class Controller;
+}
+
 namespace Glue {
 class ARPManager;
 }
@@ -315,6 +319,10 @@ public:
     Service::Glue::ARPManager& GetARPManager();
 
     const Service::Glue::ARPManager& GetARPManager() const;
+
+    Service::APM::Controller& GetAPMController();
+
+    const Service::APM::Controller& GetAPMController() const;
 
 private:
     System();
