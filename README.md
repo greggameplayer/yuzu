@@ -2,7 +2,7 @@
 
 Scroll down for the original README.md!
 
-Base revision: 1ca2b504bfd125fb915a019ba370f24232e2e9e1
+Base revision: d992909636269cde90cf6cb3749ccffcff9a6c56
 
 |Pull Request|Commit|Title|Author|Merged?|
 |----|----|----|----|----|
@@ -12,7 +12,6 @@ Base revision: 1ca2b504bfd125fb915a019ba370f24232e2e9e1
 |[2604](https://github.com/yuzu-emu/yuzu/pull/2604)|[dfe4b3f](https://github.com/yuzu-emu/yuzu/pull/2604/files/)|Implemented INotificationService|[ogniK5377](https://github.com/ogniK5377)|Yes|
 |[2601](https://github.com/yuzu-emu/yuzu/pull/2601)|[223ca80](https://github.com/yuzu-emu/yuzu/pull/2601/files/)|Implement a new Texture Cache|[FernandoS27](https://github.com/FernandoS27)|Yes|
 |[2592](https://github.com/yuzu-emu/yuzu/pull/2592)|[0962968](https://github.com/yuzu-emu/yuzu/pull/2592/files/)|Implement GPU Synchronization Mechanisms & Correct NVFlinger|[FernandoS27](https://github.com/FernandoS27)|Yes|
-|[2583](https://github.com/yuzu-emu/yuzu/pull/2583)|[90792cd](https://github.com/yuzu-emu/yuzu/pull/2583/files/)|Core_Timing: Make core_timing threadsafe by default.|[FernandoS27](https://github.com/FernandoS27)|Yes|
 |[2542](https://github.com/yuzu-emu/yuzu/pull/2542)|[7aeb676](https://github.com/yuzu-emu/yuzu/pull/2542/files/)|lbl: Implement brightness and backlight services|[DarkLordZach](https://github.com/DarkLordZach)|Yes|
 |[2418](https://github.com/yuzu-emu/yuzu/pull/2418)|[4b1560b](https://github.com/yuzu-emu/yuzu/pull/2418/files/)|es: Implement various ticket accessor commands from IEticketService|[DarkLordZach](https://github.com/DarkLordZach)|Yes|
 |[2365](https://github.com/yuzu-emu/yuzu/pull/2365)|[cfe7a70](https://github.com/yuzu-emu/yuzu/pull/2365/files/)|Workaround to Mutex Corruption|[FernandoS27](https://github.com/FernandoS27)|Yes|
