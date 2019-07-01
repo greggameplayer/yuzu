@@ -115,10 +115,6 @@ private:
     static_assert(sizeof(IoctlGetErrorNotification) == 16,
                   "IoctlGetErrorNotification is incorrect size");
 
-    struct Fence {
-        u32_le id;
-        u32_le value;
-    };
     static_assert(sizeof(Fence) == 8, "Fence is incorrect size");
 
     struct IoctlAllocGpfifoEx {
