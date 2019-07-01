@@ -4,6 +4,8 @@
 
 #pragma once
 
+#include <algorithm>
+#include <array>
 #include <memory>
 #include <mutex>
 #include <set>
@@ -79,10 +81,9 @@ public:
         if (surfaces.empty()) {
             return;
         }
-        std::sort(surfaces.begin(), surfaces.end(),
-                  [](const TSurface& a, const TSurface& b) -> bool {
-                      return a->GetModificationTick() < b->GetModificationTick();
-                  });
+        std::sort(surfaces.begin(), surfaces.end(), [](const TSurface& a, const TSurface& b) {
+            return a->GetModificationTick() < b->GetModificationTick();
+        });
         for (const auto& surface : surfaces) {
             FlushSurface(surface);
         }
@@ -96,25 +97,19 @@ public:
             return {};
         }
         const auto params{SurfaceParams::CreateForTexture(system, config, entry)};
-        auto pair = GetSurface(gpu_addr, params, true, false);
+        const auto [surface, view] = GetSurface(gpu_addr, params, true, false);
         if (guard_samplers) {
-            if (sampled_textures_stack_pointer == sampled_textures_stack.size()) {
-                sampled_textures_stack.resize(sampled_textures_stack.size() * 2);
-            }
-            sampled_textures_stack[sampled_textures_stack_pointer] = pair.first;
-            sampled_textures_stack_pointer++;
+            sampled_textures.push_back(surface);
         }
-        return pair.second;
+        return view;
     }
 
     bool TextureBarrier() {
-        bool must_do = false;
-        for (u32 i = 0; i < sampled_textures_stack_pointer; i++) {
-            must_do |= sampled_textures_stack[i]->IsRenderTarget();
-            sampled_textures_stack[i] = nullptr;
-        }
-        sampled_textures_stack_pointer = 0;
-        return must_do;
+        const bool any_rt =
+            std::any_of(sampled_textures.begin(), sampled_textures.end(),
+                        [](const auto& surface) { return surface->IsRenderTarget(); });
+        sampled_textures.clear();
+        return any_rt;
     }
 
     TView GetDepthBufferSurface(bool preserve_contents) {
@@ -181,13 +176,15 @@ public:
     }
 
     void MarkColorBufferInUse(std::size_t index) {
-        if (render_targets[index].target)
-            render_targets[index].target->MarkAsModified(true, Tick());
+        if (auto& render_target = render_targets[index].target) {
+            render_target->MarkAsModified(true, Tick());
+        }
     }
 
     void MarkDepthBufferInUse() {
-        if (depth_buffer.target)
+        if (depth_buffer.target) {
             depth_buffer.target->MarkAsModified(true, Tick());
+        }
     }
 
     void SetEmptyDepthBuffer() {
@@ -243,21 +240,20 @@ protected:
         for (std::size_t i = 0; i < Tegra::Engines::Maxwell3D::Regs::NumRenderTargets; i++) {
             SetEmptyColorBuffer(i);
         }
+
         SetEmptyDepthBuffer();
         staging_cache.SetSize(2);
-        auto make_siblings = ([this](PixelFormat a, PixelFormat b) {
-            siblings_table[a] = b;
-            siblings_table[b] = a;
-        });
-        const u32 max_formats = static_cast<u32>(PixelFormat::Max);
-        siblings_table.reserve(max_formats);
-        for (u32 i = 0; i < max_formats; i++) {
-            siblings_table[static_cast<PixelFormat>(i)] = PixelFormat::Invalid;
-        }
+
+        const auto make_siblings = [this](PixelFormat a, PixelFormat b) {
+            siblings_table[static_cast<std::size_t>(a)] = b;
+            siblings_table[static_cast<std::size_t>(b)] = a;
+        };
+        std::fill(siblings_table.begin(), siblings_table.end(), PixelFormat::Invalid);
         make_siblings(PixelFormat::Z16, PixelFormat::R16U);
         make_siblings(PixelFormat::Z32F, PixelFormat::R32F);
         make_siblings(PixelFormat::Z32FS8, PixelFormat::RG32F);
-        sampled_textures_stack.resize(64);
+
+        sampled_textures.reserve(64);
     }
 
     ~TextureCache() = default;
@@ -425,7 +421,7 @@ private:
         const auto& cr_params = current_surface->GetSurfaceParams();
         TSurface new_surface;
         if (cr_params.pixel_format != params.pixel_format && !is_render &&
-            siblings_table[cr_params.pixel_format] == params.pixel_format) {
+            GetSiblingFormat(cr_params.pixel_format) == params.pixel_format) {
             SurfaceParams new_params = params;
             new_params.pixel_format = cr_params.pixel_format;
             new_params.component_type = cr_params.component_type;
@@ -462,16 +458,16 @@ private:
                                                      const SurfaceParams& params, bool is_render) {
         const bool is_mirage = !current_surface->MatchFormat(params.pixel_format);
         const bool matches_target = current_surface->MatchTarget(params.target);
-        const auto match_check = ([&]() -> std::pair<TSurface, TView> {
+        const auto match_check = [&]() -> std::pair<TSurface, TView> {
             if (matches_target) {
                 return {current_surface, current_surface->GetMainView()};
             }
             return {current_surface, current_surface->EmplaceOverview(params)};
-        });
+        };
         if (!is_mirage) {
             return match_check();
         }
-        if (!is_render && siblings_table[current_surface->GetFormat()] == params.pixel_format) {
+        if (!is_render && GetSiblingFormat(current_surface->GetFormat()) == params.pixel_format) {
             return match_check();
         }
         return RebuildSurface(current_surface, params, is_render);
@@ -567,8 +563,7 @@ private:
         // Step 1
         // Check Level 1 Cache for a fast structural match. If candidate surface
         // matches at certain level we are pretty much done.
-        auto iter = l1_cache.find(cache_addr);
-        if (iter != l1_cache.end()) {
+        if (const auto iter = l1_cache.find(cache_addr); iter != l1_cache.end()) {
             TSurface& current_surface = iter->second;
             const auto topological_result = current_surface->MatchesTopology(params);
             if (topological_result != MatchTopologyResult::FullMatch) {
@@ -769,6 +764,10 @@ private:
         return {};
     }
 
+    constexpr PixelFormat GetSiblingFormat(PixelFormat format) const {
+        return siblings_table[static_cast<std::size_t>(format)];
+    }
+
     struct FramebufferTargetInfo {
         TSurface target;
         TView view;
@@ -785,7 +784,7 @@ private:
     // The siblings table is for formats that can inter exchange with one another
     // without causing issues. This is only valid when a conflict occurs on a non
     // rendering use.
-    std::unordered_map<PixelFormat, PixelFormat> siblings_table;
+    std::array<PixelFormat, static_cast<std::size_t>(PixelFormat::Max)> siblings_table;
 
     // The internal Cache is different for the Texture Cache. It's based on buckets
     // of 1MB. This fits better for the purpose of this cache as textures are normaly
@@ -806,8 +805,7 @@ private:
         render_targets;
     FramebufferTargetInfo depth_buffer;
 
-    std::vector<TSurface> sampled_textures_stack{};
-    u32 sampled_textures_stack_pointer{};
+    std::vector<TSurface> sampled_textures;
 
     StagingCache staging_cache;
     std::recursive_mutex mutex;

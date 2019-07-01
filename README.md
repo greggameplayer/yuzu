@@ -7,11 +7,12 @@ Base revision: d992909636269cde90cf6cb3749ccffcff9a6c56
 |Pull Request|Commit|Title|Author|Merged?|
 |----|----|----|----|----|
 |[1](https://github.com/yuzu-emu/yuzu-canary/pull/1)|[a8dfe54](https://github.com/yuzu-emu/yuzu-canary/pull/1/files/)|Canary Base|[chris062689](https://github.com/chris062689)|Yes|
+|[2659](https://github.com/yuzu-emu/yuzu/pull/2659)|[4705d1b](https://github.com/yuzu-emu/yuzu/pull/2659/files/)|rasterizer_cache: Protect inherited caches from submission level|[FernandoS27](https://github.com/FernandoS27)|Yes|
 |[2613](https://github.com/yuzu-emu/yuzu/pull/2613)|[7d417d5](https://github.com/yuzu-emu/yuzu/pull/2613/files/)|Implemented InitializeApplicationInfo & InitializeApplicationInfoRestricted|[ogniK5377](https://github.com/ogniK5377)|Yes|
 |[2608](https://github.com/yuzu-emu/yuzu/pull/2608)|[f67039c](https://github.com/yuzu-emu/yuzu/pull/2608/files/)|Implement Time::GetSharedMemoryNativeHandle|[ogniK5377](https://github.com/ogniK5377)|Yes|
 |[2604](https://github.com/yuzu-emu/yuzu/pull/2604)|[dfe4b3f](https://github.com/yuzu-emu/yuzu/pull/2604/files/)|Implemented INotificationService|[ogniK5377](https://github.com/ogniK5377)|Yes|
-|[2601](https://github.com/yuzu-emu/yuzu/pull/2601)|[223ca80](https://github.com/yuzu-emu/yuzu/pull/2601/files/)|Implement a new Texture Cache|[FernandoS27](https://github.com/FernandoS27)|Yes|
-|[2592](https://github.com/yuzu-emu/yuzu/pull/2592)|[0962968](https://github.com/yuzu-emu/yuzu/pull/2592/files/)|Implement GPU Synchronization Mechanisms & Correct NVFlinger|[FernandoS27](https://github.com/FernandoS27)|Yes|
+|[2601](https://github.com/yuzu-emu/yuzu/pull/2601)|[6e1db6b](https://github.com/yuzu-emu/yuzu/pull/2601/files/)|Implement a new Texture Cache|[FernandoS27](https://github.com/FernandoS27)|Yes|
+|[2592](https://github.com/yuzu-emu/yuzu/pull/2592)|[67fecf3](https://github.com/yuzu-emu/yuzu/pull/2592/files/)|Implement GPU Synchronization Mechanisms & Correct NVFlinger|[FernandoS27](https://github.com/FernandoS27)|Yes|
 |[2542](https://github.com/yuzu-emu/yuzu/pull/2542)|[7aeb676](https://github.com/yuzu-emu/yuzu/pull/2542/files/)|lbl: Implement brightness and backlight services|[DarkLordZach](https://github.com/DarkLordZach)|Yes|
 |[2418](https://github.com/yuzu-emu/yuzu/pull/2418)|[4b1560b](https://github.com/yuzu-emu/yuzu/pull/2418/files/)|es: Implement various ticket accessor commands from IEticketService|[DarkLordZach](https://github.com/DarkLordZach)|Yes|
 |[2365](https://github.com/yuzu-emu/yuzu/pull/2365)|[cfe7a70](https://github.com/yuzu-emu/yuzu/pull/2365/files/)|Workaround to Mutex Corruption|[FernandoS27](https://github.com/FernandoS27)|Yes|
