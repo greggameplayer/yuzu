@@ -2,13 +2,20 @@
 
 Scroll down for the original README.md!
 
-Base revision: d992909636269cde90cf6cb3749ccffcff9a6c56
+Base revision: 6be79bab37a3ed8d9d1c194e85a112fff02d9150
 
 |Pull Request|Commit|Title|Author|Merged?|
 |----|----|----|----|----|
 |[1](https://github.com/yuzu-emu/yuzu-canary/pull/1)|[a8dfe54](https://github.com/yuzu-emu/yuzu-canary/pull/1/files/)|Canary Base|[chris062689](https://github.com/chris062689)|Yes|
+|[2661](https://github.com/yuzu-emu/yuzu/pull/2661)|[b82b5e4](https://github.com/yuzu-emu/yuzu/pull/2661/files/)|audren: Only manage wave buffers with a size|[ogniK5377](https://github.com/ogniK5377)|Yes|
 |[2659](https://github.com/yuzu-emu/yuzu/pull/2659)|[4705d1b](https://github.com/yuzu-emu/yuzu/pull/2659/files/)|rasterizer_cache: Protect inherited caches from submission level|[FernandoS27](https://github.com/FernandoS27)|Yes|
+|[2658](https://github.com/yuzu-emu/yuzu/pull/2658)|[965608e](https://github.com/yuzu-emu/yuzu/pull/2658/files/)|IAudioDevice::QueryAudioDeviceOutputEvent|[ogniK5377](https://github.com/ogniK5377)|Yes|
+|[2657](https://github.com/yuzu-emu/yuzu/pull/2657)|[472210b](https://github.com/yuzu-emu/yuzu/pull/2657/files/)|hid:StartLrAssignmentMode, hid:StopLrAssignmentMode, hid:SwapNpadAssignment|[ogniK5377](https://github.com/ogniK5377)|Yes|
+|[2651](https://github.com/yuzu-emu/yuzu/pull/2651)|[7e5d777](https://github.com/yuzu-emu/yuzu/pull/2651/files/)|apm: Initial implementation of performance config and boost mode|[DarkLordZach](https://github.com/DarkLordZach)|Yes|
+|[2650](https://github.com/yuzu-emu/yuzu/pull/2650)|[c88190f](https://github.com/yuzu-emu/yuzu/pull/2650/files/)|mii: Implement IDatabaseService SetInterfaceVersion|[DarkLordZach](https://github.com/DarkLordZach)|Yes|
+|[2642](https://github.com/yuzu-emu/yuzu/pull/2642)|[d40f389](https://github.com/yuzu-emu/yuzu/pull/2642/files/)|fsp-srv: Implement Access Logging Functionality|[DarkLordZach](https://github.com/DarkLordZach)|Yes|
 |[2613](https://github.com/yuzu-emu/yuzu/pull/2613)|[7d417d5](https://github.com/yuzu-emu/yuzu/pull/2613/files/)|Implemented InitializeApplicationInfo & InitializeApplicationInfoRestricted|[ogniK5377](https://github.com/ogniK5377)|Yes|
+|[2612](https://github.com/yuzu-emu/yuzu/pull/2612)|[a2f11d2](https://github.com/yuzu-emu/yuzu/pull/2612/files/)|prepo: Implement New, System, and Non-User variants of SaveReport|[DarkLordZach](https://github.com/DarkLordZach)|Yes|
 |[2608](https://github.com/yuzu-emu/yuzu/pull/2608)|[f67039c](https://github.com/yuzu-emu/yuzu/pull/2608/files/)|Implement Time::GetSharedMemoryNativeHandle|[ogniK5377](https://github.com/ogniK5377)|Yes|
 |[2604](https://github.com/yuzu-emu/yuzu/pull/2604)|[dfe4b3f](https://github.com/yuzu-emu/yuzu/pull/2604/files/)|Implemented INotificationService|[ogniK5377](https://github.com/ogniK5377)|Yes|
 |[2601](https://github.com/yuzu-emu/yuzu/pull/2601)|[6e1db6b](https://github.com/yuzu-emu/yuzu/pull/2601/files/)|Implement a new Texture Cache|[FernandoS27](https://github.com/FernandoS27)|Yes|
