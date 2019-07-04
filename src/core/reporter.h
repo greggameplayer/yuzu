@@ -14,6 +14,10 @@ namespace Kernel {
 class HLERequestContext;
 } // namespace Kernel
 
+namespace Service::FileSystem {
+enum class LogMode : u32;
+}
+
 namespace Core {
 
 class Reporter {
@@ -38,12 +42,21 @@ public:
                                        std::vector<std::vector<u8>> normal_channel,
                                        std::vector<std::vector<u8>> interactive_channel) const;
 
-    void SavePlayReport(u64 title_id, u64 process_id, std::vector<std::vector<u8>> data,
-                        std::optional<u128> user_id = {}) const;
+    enum class PlayReportType {
+        Old,
+        New,
+        System,
+    };
+
+    void SavePlayReport(PlayReportType type, u64 title_id, std::vector<std::vector<u8>> data,
+                        std::optional<u64> process_id = {}, std::optional<u128> user_id = {}) const;
 
     void SaveErrorReport(u64 title_id, ResultCode result,
                          std::optional<std::string> custom_text_main = {},
                          std::optional<std::string> custom_text_detail = {}) const;
+
+    void SaveFilesystemAccessReport(Service::FileSystem::LogMode log_mode,
+                                    std::string log_message) const;
 
     void SaveUserReport() const;
 

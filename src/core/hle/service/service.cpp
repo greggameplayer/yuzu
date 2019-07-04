@@ -195,8 +195,7 @@ ResultCode ServiceFrameworkBase::HandleSyncRequest(Kernel::HLERequestContext& co
 // Module interface
 
 /// Initialize ServiceManager
-void Init(std::shared_ptr<SM::ServiceManager>& sm, Core::System& system,
-          FileSys::VfsFilesystem& vfs) {
+void Init(std::shared_ptr<SM::ServiceManager>& sm, Core::System& system) {
     // NVFlinger needs to be accessed by several services like Vi and AppletOE so we instantiate it
     // here and pass it into the respective InstallInterfaces functions.
     auto nv_flinger = std::make_shared<NVFlinger::NVFlinger>(system.CoreTiming());
@@ -206,7 +205,7 @@ void Init(std::shared_ptr<SM::ServiceManager>& sm, Core::System& system,
     Account::InstallInterfaces(system);
     AM::InstallInterfaces(*sm, nv_flinger, system);
     AOC::InstallInterfaces(*sm);
-    APM::InstallInterfaces(*sm);
+    APM::InstallInterfaces(system);
     Audio::InstallInterfaces(*sm);
     BCAT::InstallInterfaces(*sm);
     BPC::InstallInterfaces(*sm);
@@ -218,7 +217,7 @@ void Init(std::shared_ptr<SM::ServiceManager>& sm, Core::System& system,
     EUPLD::InstallInterfaces(*sm);
     Fatal::InstallInterfaces(*sm);
     FGM::InstallInterfaces(*sm);
-    FileSystem::InstallInterfaces(*sm, vfs);
+    FileSystem::InstallInterfaces(system);
     Friend::InstallInterfaces(*sm);
     Glue::InstallInterfaces(system);
     GRC::InstallInterfaces(*sm);
@@ -237,7 +236,7 @@ void Init(std::shared_ptr<SM::ServiceManager>& sm, Core::System& system,
     NIM::InstallInterfaces(*sm);
     NPNS::InstallInterfaces(*sm);
     NS::InstallInterfaces(*sm);
-    Nvidia::InstallInterfaces(*sm, *nv_flinger);
+    Nvidia::InstallInterfaces(*sm, *nv_flinger, system);
     PCIe::InstallInterfaces(*sm);
     PCTL::InstallInterfaces(*sm);
     PCV::InstallInterfaces(*sm);

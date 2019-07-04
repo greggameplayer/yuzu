@@ -43,7 +43,10 @@ static FileSys::VirtualDir GetDirectoryRelativeWrapped(FileSys::VirtualDir base,
     if (dir_name.empty() || dir_name == "." || dir_name == "/" || dir_name == "\\")
         return base;
 
-    return base->GetDirectoryRelative(dir_name);
+    const auto res = base->GetDirectoryRelative(dir_name);
+    if (res == nullptr)
+        return base->CreateDirectoryRelative(dir_name);
+    return res;
 }
 
 VfsDirectoryServiceWrapper::VfsDirectoryServiceWrapper(FileSys::VirtualDir backing_)
@@ -472,12 +475,12 @@ void CreateFactories(FileSys::VfsFilesystem& vfs, bool overwrite) {
     }
 }
 
-void InstallInterfaces(SM::ServiceManager& service_manager, FileSys::VfsFilesystem& vfs) {
+void InstallInterfaces(Core::System& system) {
     romfs_factory = nullptr;
-    CreateFactories(vfs, false);
-    std::make_shared<FSP_LDR>()->InstallAsService(service_manager);
-    std::make_shared<FSP_PR>()->InstallAsService(service_manager);
-    std::make_shared<FSP_SRV>()->InstallAsService(service_manager);
+    CreateFactories(*system.GetFilesystem(), false);
+    std::make_shared<FSP_LDR>()->InstallAsService(system.ServiceManager());
+    std::make_shared<FSP_PR>()->InstallAsService(system.ServiceManager());
+    std::make_shared<FSP_SRV>(system.GetReporter())->InstallAsService(system.ServiceManager());
 }
 
 } // namespace Service::FileSystem

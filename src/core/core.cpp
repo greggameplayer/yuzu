@@ -19,12 +19,14 @@
 #include "core/file_sys/vfs_concat.h"
 #include "core/file_sys/vfs_real.h"
 #include "core/gdbstub/gdbstub.h"
+#include "core/hardware_interrupt_manager.h"
 #include "core/hle/kernel/client_port.h"
 #include "core/hle/kernel/kernel.h"
 #include "core/hle/kernel/process.h"
 #include "core/hle/kernel/scheduler.h"
 #include "core/hle/kernel/thread.h"
 #include "core/hle/service/am/applets/applets.h"
+#include "core/hle/service/apm/controller.h"
 #include "core/hle/service/glue/manager.h"
 #include "core/hle/service/service.h"
 #include "core/hle/service/sm/sm.h"
@@ -143,14 +145,14 @@ struct System::Impl {
         telemetry_session = std::make_unique<Core::TelemetrySession>();
         service_manager = std::make_shared<Service::SM::ServiceManager>();
 
-        Service::Init(service_manager, system, *virtual_filesystem);
+        Service::Init(service_manager, system);
         GDBStub::Init();
 
         renderer = VideoCore::CreateRenderer(emu_window, system);
         if (!renderer->Init()) {
             return ResultStatus::ErrorVideoCore;
         }
-
+        interrupt_manager = std::make_unique<Core::Hardware::InterruptManager>(system);
         gpu_core = VideoCore::CreateGPU(system);
 
         is_powered_on = true;
@@ -297,6 +299,7 @@ struct System::Impl {
     std::unique_ptr<VideoCore::RendererBase> renderer;
     std::unique_ptr<Tegra::GPU> gpu_core;
     std::shared_ptr<Tegra::DebugContext> debug_context;
+    std::unique_ptr<Core::Hardware::InterruptManager> interrupt_manager;
     CpuCoreManager cpu_core_manager;
     bool is_powered_on = false;
 
@@ -305,6 +308,9 @@ struct System::Impl {
 
     /// Frontend applets
     Service::AM::Applets::AppletManager applet_manager;
+
+    /// APM (Performance) services
+    Service::APM::Controller apm_controller{core_timing};
 
     /// Glue services
     Service::Glue::ARPManager arp_manager;
@@ -440,6 +446,14 @@ const Tegra::GPU& System::GPU() const {
     return *impl->gpu_core;
 }
 
+Core::Hardware::InterruptManager& System::InterruptManager() {
+    return *impl->interrupt_manager;
+}
+
+const Core::Hardware::InterruptManager& System::InterruptManager() const {
+    return *impl->interrupt_manager;
+}
+
 VideoCore::RendererBase& System::Renderer() {
     return *impl->renderer;
 }
@@ -566,6 +580,14 @@ Service::Glue::ARPManager& System::GetARPManager() {
 
 const Service::Glue::ARPManager& System::GetARPManager() const {
     return impl->arp_manager;
+}
+
+Service::APM::Controller& System::GetAPMController() {
+    return impl->apm_controller;
+}
+
+const Service::APM::Controller& System::GetAPMController() const {
+    return impl->apm_controller;
 }
 
 System::ResultStatus System::Init(Frontend::EmuWindow& emu_window) {

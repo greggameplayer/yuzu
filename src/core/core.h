@@ -43,6 +43,10 @@ struct AppletFrontendSet;
 class AppletManager;
 } // namespace AM::Applets
 
+namespace APM {
+class Controller;
+}
+
 namespace Glue {
 class ARPManager;
 }
@@ -64,6 +68,10 @@ class RendererBase;
 
 namespace Core::Timing {
 class CoreTiming;
+}
+
+namespace Core::Hardware {
+class InterruptManager;
 }
 
 namespace Core {
@@ -230,6 +238,12 @@ public:
     /// Provides a constant reference to the core timing instance.
     const Timing::CoreTiming& CoreTiming() const;
 
+    /// Provides a reference to the interrupt manager instance.
+    Core::Hardware::InterruptManager& InterruptManager();
+
+    /// Provides a constant reference to the interrupt manager instance.
+    const Core::Hardware::InterruptManager& InterruptManager() const;
+
     /// Provides a reference to the kernel instance.
     Kernel::KernelCore& Kernel();
 
@@ -295,6 +309,10 @@ public:
     Service::Glue::ARPManager& GetARPManager();
 
     const Service::Glue::ARPManager& GetARPManager() const;
+
+    Service::APM::Controller& GetAPMController();
+
+    const Service::APM::Controller& GetAPMController() const;
 
 private:
     System();

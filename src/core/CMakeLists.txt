@@ -111,6 +111,8 @@ add_library(core STATIC
     frontend/scope_acquire_window_context.h
     gdbstub/gdbstub.cpp
     gdbstub/gdbstub.h
+    hardware_interrupt_manager.cpp
+    hardware_interrupt_manager.h
     hle/ipc.h
     hle/ipc_helpers.h
     hle/kernel/address_arbiter.cpp
@@ -208,6 +210,8 @@ add_library(core STATIC
     hle/service/aoc/aoc_u.h
     hle/service/apm/apm.cpp
     hle/service/apm/apm.h
+    hle/service/apm/controller.cpp
+    hle/service/apm/controller.h
     hle/service/apm/interface.cpp
     hle/service/apm/interface.h
     hle/service/audio/audctl.cpp
@@ -293,6 +297,7 @@ add_library(core STATIC
     hle/service/hid/irs.h
     hle/service/hid/xcd.cpp
     hle/service/hid/xcd.h
+    hle/service/hid/errors.h
     hle/service/hid/controllers/controller_base.cpp
     hle/service/hid/controllers/controller_base.h
     hle/service/hid/controllers/debug_pad.cpp
@@ -369,6 +374,7 @@ add_library(core STATIC
     hle/service/nvdrv/devices/nvmap.h
     hle/service/nvdrv/interface.cpp
     hle/service/nvdrv/interface.h
+    hle/service/nvdrv/nvdata.h
     hle/service/nvdrv/nvdrv.cpp
     hle/service/nvdrv/nvdrv.h
     hle/service/nvdrv/nvmemp.cpp
