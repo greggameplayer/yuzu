@@ -52,7 +52,8 @@ bool CpuBarrier::Rendezvous() {
 
 Cpu::Cpu(System& system, ExclusiveMonitor& exclusive_monitor, CpuBarrier& cpu_barrier,
          std::size_t core_index)
-    : cpu_barrier{cpu_barrier}, core_timing{system.CoreTiming()}, core_index{core_index} {
+    : cpu_barrier{cpu_barrier}, global_scheduler{system.GlobalScheduler()},
+      core_timing{system.CoreTiming()}, core_index{core_index} {
     if (Settings::values.cpu_jit_enabled) {
 #ifdef ARCHITECTURE_x86_64
         arm_interface = std::make_unique<ARM_Dynarmic>(system, exclusive_monitor, core_index);
@@ -126,7 +127,7 @@ void Cpu::PrepareReschedule() {
 
 void Cpu::Reschedule() {
     // Lock the global kernel mutex when we manipulate the HLE state
-    std::lock_guard<std::recursive_mutex> lock(HLE::g_hle_lock);
+    std::lock_guard lock(HLE::g_hle_lock);
 
     global_scheduler.SelectThread(core_index);
     scheduler->TryDoContextSwitch();
