@@ -324,12 +324,6 @@ void Scheduler::SwitchContext() {
 
     Process* const previous_process = system.Kernel().CurrentProcess();
 
-    context_switch_pending = false;
-    if (new_thread == previous_thread)
-        return;
-
-    Process* const previous_process = Core::CurrentProcess();
-
     UpdateLastContextSwitchTime(previous_thread, previous_process);
 
     // Save context for previous thread
