@@ -50,7 +50,7 @@ private:
 
         IPC::ResponseBuilder rb{ctx, 2, 0, 1};
         rb.Push(RESULT_SUCCESS);
-        rb.PushIpcInterface<ISelfController>(nvflinger);
+        rb.PushIpcInterface<ISelfController>(system, nvflinger);
     }
 
     void GetWindowController(Kernel::HLERequestContext& ctx) {
@@ -154,7 +154,7 @@ private:
 
         IPC::ResponseBuilder rb{ctx, 2, 0, 1};
         rb.Push(RESULT_SUCCESS);
-        rb.PushIpcInterface<ISelfController>(nvflinger);
+        rb.PushIpcInterface<ISelfController>(system, nvflinger);
     }
 
     void GetWindowController(Kernel::HLERequestContext& ctx) {

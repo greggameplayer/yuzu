@@ -156,6 +156,7 @@ struct System::Impl {
         gpu_core = VideoCore::CreateGPU(system);
 
         is_powered_on = true;
+        exit_lock = false;
 
         LOG_DEBUG(Core, "Initialized OK");
 
@@ -220,6 +221,7 @@ struct System::Impl {
                                     perf_results.frametime * 1000.0);
 
         is_powered_on = false;
+        exit_lock = false;
 
         // Shutdown emulation session
         renderer.reset();
@@ -302,6 +304,7 @@ struct System::Impl {
     std::unique_ptr<Core::Hardware::InterruptManager> interrupt_manager;
     CpuCoreManager cpu_core_manager;
     bool is_powered_on = false;
+    bool exit_lock = false;
 
     std::unique_ptr<FileSys::CheatEngine> cheat_engine;
     std::unique_ptr<Tools::Freezer> memory_freezer;
@@ -604,6 +607,14 @@ Service::APM::Controller& System::GetAPMController() {
 
 const Service::APM::Controller& System::GetAPMController() const {
     return impl->apm_controller;
+}
+
+void System::SetExitLock(bool locked) {
+    impl->exit_lock = locked;
+}
+
+bool System::GetExitLock() const {
+    return impl->exit_lock;
 }
 
 System::ResultStatus System::Init(Frontend::EmuWindow& emu_window) {
