@@ -12,6 +12,7 @@
 #include "video_core/engines/maxwell_3d.h"
 #include "video_core/engines/maxwell_dma.h"
 #include "video_core/gpu.h"
+#include "video_core/gpu_clock.h"
 #include "video_core/memory_manager.h"
 #include "video_core/renderer_base.h"
 
@@ -29,8 +30,9 @@ u32 FramebufferConfig::BytesPerPixel(PixelFormat format) {
     UNREACHABLE();
 }
 
-GPU::GPU(Core::System& system, VideoCore::RendererBase& renderer, bool is_async)
-    : system{system}, renderer{renderer}, is_async{is_async} {
+GPU::GPU(Core::System& system, VideoCore::RendererBase& renderer)
+    : renderer{renderer} {
+    clock = std::make_unique<Tegra::GPUClock>();
     auto& rasterizer{renderer.Rasterizer()};
     memory_manager = std::make_unique<Tegra::MemoryManager>(rasterizer);
     dma_pusher = std::make_unique<Tegra::DmaPusher>(*this);
@@ -67,49 +69,12 @@ const DmaPusher& GPU::DmaPusher() const {
     return *dma_pusher;
 }
 
-void GPU::IncrementSyncPoint(const u32 syncpoint_id) {
-    syncpoints[syncpoint_id]++;
-    std::lock_guard lock{sync_mutex};
-    if (!syncpt_interrupts[syncpoint_id].empty()) {
-        u32 value = syncpoints[syncpoint_id].load();
-        auto it = syncpt_interrupts[syncpoint_id].begin();
-        while (it != syncpt_interrupts[syncpoint_id].end()) {
-            if (value >= *it) {
-                TriggerCpuInterrupt(syncpoint_id, *it);
-                it = syncpt_interrupts[syncpoint_id].erase(it);
-                continue;
-            }
-            it++;
-        }
-    }
+Tegra::GPUClock& GPU::GetClock() {
+    return *clock;
 }
 
-u32 GPU::GetSyncpointValue(const u32 syncpoint_id) const {
-    return syncpoints[syncpoint_id].load();
-}
-
-void GPU::RegisterSyncptInterrupt(const u32 syncpoint_id, const u32 value) {
-    auto& interrupt = syncpt_interrupts[syncpoint_id];
-    bool contains = std::any_of(interrupt.begin(), interrupt.end(),
-                                [value](u32 in_value) { return in_value == value; });
-    if (contains) {
-        return;
-    }
-    syncpt_interrupts[syncpoint_id].emplace_back(value);
-}
-
-bool GPU::CancelSyncptInterrupt(const u32 syncpoint_id, const u32 value) {
-    std::lock_guard lock{sync_mutex};
-    auto& interrupt = syncpt_interrupts[syncpoint_id];
-    const auto iter =
-        std::find_if(interrupt.begin(), interrupt.end(),
-                     [value](u32 interrupt_value) { return value == interrupt_value; });
-
-    if (iter == interrupt.end()) {
-        return false;
-    }
-    interrupt.erase(iter);
-    return true;
+const Tegra::GPUClock& GPU::GetClock() const {
+    return *clock;
 }
 
 u32 RenderTargetBytesPerPixel(RenderTargetFormat format) {
@@ -331,7 +296,7 @@ void GPU::ProcessSemaphoreTriggerMethod() {
         block.sequence = regs.semaphore_sequence;
         // TODO(Kmather73): Generate a real GPU timestamp and write it here instead of
         // CoreTiming
-        block.timestamp = Core::System::GetInstance().CoreTiming().GetTicks();
+        block.timestamp = clock->GetNsTime().count();
         memory_manager->WriteBlock(regs.semaphore_address.SemaphoreAddress(), &block,
                                    sizeof(block));
     } else {
