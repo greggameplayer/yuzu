@@ -508,6 +508,10 @@ void AppletMessageQueue::OperationModeChanged() {
     on_operation_mode_changed.writable->Signal();
 }
 
+void AppletMessageQueue::RequestExit() {
+    PushMessage(AppletMessage::ExitRequested);
+}
+
 ICommonStateGetter::ICommonStateGetter(std::shared_ptr<AppletMessageQueue> msg_queue)
     : ServiceFramework("ICommonStateGetter"), msg_queue(std::move(msg_queue)) {
     // clang-format off
