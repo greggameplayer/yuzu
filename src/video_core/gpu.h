@@ -84,7 +84,6 @@ u32 DepthFormatBytesPerPixel(DepthFormat format);
 
 struct CommandListHeader;
 class DebugContext;
-class GPUClock;
 
 /**
  * Struct describing framebuffer configuration
@@ -188,12 +187,6 @@ public:
     /// Returns a const reference to the GPU DMA pusher.
     const Tegra::DmaPusher& DmaPusher() const;
 
-    /// Returns a reference to the GPU's Clock.
-    Tegra::GPUClock& GetClock();
-
-    /// Returns a const reference to the GPU's Clock.
-    const Tegra::GPUClock& GetClock() const;
-
     struct Regs {
         static constexpr size_t NUM_REGS = 0x100;
 
@@ -294,7 +287,13 @@ private:
     /// Inline memory engine
     std::unique_ptr<Engines::KeplerMemory> kepler_memory;
 
-    std::unique_ptr<GPUClock> clock;
+    std::array<std::atomic<u32>, Service::Nvidia::MaxSyncPoints> syncpoints{};
+
+    std::array<std::list<u32>, Service::Nvidia::MaxSyncPoints> syncpt_interrupts;
+
+    std::mutex sync_mutex;
+
+    const bool is_async;
 };
 
 #define ASSERT_REG_POSITION(field_name, position)                                                  \
