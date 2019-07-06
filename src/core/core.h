@@ -296,6 +296,10 @@ public:
 
     const Service::Glue::ARPManager& GetARPManager() const;
 
+    void SetExitLock(bool locked);
+
+    bool GetExitLock() const;
+
 private:
     System();
 
