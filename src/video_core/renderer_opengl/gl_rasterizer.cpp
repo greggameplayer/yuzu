@@ -438,6 +438,7 @@ void RasterizerOpenGL::UpdatePagesCachedCount(VAddr addr, u64 size, int delta) {
 void RasterizerOpenGL::LoadDiskResources(const std::atomic_bool& stop_loading,
                                          const VideoCore::DiskResourceLoadCallback& callback) {
     shader_cache.LoadDiskCache(stop_loading, callback);
+    texture_cache.LoadResources();
 }
 
 std::pair<bool, bool> RasterizerOpenGL::ConfigureFramebuffers(
