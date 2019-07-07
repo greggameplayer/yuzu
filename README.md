@@ -2,7 +2,7 @@
 
 Scroll down for the original README.md!
 
-Base revision: 772c86a260eb446b0fe4232b0a50666511bef25c
+Base revision: 8070cb3f6b33a71812c567ba144045a54bf1ba54
 
 |Pull Request|Commit|Title|Author|Merged?|
 |----|----|----|----|----|
@@ -10,9 +10,8 @@ Base revision: 772c86a260eb446b0fe4232b0a50666511bef25c
 |[2661](https://github.com/yuzu-emu/yuzu/pull/2661)|[b82b5e4](https://github.com/yuzu-emu/yuzu/pull/2661/files/)|audren: Only manage wave buffers with a size|[ogniK5377](https://github.com/ogniK5377)|Yes|
 |[2657](https://github.com/yuzu-emu/yuzu/pull/2657)|[472210b](https://github.com/yuzu-emu/yuzu/pull/2657/files/)|hid:StartLrAssignmentMode, hid:StopLrAssignmentMode, hid:SwapNpadAssignment|[ogniK5377](https://github.com/ogniK5377)|Yes|
 |[2651](https://github.com/yuzu-emu/yuzu/pull/2651)|[7e5d777](https://github.com/yuzu-emu/yuzu/pull/2651/files/)|apm: Initial implementation of performance config and boost mode|[DarkLordZach](https://github.com/DarkLordZach)|Yes|
-|[2650](https://github.com/yuzu-emu/yuzu/pull/2650)|[c88190f](https://github.com/yuzu-emu/yuzu/pull/2650/files/)|mii: Implement IDatabaseService SetInterfaceVersion|[DarkLordZach](https://github.com/DarkLordZach)|Yes|
+|[2650](https://github.com/yuzu-emu/yuzu/pull/2650)|[a4ef86a](https://github.com/yuzu-emu/yuzu/pull/2650/files/)|mii: Implement IDatabaseService SetInterfaceVersion|[DarkLordZach](https://github.com/DarkLordZach)|Yes|
 |[2642](https://github.com/yuzu-emu/yuzu/pull/2642)|[d40f389](https://github.com/yuzu-emu/yuzu/pull/2642/files/)|fsp-srv: Implement Access Logging Functionality|[DarkLordZach](https://github.com/DarkLordZach)|Yes|
-|[2612](https://github.com/yuzu-emu/yuzu/pull/2612)|[a2f11d2](https://github.com/yuzu-emu/yuzu/pull/2612/files/)|prepo: Implement New, System, and Non-User variants of SaveReport|[DarkLordZach](https://github.com/DarkLordZach)|Yes|
 |[2609](https://github.com/yuzu-emu/yuzu/pull/2609)|[de9d6c4](https://github.com/yuzu-emu/yuzu/pull/2609/files/)|Implement a New Shader Scanner, Decompile Flow Stack and implement BRX BRA.CC|[FernandoS27](https://github.com/FernandoS27)|Yes|
 |[2592](https://github.com/yuzu-emu/yuzu/pull/2592)|[8746c74](https://github.com/yuzu-emu/yuzu/pull/2592/files/)|Implement GPU Synchronization Mechanisms & Correct NVFlinger|[FernandoS27](https://github.com/FernandoS27)|Yes|
 |[2542](https://github.com/yuzu-emu/yuzu/pull/2542)|[7aeb676](https://github.com/yuzu-emu/yuzu/pull/2542/files/)|lbl: Implement brightness and backlight services|[DarkLordZach](https://github.com/DarkLordZach)|Yes|
