@@ -2068,31 +2068,25 @@ private:
 } // Anonymous namespace
 
 std::string GetCommonDeclarations() {
-    return fmt::format(R"(#define MAX_CONSTBUFFER_ELEMENTS {}
-#define ftoi floatBitsToInt
-#define ftou floatBitsToUint
-#define itof intBitsToFloat
-#define utof uintBitsToFloat
-
-float fromHalf2(vec2 pair) {{
-    return utof(packHalf2x16(pair));
-}}
-
-vec2 toHalf2(float value) {{
-    return unpackHalf2x16(ftou(value));
-}}
-
-bvec2 halfFloatNanComparison(bvec2 comparison, vec2 pair1, vec2 pair2) {{
-    bvec2 is_nan1 = isnan(pair1);
-    bvec2 is_nan2 = isnan(pair2);
-    return bvec2(comparison.x || is_nan1.x || is_nan2.x, comparison.y || is_nan1.y || is_nan2.y);
-}}
-
-layout (location = 0) uniform uvec4 config_pack; // instance_id, flip_stage, y_direction, padding
-layout (location = 1) uniform vec2 viewport_flip;
-
-)",
-                       MAX_CONSTBUFFER_ELEMENTS);
+    return fmt::format(
+        "#define MAX_CONSTBUFFER_ELEMENTS {}\n"
+        "#define ftoi floatBitsToInt\n"
+        "#define ftou floatBitsToUint\n"
+        "#define itof intBitsToFloat\n"
+        "#define utof uintBitsToFloat\n\n"
+        "float fromHalf2(vec2 pair) {{\n"
+        "    return utof(packHalf2x16(pair));\n"
+        "}}\n\n"
+        "vec2 toHalf2(float value) {{\n"
+        "    return unpackHalf2x16(ftou(value));\n"
+        "}}\n\n"
+        "bvec2 halfFloatNanComparison(bvec2 comparison, vec2 pair1, vec2 pair2) {{\n"
+        "    bvec2 is_nan1 = isnan(pair1);\n"
+        "    bvec2 is_nan2 = isnan(pair2);\n"
+        "    return bvec2(comparison.x || is_nan1.x || is_nan2.x, comparison.y || is_nan1.y || "
+        "is_nan2.y);\n"
+        "}}\n",
+        MAX_CONSTBUFFER_ELEMENTS);
 }
 
 ProgramResult Decompile(const Device& device, const ShaderIR& ir, ProgramType stage,

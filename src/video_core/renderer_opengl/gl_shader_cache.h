@@ -20,7 +20,6 @@
 #include "video_core/renderer_opengl/gl_resource_manager.h"
 #include "video_core/renderer_opengl/gl_shader_decompiler.h"
 #include "video_core/renderer_opengl/gl_shader_disk_cache.h"
-#include "video_core/renderer_opengl/gl_shader_manager.h"
 
 namespace Core {
 class System;
@@ -38,7 +37,7 @@ class RasterizerOpenGL;
 struct UnspecializedShader;
 
 using Shader = std::shared_ptr<CachedShader>;
-using CachedProgram = std::shared_ptr<GLShader::StageProgram>;
+using CachedProgram = std::shared_ptr<OGLProgram>;
 using Maxwell = Tegra::Engines::Maxwell3D::Regs;
 using PrecompiledPrograms = std::unordered_map<ShaderDiskCacheUsage, CachedProgram>;
 using PrecompiledShaders = std::unordered_map<u64, GLShader::ProgramResult>;
@@ -81,8 +80,7 @@ public:
     }
 
     /// Gets the GL program handle for the shader
-    std::tuple<GLShader::StageProgram&, BaseBindings> GetProgramHandle(
-        const ProgramVariant& variant);
+    std::tuple<GLuint, BaseBindings> GetProgramHandle(const ProgramVariant& variant);
 
 private:
     explicit CachedShader(const ShaderParameters& params, ProgramType program_type,
@@ -99,10 +97,10 @@ private:
         CachedProgram triangles_adjacency;
     };
 
-    GLShader::StageProgram& GetGeometryShader(const ProgramVariant& variant);
+    GLuint GetGeometryShader(const ProgramVariant& variant);
 
     /// Generates a geometry shader or returns one that already exists.
-    GLShader::StageProgram& LazyGeometryProgram(CachedProgram& target_program, const ProgramVariant& variant);
+    GLuint LazyGeometryProgram(CachedProgram& target_program, const ProgramVariant& variant);
 
     CachedProgram TryLoadProgram(const ProgramVariant& variant) const;
 
