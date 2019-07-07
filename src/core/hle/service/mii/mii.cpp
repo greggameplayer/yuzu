@@ -356,6 +356,8 @@ private:
 
         LOG_DEBUG(Service_Mii, "called, interface_version={:08X}", current_interface_version);
 
+        UNIMPLEMENTED_IF(current_interface_version != 1);
+
         IPC::ResponseBuilder rb{ctx, 2};
         rb.Push(RESULT_SUCCESS);
     }
