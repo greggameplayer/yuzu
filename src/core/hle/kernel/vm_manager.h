@@ -458,7 +458,7 @@ public:
     ///
     /// @note The destination address must lie within the Map region.
     ///
-    /// @note This function requires SystemResourceSize is non-zero,
+    /// @note This function requires that SystemResourceSize be non-zero,
     ///       however, this is just because if it were not then the
     ///       resulting page tables could be exploited on hardware by
     ///       a malicious program. SystemResource usage does not need
@@ -472,7 +472,7 @@ public:
     ///
     /// @note The destination address must lie within the Map region.
     ///
-    /// @note This function requires SystemResourceSize is non-zero,
+    /// @note This function requires that SystemResourceSize be non-zero,
     ///       however, this is just because if it were not then the
     ///       resulting page tables could be exploited on hardware by
     ///       a malicious program. SystemResource usage does not need
@@ -734,6 +734,13 @@ private:
                                  VMAPermission permission_mask, VMAPermission permissions,
                                  MemoryAttribute attribute_mask, MemoryAttribute attribute,
                                  MemoryAttribute ignore_mask) const;
+
+    /// Gets the amount of memory currently mapped (state != Unmapped) in a range.
+    ResultVal<std::size_t> SizeOfAllocatedVMAsInRange(VAddr address, std::size_t size) const;
+
+    /// Gets the amount of memory unmappable by UnmapPhysicalMemory in a range.
+    ResultVal<std::size_t> SizeOfUnmappablePhysicalMemoryInRange(VAddr address,
+                                                                 std::size_t size) const;
 
     /**
      * A map covering the entirety of the managed address space, keyed by the `base` field of each
