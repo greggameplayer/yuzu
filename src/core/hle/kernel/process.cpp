@@ -332,5 +332,4 @@ void Process::AllocateMainThreadStack(u64 stack_size) {
         .Unwrap();
 }
 
-
 } // namespace Kernel
