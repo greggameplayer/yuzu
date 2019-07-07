@@ -304,8 +304,8 @@ void Reporter::SaveUnimplementedAppletReport(
     SaveToFile(std::move(out), GetPath("unimpl_applet_report", title_id, timestamp));
 }
 
-void Reporter::SavePlayReport(u64 title_id, u64 process_id, std::vector<std::vector<u8>> data,
-                              std::optional<u128> user_id) const {
+void Reporter::SavePlayReport(PlayReportType type, u64 title_id, std::vector<std::vector<u8>> data,
+                              std::optional<u64> process_id, std::optional<u128> user_id) const {
     if (!IsReportingEnabled()) {
         return;
     }
