@@ -173,6 +173,7 @@ void RendererOpenGL::LoadFBToScreenInfo(const Tegra::FramebufferConfig& framebuf
                                        linear_bpp, Memory::GetPointer(framebuffer_addr),
                                        gl_framebuffer_data.data());
 
+        glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
         glPixelStorei(GL_UNPACK_ROW_LENGTH, static_cast<GLint>(framebuffer.stride));
 
         // Update existing texture
