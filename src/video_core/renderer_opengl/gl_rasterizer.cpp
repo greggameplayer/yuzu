@@ -772,7 +772,7 @@ void RasterizerOpenGL::DrawArrays() {
     SyncViewport(state, res_scaling);
     SyncScissorTest(state, res_scaling);
 
-    shader_program_manager->SetConstants(gpu);
+    shader_program_manager->SetConstants(gpu, res_scaling);
     shader_program_manager->ApplyTo(state);
     state.Apply();
 
