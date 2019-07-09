@@ -246,8 +246,8 @@ public:
                      const Tegra::Engines::Fermi2D::Regs::Surface& dst_config,
                      const Tegra::Engines::Fermi2D::Config& copy_config) {
         std::lock_guard lock{mutex};
-        std::pair<TSurface, TView> dst_surface = GetFermiSurface(dst_config, true);
-        std::pair<TSurface, TView> src_surface = GetFermiSurface(src_config, false);
+        std::pair<TSurface, TView> dst_surface = GetFermiSurface(dst_config);
+        std::pair<TSurface, TView> src_surface = GetFermiSurface(src_config);
         if (IsResScannerEnabled()) {
             bool is_candidate = IsInRSDatabase(src_surface.first);
             if (is_candidate) {
@@ -408,11 +408,11 @@ protected:
         return new_surface;
     }
 
-    std::pair<TSurface, TView> GetFermiSurface(const Tegra::Engines::Fermi2D::Regs::Surface& config,
-                                               const bool is_render) {
+    std::pair<TSurface, TView> GetFermiSurface(
+        const Tegra::Engines::Fermi2D::Regs::Surface& config) {
         SurfaceParams params = SurfaceParams::CreateForFermiCopySurface(config);
         const GPUVAddr gpu_addr = config.Address();
-        return GetSurface(gpu_addr, params, true, is_render);
+        return GetSurface(gpu_addr, params, true, false);
     }
 
     // Must be called by child's create surface
@@ -544,12 +544,17 @@ private:
             }
         }
         if (IsResScannerEnabled()) {
-            bool is_candidate = IsInRSDatabase(current_surface);
-            if (is_candidate) {
+            if (IsInRSDatabase(current_surface)) {
                 if (IsRSBlacklisted(new_surface)) {
                     UnmarkScanner(current_surface);
                 } else {
                     MarkScanner(new_surface);
+                }
+            } else if (IsInRSDatabase(new_surface)) {
+                if (IsRSBlacklisted(current_surface)) {
+                    UnmarkScanner(new_surface);
+                } else {
+                    MarkScanner(current_surface);
                 }
             }
         }
@@ -703,7 +708,7 @@ private:
 
         // If none are found, we are done. we just load the surface and create it.
         if (overlaps.empty()) {
-            return InitializeSurface(gpu_addr, params, preserve_contents && !is_render);
+            return InitializeSurface(gpu_addr, params, preserve_contents);
         }
 
         // Step 3
