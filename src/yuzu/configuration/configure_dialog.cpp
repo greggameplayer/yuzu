@@ -37,6 +37,7 @@ void ConfigureDialog::ApplyConfiguration() {
     ui->gameListTab->ApplyConfiguration();
     ui->systemTab->ApplyConfiguration();
     ui->profileManagerTab->ApplyConfiguration();
+    ui->filesystemTab->applyConfiguration();
     ui->inputTab->ApplyConfiguration();
     ui->hotkeysTab->ApplyConfiguration(registry);
     ui->graphicsTab->ApplyConfiguration();
@@ -71,7 +72,7 @@ void ConfigureDialog::RetranslateUI() {
 void ConfigureDialog::PopulateSelectionList() {
     const std::array<std::pair<QString, QStringList>, 4> items{
         {{tr("General"), {tr("General"), tr("Web"), tr("Debug"), tr("Game List")}},
-         {tr("System"), {tr("System"), tr("Profiles"), tr("Audio")}},
+         {tr("System"), {tr("System"), tr("Profiles"), tr("Filesystem"), tr("Audio")}},
          {tr("Graphics"), {tr("Graphics")}},
          {tr("Controls"), {tr("Input"), tr("Hotkeys")}}},
     };
@@ -104,6 +105,7 @@ void ConfigureDialog::UpdateVisibleTabs() {
         {tr("Debug"), ui->debugTab},
         {tr("Web"), ui->webTab},
         {tr("Game List"), ui->gameListTab},
+        {tr("Filesystem"), ui->filesystemTab},
     };
 
     [[maybe_unused]] const QSignalBlocker blocker(ui->tabWidget);

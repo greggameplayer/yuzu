@@ -629,7 +629,7 @@ public:
     }
 };
 
-void InstallInterfaces(SM::ServiceManager& service_manager) {
+void InstallInterfaces(SM::ServiceManager& service_manager, FileSystem::FileSystemController& fsc) {
     std::make_shared<NS>("ns:am2")->InstallAsService(service_manager);
     std::make_shared<NS>("ns:ec")->InstallAsService(service_manager);
     std::make_shared<NS>("ns:rid")->InstallAsService(service_manager);
@@ -640,7 +640,7 @@ void InstallInterfaces(SM::ServiceManager& service_manager) {
     std::make_shared<NS_SU>()->InstallAsService(service_manager);
     std::make_shared<NS_VM>()->InstallAsService(service_manager);
 
-    std::make_shared<PL_U>()->InstallAsService(service_manager);
+    std::make_shared<PL_U>(fsc)->InstallAsService(service_manager);
 }
 
 } // namespace Service::NS
