@@ -835,8 +835,8 @@ public:
                     ConditionMode mode;
 
                     GPUVAddr Address() const {
-                        return static_cast<GPUVAddr>(
-                            (static_cast<GPUVAddr>(address_high) << 32) | address_low);
+                        return static_cast<GPUVAddr>((static_cast<GPUVAddr>(address_high) << 32) |
+                                                     address_low);
                     }
                 } condition;
 

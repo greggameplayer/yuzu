@@ -52,7 +52,8 @@ bool CpuBarrier::Rendezvous() {
 
 Cpu::Cpu(System& system, ExclusiveMonitor& exclusive_monitor, CpuBarrier& cpu_barrier,
          std::size_t core_index)
-    : cpu_barrier{cpu_barrier}, core_timing{system.CoreTiming()}, core_index{core_index} {
+    : cpu_barrier{cpu_barrier}, global_scheduler{system.GlobalScheduler()},
+      core_timing{system.CoreTiming()}, core_index{core_index} {
 #ifdef ARCHITECTURE_x86_64
     arm_interface = std::make_unique<ARM_Dynarmic>(system, exclusive_monitor, core_index);
 #else

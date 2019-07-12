@@ -1601,9 +1601,8 @@ void GMainWindow::OnMenuSelectEmulatedDirectory(EmulatedDirectoryTarget target) 
         FileUtil::GetUserPath(target == EmulatedDirectoryTarget::SDMC ? FileUtil::UserPath::SDMCDir
                                                                       : FileUtil::UserPath::NANDDir,
                               dir_path.toStdString());
-        Core::System::GetInstance().GetFileSystemController().CreateFactories(*vfs);
-        game_list->PopulateAsync(UISettings::values.game_directory_path,
-                                 UISettings::values.game_directory_deepscan);
+        Service::FileSystem::CreateFactories(*vfs);
+        game_list->PopulateAsync(UISettings::values.game_dirs);
     }
 }
 
