@@ -145,6 +145,8 @@ private:
                       const Tegra::Texture::FullTextureInfo& texture,
                       const GLShader::SamplerEntry& entry);
 
+    void SetupComputeImages(const Shader& shader);
+
     /// Syncs the viewport and depth range to match the guest state
     void SyncViewport(OpenGLState& current_state);
 
