@@ -2,7 +2,7 @@
 
 Scroll down for the original README.md!
 
-Base revision: 4d8215827415947e66fa1a155d67079679063b34
+Base revision: 4882c058fd4cab4a327f6ad106c217c0d8ce2011
 
 |Pull Request|Commit|Title|Author|Merged?|
 |----|----|----|----|----|
@@ -11,8 +11,6 @@ Base revision: 4d8215827415947e66fa1a155d67079679063b34
 |[2707](https://github.com/yuzu-emu/yuzu/pull/2707)|[adab188](https://github.com/yuzu-emu/yuzu/pull/2707/files/)|system_archive: Add open-source reimplementation of MiiModel data|[DarkLordZach](https://github.com/DarkLordZach)|Yes|
 |[2704](https://github.com/yuzu-emu/yuzu/pull/2704)|[3820dff](https://github.com/yuzu-emu/yuzu/pull/2704/files/)|maxwell3d: Implement Conditional Rendering|[FernandoS27](https://github.com/FernandoS27)|Yes|
 |[2695](https://github.com/yuzu-emu/yuzu/pull/2695)|[0eb0c24](https://github.com/yuzu-emu/yuzu/pull/2695/files/)|gl_shader_decompiler: Implement gl_ViewportIndex and gl_Layer in vertex shaders|[ReinUsesLisp](https://github.com/ReinUsesLisp)|Yes|
-|[2692](https://github.com/yuzu-emu/yuzu/pull/2692)|[d0966b9](https://github.com/yuzu-emu/yuzu/pull/2692/files/)|shader/texture: Add F16 support for TLDS|[ReinUsesLisp](https://github.com/ReinUsesLisp)|Yes|
-|[2690](https://github.com/yuzu-emu/yuzu/pull/2690)|[d4fc560](https://github.com/yuzu-emu/yuzu/pull/2690/files/)|Implement MapPhysicalMemory/UnmapPhysicalMemory|[SciresM](https://github.com/SciresM)|Yes|
 |[2687](https://github.com/yuzu-emu/yuzu/pull/2687)|[56c7912](https://github.com/yuzu-emu/yuzu/pull/2687/files/)|kernel/process: Allocate the process' TLS region during initialization|[lioncash](https://github.com/lioncash)|Yes|
 |[2675](https://github.com/yuzu-emu/yuzu/pull/2675)|[79a23ca](https://github.com/yuzu-emu/yuzu/pull/2675/files/)|buffer_cache: Implement a generic buffer cache and its OpenGL backend|[ReinUsesLisp](https://github.com/ReinUsesLisp)|Yes|
 |[2592](https://github.com/yuzu-emu/yuzu/pull/2592)|[0fc9895](https://github.com/yuzu-emu/yuzu/pull/2592/files/)|Implement GPU Synchronization Mechanisms & Correct NVFlinger|[FernandoS27](https://github.com/FernandoS27)|Yes|
