@@ -4,6 +4,8 @@
 
 #include <array>
 #include <cstddef>
+#include <string_view>
+
 #include <glad/glad.h>
 
 #include "common/logging/log.h"
@@ -23,6 +25,9 @@ T GetInteger(GLenum pname) {
 } // Anonymous namespace
 
 Device::Device() {
+    const std::string_view vendor = reinterpret_cast<const char*>(glGetString(GL_VENDOR));
+    const bool intel_proprietary = vendor == "Intel";
+
     uniform_buffer_alignment = GetInteger<std::size_t>(GL_UNIFORM_BUFFER_OFFSET_ALIGNMENT);
     shader_storage_alignment = GetInteger<std::size_t>(GL_SHADER_STORAGE_BUFFER_OFFSET_ALIGNMENT);
     max_vertex_attributes = GetInteger<u32>(GL_MAX_VERTEX_ATTRIBS);
@@ -30,6 +35,7 @@ Device::Device() {
     has_vertex_viewport_layer = GLAD_GL_ARB_shader_viewport_layer_array;
     has_variable_aoffi = TestVariableAoffi();
     has_component_indexing_bug = TestComponentIndexingBug();
+    has_broken_pbo_streaming = intel_proprietary;
 }
 
 Device::Device(std::nullptr_t) {
@@ -39,6 +45,7 @@ Device::Device(std::nullptr_t) {
     has_vertex_viewport_layer = true;
     has_variable_aoffi = true;
     has_component_indexing_bug = false;
+    has_broken_pbo_streaming = false;
 }
 
 bool Device::TestVariableAoffi() {
@@ -62,6 +69,7 @@ void main() {
 }
 
 bool Device::TestComponentIndexingBug() {
+    return false;
     constexpr char log_message[] = "Renderer_ComponentIndexingBug: {}";
     const GLchar* COMPONENT_TEST = R"(#version 430 core
 layout (std430, binding = 0) buffer OutputBuffer {

@@ -27,6 +27,7 @@
 #include "video_core/gpu.h"
 #include "video_core/memory_manager.h"
 #include "video_core/rasterizer_interface.h"
+#include "video_core/staging_buffer_cache.h"
 #include "video_core/surface.h"
 #include "video_core/texture_cache/copy_params.h"
 #include "video_core/texture_cache/surface_base.h"
@@ -48,7 +49,7 @@ using VideoCore::Surface::PixelFormat;
 using VideoCore::Surface::SurfaceTarget;
 using RenderTargetConfig = Tegra::Engines::Maxwell3D::Regs::RenderTargetConfig;
 
-template <typename TSurface, typename TView>
+template <typename TSurface, typename TView, typename StagingBufferType>
 class TextureCache {
     using IntervalMap = boost::icl::interval_map<CacheAddr, std::set<TSurface>>;
     using IntervalType = typename IntervalMap::interval_type;
@@ -62,10 +63,10 @@ public:
         }
     }
 
-    /***
+    /**
      * `Guard` guarantees that rendertargets don't unregister themselves if the
      * collide. Protection is currently only done on 3D slices.
-     ***/
+     */
     void GuardRenderTargets(bool new_guard) {
         guard_render_targets = new_guard;
     }
@@ -132,12 +133,18 @@ public:
             regs.zeta.memory_layout.block_width, regs.zeta.memory_layout.block_height,
             regs.zeta.memory_layout.block_depth, regs.zeta.memory_layout.type)};
         auto surface_view = GetSurface(gpu_addr, depth_params, preserve_contents, true);
-        if (depth_buffer.target)
+        if (auto& old_target = depth_buffer.target; old_target != surface_view.first) {
+            FlushAoT(old_target);
+        }
+
+        if (depth_buffer.target) {
             depth_buffer.target->MarkAsRenderTarget(false, NO_RT);
+        }
         depth_buffer.target = surface_view.first;
         depth_buffer.view = surface_view.second;
-        if (depth_buffer.target)
+        if (depth_buffer.target) {
             depth_buffer.target->MarkAsRenderTarget(true, DEPTH_RT);
+        }
         return surface_view.second;
     }
 
@@ -148,7 +155,8 @@ public:
         if (!maxwell3d.dirty.render_target[index]) {
             return render_targets[index].view;
         }
-        maxwell3d.dirty.render_target[index] = false;
+
+        maxwell3d.dirty_flags.color_buffer.reset(index);
 
         const auto& regs{maxwell3d.regs};
         if (index >= regs.rt_control.count || regs.rt[index].Address() == 0 ||
@@ -166,12 +174,18 @@ public:
 
         auto surface_view = GetSurface(gpu_addr, SurfaceParams::CreateForFramebuffer(system, index),
                                        preserve_contents, true);
-        if (render_targets[index].target)
+        if (auto& old_target = render_targets[index].target; old_target != surface_view.first) {
+            FlushAoT(old_target);
+        }
+
+        if (render_targets[index].target) {
             render_targets[index].target->MarkAsRenderTarget(false, NO_RT);
+        }
         render_targets[index].target = surface_view.first;
         render_targets[index].view = surface_view.second;
-        if (render_targets[index].target)
+        if (render_targets[index].target) {
             render_targets[index].target->MarkAsRenderTarget(true, static_cast<u32>(index));
+        }
         return surface_view.second;
     }
 
@@ -188,19 +202,25 @@ public:
     }
 
     void SetEmptyDepthBuffer() {
-        if (depth_buffer.target == nullptr) {
+        auto& target = depth_buffer.target;
+        if (target == nullptr) {
             return;
         }
-        depth_buffer.target->MarkAsRenderTarget(false, NO_RT);
+        FlushAoT(target);
+        target->MarkAsRenderTarget(false, NO_RT);
+
         depth_buffer.target = nullptr;
         depth_buffer.view = nullptr;
     }
 
     void SetEmptyColorBuffer(std::size_t index) {
-        if (render_targets[index].target == nullptr) {
+        auto& target = render_targets[index].target;
+        if (target == nullptr) {
             return;
         }
-        render_targets[index].target->MarkAsRenderTarget(false, NO_RT);
+        FlushAoT(target);
+        target->MarkAsRenderTarget(false, NO_RT);
+
         render_targets[index].target = nullptr;
         render_targets[index].view = nullptr;
     }
@@ -235,14 +255,15 @@ public:
     }
 
 protected:
-    TextureCache(Core::System& system, VideoCore::RasterizerInterface& rasterizer)
-        : system{system}, rasterizer{rasterizer} {
+    TextureCache(Core::System& system, VideoCore::RasterizerInterface& rasterizer,
+                 std::unique_ptr<StagingBufferCache<StagingBufferType>> staging_buffer_cache)
+        : system{system}, rasterizer{rasterizer}, staging_buffer_cache{
+                                                      std::move(staging_buffer_cache)} {
         for (std::size_t i = 0; i < Tegra::Engines::Maxwell3D::Regs::NumRenderTargets; i++) {
             SetEmptyColorBuffer(i);
         }
 
         SetEmptyDepthBuffer();
-        staging_cache.SetSize(2);
 
         const auto make_siblings = [this](PixelFormat a, PixelFormat b) {
             siblings_table[static_cast<std::size_t>(a)] = b;
@@ -689,9 +710,13 @@ private:
     }
 
     void LoadSurface(const TSurface& surface) {
-        staging_cache.GetBuffer(0).resize(surface->GetHostSizeInBytes());
-        surface->LoadBuffer(system.GPU().MemoryManager(), staging_cache);
-        surface->UploadTexture(staging_cache.GetBuffer(0));
+        const auto host_size = surface->GetHostSizeInBytes();
+        auto& buffer = staging_buffer_cache->GetWriteBuffer(host_size);
+
+        surface->LoadBuffer(system.GPU().MemoryManager(), buffer.Map(host_size));
+        buffer.Unmap(host_size);
+
+        surface->UploadTexture(buffer);
         surface->MarkAsModified(false, Tick());
     }
 
@@ -699,9 +724,18 @@ private:
         if (!surface->IsModified()) {
             return;
         }
-        staging_cache.GetBuffer(0).resize(surface->GetHostSizeInBytes());
-        surface->DownloadTexture(staging_cache.GetBuffer(0));
-        surface->FlushBuffer(system.GPU().MemoryManager(), staging_cache);
+
+        const auto host_size = surface->GetHostSizeInBytes();
+        auto buffer = surface->GetFlushBuffer();
+        if (!buffer) {
+            buffer = &staging_buffer_cache->GetReadBuffer(host_size);
+            surface->DownloadTexture(*buffer);
+        }
+        buffer->WaitFence();
+        surface->SetFlushBuffer(nullptr);
+
+        surface->FlushBuffer(system.GPU().MemoryManager(), buffer->Map(host_size));
+        buffer->Unmap(host_size);
         surface->MarkAsModified(false, Tick());
     }
 
@@ -769,6 +803,16 @@ private:
         return {};
     }
 
+    void FlushAoT(TSurface& surface) {
+        if (staging_buffer_cache->CanFlushAheadOfTime() || !surface || !surface->IsLinear() ||
+            surface->GetFlushBuffer()) {
+            return;
+        }
+        auto& buffer = staging_buffer_cache->GetReadBuffer(surface->GetHostSizeInBytes());
+        surface->DownloadTexture(buffer);
+        surface->SetFlushBuffer(&buffer);
+    }
+
     constexpr PixelFormat GetSiblingFormat(PixelFormat format) const {
         return siblings_table[static_cast<std::size_t>(format)];
     }
@@ -815,7 +859,7 @@ private:
 
     std::vector<TSurface> sampled_textures;
 
-    StagingCache staging_cache;
+    std::unique_ptr<StagingBufferCache<StagingBufferType>> staging_buffer_cache;
     std::recursive_mutex mutex;
 };
 

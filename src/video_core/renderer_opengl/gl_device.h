@@ -42,6 +42,10 @@ public:
         return has_component_indexing_bug;
     }
 
+    bool HasBrokenPBOStreaming() const {
+        return has_broken_pbo_streaming;
+    }
+
 private:
     static bool TestVariableAoffi();
     static bool TestComponentIndexingBug();
@@ -53,6 +57,7 @@ private:
     bool has_vertex_viewport_layer{};
     bool has_variable_aoffi{};
     bool has_component_indexing_bug{};
+    bool has_broken_pbo_streaming{};
 };
 
 } // namespace OpenGL

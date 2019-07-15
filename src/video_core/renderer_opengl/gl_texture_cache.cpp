@@ -10,9 +10,11 @@
 #include "core/core.h"
 #include "video_core/morton.h"
 #include "video_core/renderer_opengl/gl_resource_manager.h"
+#include "video_core/renderer_opengl/gl_staging_buffer.h"
 #include "video_core/renderer_opengl/gl_state.h"
 #include "video_core/renderer_opengl/gl_texture_cache.h"
 #include "video_core/renderer_opengl/utils.h"
+#include "video_core/staging_buffer_cache.h"
 #include "video_core/texture_cache/surface_base.h"
 #include "video_core/texture_cache/texture_cache.h"
 #include "video_core/textures/convert.h"
@@ -231,8 +233,9 @@ OGLTexture CreateTexture(const SurfaceParams& params, GLenum target, GLenum inte
 
 } // Anonymous namespace
 
-CachedSurface::CachedSurface(const GPUVAddr gpu_addr, const SurfaceParams& params)
-    : VideoCommon::SurfaceBase<View>(gpu_addr, params) {
+CachedSurface::CachedSurface(const GPUVAddr gpu_addr, const SurfaceParams& params,
+                             std::vector<u8>& temporary_buffer)
+    : VideoCommon::SurfaceBase<View, StagingBuffer>{gpu_addr, params, temporary_buffer} {
     const auto& tuple{GetFormatTuple(params.pixel_format, params.component_type)};
     internal_format = tuple.internal_format;
     format = tuple.format;
@@ -248,45 +251,52 @@ CachedSurface::CachedSurface(const GPUVAddr gpu_addr, const SurfaceParams& param
 
 CachedSurface::~CachedSurface() = default;
 
-void CachedSurface::DownloadTexture(std::vector<u8>& staging_buffer) {
+void CachedSurface::DownloadTexture(StagingBuffer& buffer) {
     MICROPROFILE_SCOPE(OpenGL_Texture_Download);
 
-    SCOPE_EXIT({ glPixelStorei(GL_PACK_ROW_LENGTH, 0); });
-
+    buffer.Bind(GL_PIXEL_PACK_BUFFER);
+    const auto pointer_base = buffer.GetOpenGLPointer();
     for (u32 level = 0; level < params.emulated_levels; ++level) {
         glPixelStorei(GL_PACK_ALIGNMENT, std::min(8U, params.GetRowAlignment(level)));
         glPixelStorei(GL_PACK_ROW_LENGTH, static_cast<GLint>(params.GetMipWidth(level)));
-        const std::size_t mip_offset = params.GetHostMipmapLevelOffset(level);
+        const auto mip_offset = pointer_base + params.GetHostMipmapLevelOffset(level);
         if (is_compressed) {
             glGetCompressedTextureImage(texture.handle, level,
                                         static_cast<GLsizei>(params.GetHostMipmapSize(level)),
-                                        staging_buffer.data() + mip_offset);
+                                        mip_offset);
         } else {
             glGetTextureImage(texture.handle, level, format, type,
-                              static_cast<GLsizei>(params.GetHostMipmapSize(level)),
-                              staging_buffer.data() + mip_offset);
+                              static_cast<GLsizei>(params.GetHostMipmapSize(level)), mip_offset);
         }
     }
+    glPixelStorei(GL_PACK_ROW_LENGTH, 0);
+
+    // According to Cemu glGetTextureImage and friends do not flush, resulting in a softlock if we
+    // wait for a fence. To fix this we have to explicitly flush and then queue a fence.
+    glFlush();
+    buffer.QueueFence(true);
 }
 
-void CachedSurface::UploadTexture(const std::vector<u8>& staging_buffer) {
+void CachedSurface::UploadTexture(StagingBuffer& buffer) {
     MICROPROFILE_SCOPE(OpenGL_Texture_Upload);
-    SCOPE_EXIT({ glPixelStorei(GL_UNPACK_ROW_LENGTH, 0); });
+
+    buffer.Bind(GL_PIXEL_UNPACK_BUFFER);
+    const auto pointer = buffer.GetOpenGLPointer();
     for (u32 level = 0; level < params.emulated_levels; ++level) {
-        UploadTextureMipmap(level, staging_buffer);
+        UploadTextureMipmap(level, pointer);
     }
+    glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
+    buffer.QueueFence(false);
 }
 
-void CachedSurface::UploadTextureMipmap(u32 level, const std::vector<u8>& staging_buffer) {
+void CachedSurface::UploadTextureMipmap(u32 level, const u8* opengl_pointer) {
     glPixelStorei(GL_UNPACK_ALIGNMENT, std::min(8U, params.GetRowAlignment(level)));
     glPixelStorei(GL_UNPACK_ROW_LENGTH, static_cast<GLint>(params.GetMipWidth(level)));
 
-    auto compression_type = params.GetCompressionType();
-
-    const std::size_t mip_offset = compression_type == SurfaceCompression::Converted
-                                       ? params.GetConvertedMipmapOffset(level)
-                                       : params.GetHostMipmapLevelOffset(level);
-    const u8* buffer{staging_buffer.data() + mip_offset};
+    const auto compression_type = params.GetCompressionType();
+    const u8* mip_offset = opengl_pointer + (compression_type == SurfaceCompression::Converted
+                                                 ? params.GetConvertedMipmapOffset(level)
+                                                 : params.GetHostMipmapLevelOffset(level));
     if (is_compressed) {
         const auto image_size{static_cast<GLsizei>(params.GetHostMipmapSize(level))};
         switch (params.target) {
@@ -294,7 +304,7 @@ void CachedSurface::UploadTextureMipmap(u32 level, const std::vector<u8>& stagin
             glCompressedTextureSubImage2D(texture.handle, level, 0, 0,
                                           static_cast<GLsizei>(params.GetMipWidth(level)),
                                           static_cast<GLsizei>(params.GetMipHeight(level)),
-                                          internal_format, image_size, buffer);
+                                          internal_format, image_size, mip_offset);
             break;
         case SurfaceTarget::Texture3D:
         case SurfaceTarget::Texture2DArray:
@@ -303,7 +313,7 @@ void CachedSurface::UploadTextureMipmap(u32 level, const std::vector<u8>& stagin
                                           static_cast<GLsizei>(params.GetMipWidth(level)),
                                           static_cast<GLsizei>(params.GetMipHeight(level)),
                                           static_cast<GLsizei>(params.GetMipDepth(level)),
-                                          internal_format, image_size, buffer);
+                                          internal_format, image_size, mip_offset);
             break;
         case SurfaceTarget::TextureCubemap: {
             const std::size_t layer_size{params.GetHostLayerSize(level)};
@@ -312,8 +322,8 @@ void CachedSurface::UploadTextureMipmap(u32 level, const std::vector<u8>& stagin
                                               static_cast<GLsizei>(params.GetMipWidth(level)),
                                               static_cast<GLsizei>(params.GetMipHeight(level)), 1,
                                               internal_format, static_cast<GLsizei>(layer_size),
-                                              buffer);
-                buffer += layer_size;
+                                              mip_offset);
+                mip_offset += layer_size;
             }
             break;
         }
@@ -324,17 +334,17 @@ void CachedSurface::UploadTextureMipmap(u32 level, const std::vector<u8>& stagin
         switch (params.target) {
         case SurfaceTarget::Texture1D:
             glTextureSubImage1D(texture.handle, level, 0, params.GetMipWidth(level), format, type,
-                                buffer);
+                                mip_offset);
             break;
         case SurfaceTarget::TextureBuffer:
             ASSERT(level == 0);
             glNamedBufferSubData(texture_buffer.handle, 0,
-                                 params.GetMipWidth(level) * params.GetBytesPerPixel(), buffer);
+                                 params.GetMipWidth(level) * params.GetBytesPerPixel(), mip_offset);
             break;
         case SurfaceTarget::Texture1DArray:
         case SurfaceTarget::Texture2D:
             glTextureSubImage2D(texture.handle, level, 0, 0, params.GetMipWidth(level),
-                                params.GetMipHeight(level), format, type, buffer);
+                                params.GetMipHeight(level), format, type, mip_offset);
             break;
         case SurfaceTarget::Texture3D:
         case SurfaceTarget::Texture2DArray:
@@ -342,16 +352,18 @@ void CachedSurface::UploadTextureMipmap(u32 level, const std::vector<u8>& stagin
             glTextureSubImage3D(
                 texture.handle, level, 0, 0, 0, static_cast<GLsizei>(params.GetMipWidth(level)),
                 static_cast<GLsizei>(params.GetMipHeight(level)),
-                static_cast<GLsizei>(params.GetMipDepth(level)), format, type, buffer);
+                static_cast<GLsizei>(params.GetMipDepth(level)), format, type, mip_offset);
             break;
-        case SurfaceTarget::TextureCubemap:
+        case SurfaceTarget::TextureCubemap: {
+            const std::size_t layer_size = params.GetHostLayerSize(level);
             for (std::size_t face = 0; face < params.depth; ++face) {
                 glTextureSubImage3D(texture.handle, level, 0, 0, static_cast<GLint>(face),
                                     params.GetMipWidth(level), params.GetMipHeight(level), 1,
-                                    format, type, buffer);
-                buffer += params.GetHostLayerSize(level);
+                                    format, type, mip_offset);
+                mip_offset += layer_size;
             }
             break;
+        }
         default:
             UNREACHABLE();
         }
@@ -449,7 +461,7 @@ OGLTextureView CachedSurfaceView::CreateTextureView() const {
 TextureCacheOpenGL::TextureCacheOpenGL(Core::System& system,
                                        VideoCore::RasterizerInterface& rasterizer,
                                        const Device& device)
-    : TextureCacheBase{system, rasterizer} {
+    : TextureCacheBase{system, rasterizer, std::make_unique<StagingBufferCache>(device)} {
     src_framebuffer.Create();
     dst_framebuffer.Create();
 }
@@ -457,7 +469,7 @@ TextureCacheOpenGL::TextureCacheOpenGL(Core::System& system,
 TextureCacheOpenGL::~TextureCacheOpenGL() = default;
 
 Surface TextureCacheOpenGL::CreateSurface(GPUVAddr gpu_addr, const SurfaceParams& params) {
-    return std::make_shared<CachedSurface>(gpu_addr, params);
+    return std::make_shared<CachedSurface>(gpu_addr, params, temporary_buffer);
 }
 
 void TextureCacheOpenGL::ImageCopy(Surface& src_surface, Surface& dst_surface,
@@ -565,7 +577,6 @@ void TextureCacheOpenGL::BufferCopy(Surface& src_surface, Surface& dst_surface) 
         glGetTextureImage(src_surface->GetTexture(), 0, source_format.format, source_format.type,
                           static_cast<GLsizei>(source_size), nullptr);
     }
-    glBindBuffer(GL_PIXEL_PACK_BUFFER, 0);
 
     glBindBuffer(GL_PIXEL_UNPACK_BUFFER, copy_pbo_handle);
 
@@ -601,7 +612,6 @@ void TextureCacheOpenGL::BufferCopy(Surface& src_surface, Surface& dst_surface) 
             UNREACHABLE();
         }
     }
-    glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
 
     glTextureBarrier();
 }

@@ -38,32 +38,11 @@ enum class MatchTopologyResult : u32 {
     None = 2,
 };
 
-class StagingCache {
-public:
-    explicit StagingCache();
-    ~StagingCache();
-
-    std::vector<u8>& GetBuffer(std::size_t index) {
-        return staging_buffer[index];
-    }
-
-    const std::vector<u8>& GetBuffer(std::size_t index) const {
-        return staging_buffer[index];
-    }
-
-    void SetSize(std::size_t size) {
-        staging_buffer.resize(size);
-    }
-
-private:
-    std::vector<std::vector<u8>> staging_buffer;
-};
-
 class SurfaceBaseImpl {
 public:
-    void LoadBuffer(Tegra::MemoryManager& memory_manager, StagingCache& staging_cache);
+    void LoadBuffer(Tegra::MemoryManager& memory_manager, u8* staging_buffer);
 
-    void FlushBuffer(Tegra::MemoryManager& memory_manager, StagingCache& staging_cache);
+    void FlushBuffer(Tegra::MemoryManager& memory_manager, u8* staging_buffer);
 
     GPUVAddr GetGpuAddr() const {
         return gpu_addr;
@@ -161,12 +140,15 @@ public:
     }
 
 protected:
-    explicit SurfaceBaseImpl(GPUVAddr gpu_addr, const SurfaceParams& params);
-    ~SurfaceBaseImpl() = default;
+    explicit SurfaceBaseImpl(GPUVAddr gpu_addr, const SurfaceParams& params,
+                             std::vector<u8>& temporary_buffer);
+    ~SurfaceBaseImpl();
 
     virtual void DecorateSurfaceName() = 0;
 
     const SurfaceParams params;
+    std::vector<u8>& temporary_buffer;
+
     std::size_t layer_size;
     std::size_t guest_memory_size;
     const std::size_t host_memory_size;
@@ -188,25 +170,40 @@ private:
     std::vector<CopyParams> BreakDownNonLayered(const SurfaceParams& in_params) const;
 };
 
-template <typename TView>
+template <typename TView, typename StagingBufferType>
 class SurfaceBase : public SurfaceBaseImpl {
 public:
-    virtual void UploadTexture(const std::vector<u8>& staging_buffer) = 0;
+    virtual void UploadTexture(StagingBufferType& buffer) = 0;
 
-    virtual void DownloadTexture(std::vector<u8>& staging_buffer) = 0;
+    virtual void DownloadTexture(StagingBufferType& buffer) = 0;
+
+    void SetFlushBuffer(StagingBufferType* buffer) {
+        flush_buffer = buffer;
+    }
+
+    StagingBufferType* GetFlushBuffer() const {
+        return flush_buffer;
+    }
 
     void MarkAsModified(const bool is_modified_, const u64 tick) {
         is_modified = is_modified_ || is_target;
         modification_tick = tick;
+
+        if (is_modified && flush_buffer) {
+            // The buffer has been modified while we thought it was no longer being to be used and
+            // we queued a flush.
+            flush_buffer->Discard();
+            flush_buffer = nullptr;
+        }
     }
 
-    void MarkAsRenderTarget(const bool is_target, const u32 index) {
-        this->is_target = is_target;
-        this->index = index;
+    void MarkAsRenderTarget(const bool is_target_, const u32 index_) {
+        is_target = is_target_;
+        index = index_;
     }
 
-    void MarkAsPicked(const bool is_picked) {
-        this->is_picked = is_picked;
+    void MarkAsPicked(const bool is_picked_) {
+        is_picked = is_picked_;
     }
 
     bool IsModified() const {
@@ -214,7 +211,7 @@ public:
     }
 
     bool IsProtected() const {
-        // Only 3D Slices are to be protected
+        // Only 3D slices are to be protected
         return is_target && params.block_depth > 0;
     }
 
@@ -292,8 +289,9 @@ public:
     }
 
 protected:
-    explicit SurfaceBase(const GPUVAddr gpu_addr, const SurfaceParams& params)
-        : SurfaceBaseImpl(gpu_addr, params) {}
+    explicit SurfaceBase(const GPUVAddr gpu_addr, const SurfaceParams& params,
+                         std::vector<u8>& temporary_buffer)
+        : SurfaceBaseImpl{gpu_addr, params, temporary_buffer} {}
 
     ~SurfaceBase() = default;
 
@@ -320,6 +318,8 @@ private:
     bool is_picked{};
     u32 index{NO_RT};
     u64 modification_tick{};
+
+    StagingBufferType* flush_buffer{};
 };
 
 } // namespace VideoCommon
