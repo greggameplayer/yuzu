@@ -2,7 +2,7 @@
 
 Scroll down for the original README.md!
 
-Base revision: 4882c058fd4cab4a327f6ad106c217c0d8ce2011
+Base revision: b77a1ed67a56bea82a20d6c8e581073a709a2c90
 
 |Pull Request|Commit|Title|Author|Merged?|
 |----|----|----|----|----|
@@ -12,7 +12,6 @@ Base revision: 4882c058fd4cab4a327f6ad106c217c0d8ce2011
 |[2704](https://github.com/yuzu-emu/yuzu/pull/2704)|[3820dff](https://github.com/yuzu-emu/yuzu/pull/2704/files/)|maxwell3d: Implement Conditional Rendering|[FernandoS27](https://github.com/FernandoS27)|Yes|
 |[2695](https://github.com/yuzu-emu/yuzu/pull/2695)|[0eb0c24](https://github.com/yuzu-emu/yuzu/pull/2695/files/)|gl_shader_decompiler: Implement gl_ViewportIndex and gl_Layer in vertex shaders|[ReinUsesLisp](https://github.com/ReinUsesLisp)|Yes|
 |[2687](https://github.com/yuzu-emu/yuzu/pull/2687)|[56c7912](https://github.com/yuzu-emu/yuzu/pull/2687/files/)|kernel/process: Allocate the process' TLS region during initialization|[lioncash](https://github.com/lioncash)|Yes|
-|[2675](https://github.com/yuzu-emu/yuzu/pull/2675)|[79a23ca](https://github.com/yuzu-emu/yuzu/pull/2675/files/)|buffer_cache: Implement a generic buffer cache and its OpenGL backend|[ReinUsesLisp](https://github.com/ReinUsesLisp)|Yes|
 |[2592](https://github.com/yuzu-emu/yuzu/pull/2592)|[0fc9895](https://github.com/yuzu-emu/yuzu/pull/2592/files/)|Implement GPU Synchronization Mechanisms & Correct NVFlinger|[FernandoS27](https://github.com/FernandoS27)|Yes|
 |[2542](https://github.com/yuzu-emu/yuzu/pull/2542)|[7aeb676](https://github.com/yuzu-emu/yuzu/pull/2542/files/)|lbl: Implement brightness and backlight services|[DarkLordZach](https://github.com/DarkLordZach)|Yes|
 |[2444](https://github.com/yuzu-emu/yuzu/pull/2444)|[d645401](https://github.com/yuzu-emu/yuzu/pull/2444/files/)|Port citra-emu/citra#3617: "QT: Add support for multiple game directories"|[FearlessTobi](https://github.com/FearlessTobi)|Yes|
