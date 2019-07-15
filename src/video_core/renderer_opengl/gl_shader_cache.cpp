@@ -223,6 +223,10 @@ CachedProgram SpecializeShader(const std::string& code, const GLShader::ShaderEn
     if (entries.shader_viewport_layer_array) {
         source += "#extension GL_ARB_shader_viewport_layer_array : enable\n";
     }
+    if (program_type == ProgramType::Compute) {
+        source += "#extension GL_ARB_compute_variable_group_size : require\n";
+    }
+    source += '\n';
 
     if (program_type != ProgramType::Compute) {
         source += fmt::format("#define EMULATION_UBO_BINDING {}\n", base_bindings.cbuf++);
@@ -327,7 +331,7 @@ Shader CachedShader::CreateStageFromCache(const ShaderParameters& params,
 }
 
 Shader CachedShader::CreateKernelFromMemory(const ShaderParameters& params,
-                                            const ProgramCode& code) {
+                                            ProgramCode&& code) {
     auto result{CreateProgram(params.device, ProgramType::Compute, code, {})};
 
     const auto code_size{CalculateProgramSize(code)};
@@ -683,7 +687,7 @@ Shader ShaderCacheOpenGL::GetComputeKernel(GPUVAddr code_addr) {
     }
 
     // No kernel found - create a new one
-    const auto code{GetShaderCode(memory_manager, code_addr, host_ptr)};
+    auto code{GetShaderCode(memory_manager, code_addr, host_ptr)};
     const auto unique_identifier{GetUniqueIdentifier(ProgramType::Compute, code, {})};
     const auto cpu_addr{*memory_manager.GpuToCpuAddress(code_addr)};
     const ShaderParameters params{disk_cache, precompiled_programs, device, cpu_addr,

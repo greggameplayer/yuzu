@@ -832,6 +832,45 @@ void RasterizerOpenGL::DispatchCompute(GPUVAddr code_addr) {
                                   launch_desc.block_dim_y, launch_desc.block_dim_z);
 }
 
+void RasterizerOpenGL::DispatchCompute(GPUVAddr code_addr) {
+    if (!GLAD_GL_ARB_compute_variable_group_size) {
+        LOG_ERROR(Render_OpenGL, "Compute is currently not supported on this device due to the "
+                                 "lack of GL_ARB_compute_variable_group_size");
+        return;
+    }
+
+    auto kernel = shader_cache.GetComputeKernel(code_addr);
+    const auto [program, next_bindings] = kernel->GetProgramHandle({});
+    state.draw.shader_program = program;
+    state.draw.program_pipeline = 0;
+
+    const std::size_t buffer_size =
+        Tegra::Engines::KeplerCompute::NumConstBuffers *
+        (Maxwell::MaxConstBufferSize + device.GetUniformBufferAlignment());
+    buffer_cache.Map(buffer_size);
+
+    bind_ubo_pushbuffer.Setup(0);
+    bind_ssbo_pushbuffer.Setup(0);
+
+    SetupComputeConstBuffers(kernel);
+    SetupComputeGlobalMemory(kernel);
+
+    // TODO(Rodrigo): Bind images and samplers
+
+    buffer_cache.Unmap();
+
+    bind_ubo_pushbuffer.Bind();
+    bind_ssbo_pushbuffer.Bind();
+
+    state.ApplyShaderProgram();
+    state.ApplyProgramPipeline();
+
+    const auto& launch_desc = system.GPU().KeplerCompute().launch_description;
+    glDispatchComputeGroupSizeARB(launch_desc.grid_dim_x, launch_desc.grid_dim_y,
+                                  launch_desc.grid_dim_z, launch_desc.block_dim_x,
+                                  launch_desc.block_dim_y, launch_desc.block_dim_z);
+}
+
 void RasterizerOpenGL::FlushAll() {}
 
 void RasterizerOpenGL::FlushRegion(CacheAddr addr, u64 size) {
