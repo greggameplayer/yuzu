@@ -2,7 +2,7 @@
 
 Scroll down for the original README.md!
 
-Base revision: b77a1ed67a56bea82a20d6c8e581073a709a2c90
+Base revision: 1bdb59fc6e52ac9d2c2432511fe7524994cc4f55
 
 |Pull Request|Commit|Title|Author|Merged?|
 |----|----|----|----|----|
@@ -10,7 +10,6 @@ Base revision: b77a1ed67a56bea82a20d6c8e581073a709a2c90
 |[2710](https://github.com/yuzu-emu/yuzu/pull/2710)|[abb2c5f](https://github.com/yuzu-emu/yuzu/pull/2710/files/)|am/kernel: Fix various bugs related to applet signalling and software keyboard|[DarkLordZach](https://github.com/DarkLordZach)|Yes|
 |[2707](https://github.com/yuzu-emu/yuzu/pull/2707)|[adab188](https://github.com/yuzu-emu/yuzu/pull/2707/files/)|system_archive: Add open-source reimplementation of MiiModel data|[DarkLordZach](https://github.com/DarkLordZach)|Yes|
 |[2704](https://github.com/yuzu-emu/yuzu/pull/2704)|[3820dff](https://github.com/yuzu-emu/yuzu/pull/2704/files/)|maxwell3d: Implement Conditional Rendering|[FernandoS27](https://github.com/FernandoS27)|Yes|
-|[2695](https://github.com/yuzu-emu/yuzu/pull/2695)|[0eb0c24](https://github.com/yuzu-emu/yuzu/pull/2695/files/)|gl_shader_decompiler: Implement gl_ViewportIndex and gl_Layer in vertex shaders|[ReinUsesLisp](https://github.com/ReinUsesLisp)|Yes|
 |[2687](https://github.com/yuzu-emu/yuzu/pull/2687)|[56c7912](https://github.com/yuzu-emu/yuzu/pull/2687/files/)|kernel/process: Allocate the process' TLS region during initialization|[lioncash](https://github.com/lioncash)|Yes|
 |[2592](https://github.com/yuzu-emu/yuzu/pull/2592)|[0fc9895](https://github.com/yuzu-emu/yuzu/pull/2592/files/)|Implement GPU Synchronization Mechanisms & Correct NVFlinger|[FernandoS27](https://github.com/FernandoS27)|Yes|
 |[2542](https://github.com/yuzu-emu/yuzu/pull/2542)|[7aeb676](https://github.com/yuzu-emu/yuzu/pull/2542/files/)|lbl: Implement brightness and backlight services|[DarkLordZach](https://github.com/DarkLordZach)|Yes|
