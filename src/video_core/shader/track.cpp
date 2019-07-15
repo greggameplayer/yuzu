@@ -52,8 +52,8 @@ Node ShaderIR::TrackCbuf(Node tracked, const NodeBlock& code, s64 cursor) const 
         return TrackCbuf(source, code, new_cursor);
     }
     if (const auto operation = std::get_if<OperationNode>(&*tracked)) {
-        for (std::size_t i = 0; i < operation->GetOperandsCount(); ++i) {
-            if (const auto found = TrackCbuf((*operation)[i], code, cursor)) {
+        for (std::size_t i = operation->GetOperandsCount(); i > 0; --i) {
+            if (const auto found = TrackCbuf((*operation)[i - 1], code, cursor)) {
                 // Cbuf found in operand
                 return found;
             }
