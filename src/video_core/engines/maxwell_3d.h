@@ -91,9 +91,19 @@ public:
         enum class QuerySelect : u32 {
             Zero = 0,
             TimeElapsed = 2,
-            SamplesPassed = 21,
-            PrimitivesGenerated = 18,
             TransformFeedbackPrimitivesGenerated = 11,
+            PrimitivesGenerated = 18,
+            SamplesPassed = 21,
+            TransformFeedbackUnknown = 26,
+        };
+
+        struct QueryCompare {
+            u32 initial_sequence;
+            u32 initial_mode;
+            u32 unknown1;
+            u32 unknown2;
+            u32 current_sequence;
+            u32 current_mode;
         };
 
         enum class QuerySyncCondition : u32 {

@@ -490,21 +490,23 @@ void Maxwell3D::ProcessQueryCondition() {
         break;
     }
     case Regs::ConditionMode::ResNonZero: {
-        std::array<u32, 2> data;
-        memory_manager.ReadBlockUnsafe(condition_address, &data, sizeof(data));
-        execute_on = data[0] != 0U && data[1] != 0U;
+        Regs::QueryCompare cmp;
+        memory_manager.ReadBlockUnsafe(condition_address, &cmp, sizeof(cmp));
+        execute_on = cmp.initial_sequence != 0U && cmp.initial_mode != 0U;
         break;
     }
     case Regs::ConditionMode::Equal: {
-        std::array<u32, 6> data;
-        memory_manager.ReadBlockUnsafe(condition_address, &data, sizeof(data));
-        execute_on = data[0] == data[4] && data[1] == data[5];
+        Regs::QueryCompare cmp;
+        memory_manager.ReadBlockUnsafe(condition_address, &cmp, sizeof(cmp));
+        execute_on =
+            cmp.initial_sequence == cmp.current_sequence && cmp.initial_mode == cmp.current_mode;
         break;
     }
     case Regs::ConditionMode::NotEqual: {
-        std::array<u32, 6> data;
-        memory_manager.ReadBlockUnsafe(condition_address, &data, sizeof(data));
-        execute_on = data[0] != data[4] || data[1] != data[5];
+        Regs::QueryCompare cmp;
+        memory_manager.ReadBlockUnsafe(condition_address, &cmp, sizeof(cmp));
+        execute_on =
+            cmp.initial_sequence != cmp.current_sequence || cmp.initial_mode != cmp.current_mode;
         break;
     }
     default: {
