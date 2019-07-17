@@ -2,11 +2,12 @@
 
 Scroll down for the original README.md!
 
-Base revision: 1bdb59fc6e52ac9d2c2432511fe7524994cc4f55
+Base revision: c3218c110fcdd25c2dfb3847ec86e09eed62457c
 
 |Pull Request|Commit|Title|Author|Merged?|
 |----|----|----|----|----|
 |[1](https://github.com/yuzu-emu/yuzu-canary/pull/1)|[a8dfe54](https://github.com/yuzu-emu/yuzu-canary/pull/1/files/)|Canary Base|[chris062689](https://github.com/chris062689)|Yes|
+|[2738](https://github.com/yuzu-emu/yuzu/pull/2738)|[bebbdc2](https://github.com/yuzu-emu/yuzu/pull/2738/files/)|shader-ir: Minor cleanup-related changes|[lioncash](https://github.com/lioncash)|Yes|
 |[2734](https://github.com/yuzu-emu/yuzu/pull/2734)|[2a4044a](https://github.com/yuzu-emu/yuzu/pull/2734/files/)|gl_rasterizer: Implement compute shaders|[ReinUsesLisp](https://github.com/ReinUsesLisp)|Yes|
 |[2710](https://github.com/yuzu-emu/yuzu/pull/2710)|[abb2c5f](https://github.com/yuzu-emu/yuzu/pull/2710/files/)|am/kernel: Fix various bugs related to applet signalling and software keyboard|[DarkLordZach](https://github.com/DarkLordZach)|Yes|
 |[2707](https://github.com/yuzu-emu/yuzu/pull/2707)|[adab188](https://github.com/yuzu-emu/yuzu/pull/2707/files/)|system_archive: Add open-source reimplementation of MiiModel data|[DarkLordZach](https://github.com/DarkLordZach)|Yes|
