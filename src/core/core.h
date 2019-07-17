@@ -360,10 +360,6 @@ private:
     static System s_instance;
 };
 
-inline ARM_Interface& CurrentArmInterface() {
-    return System::GetInstance().CurrentArmInterface();
-}
-
 inline Kernel::Process* CurrentProcess() {
     return System::GetInstance().CurrentProcess();
 }
