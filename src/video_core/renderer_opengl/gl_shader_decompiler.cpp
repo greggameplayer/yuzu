@@ -241,7 +241,7 @@ public:
         for (const auto& sampler : ir.GetSamplers()) {
             entries.samplers.emplace_back(sampler);
         }
-        for (const auto& image : ir.GetImages()) {
+        for (const auto& [offset, image] : ir.GetImages()) {
             entries.images.emplace_back(image);
         }
         for (const auto& gmem_pair : ir.GetGlobalMemory()) {
@@ -559,8 +559,8 @@ private:
 
     void DeclareImages() {
         const auto& images{ir.GetImages()};
-        for (const auto& image : images) {
-            const std::string image_type = [&]() {
+        for (const auto& [offset, image] : images) {
+            const char* image_type = [&] {
                 switch (image.GetType()) {
                 case Tegra::Shader::ImageType::Texture1D:
                     return "image1D";
@@ -579,9 +579,27 @@ private:
                     return "image1D";
                 }
             }();
-            code.AddLine("layout (binding = IMAGE_BINDING_{}) coherent volatile writeonly uniform "
-                         "{} {};",
-                         image.GetIndex(), image_type, GetImage(image));
+            const auto [type_prefix, format] = [&]() -> std::pair<const char*, const char*> {
+                if (!image.IsSizeKnown()) {
+                    return {"", ""};
+                }
+                switch (image.GetSize()) {
+                case Tegra::Shader::ImageAtomicSize::U32:
+                    return {"u", "r32ui, "};
+                case Tegra::Shader::ImageAtomicSize::S32:
+                    return {"i", "r32i, "};
+                default:
+                    UNIMPLEMENTED_MSG("Unimplemented atomic size={}",
+                                      static_cast<u32>(image.GetSize()));
+                    return {"", ""};
+                }
+            }();
+            // TODO(Rodrigo): Change this when we support SULD
+            const char* write_only = image.IsSizeKnown() ? "" : "writeonly ";
+
+            code.AddLine(
+                "layout ({}binding = IMAGE_BINDING_{}) coherent volatile {}uniform {}{} {};",
+                format, image.GetIndex(), write_only, type_prefix, image_type, GetImage(image));
         }
         if (!images.empty()) {
             code.AddNewLine();
@@ -1056,6 +1074,73 @@ private:
         expr += ')';
 
         return expr;
+    }
+
+    std::string BuildIntegerCoordinates(Operation operation) {
+        constexpr std::array constructors{"int(", "ivec2(", "ivec3(", "ivec4("};
+        const std::size_t coords_count{operation.GetOperandsCount()};
+        std::string expr = constructors.at(coords_count - 1);
+        for (std::size_t i = 0; i < coords_count; ++i) {
+            expr += VisitOperand(operation, i, Type::Int);
+            if (i + 1 < coords_count) {
+                expr += ", ";
+            }
+        }
+        expr += ')';
+        return expr;
+    }
+
+    std::string BuildImageValues(Operation operation) {
+        const auto meta{std::get<MetaImage>(operation.GetMeta())};
+        const auto constructors = [&]() -> std::array<const char*, 4> {
+            constexpr std::array float_constructors{"float", "vec2", "vec3", "vec4"};
+            if (!meta.image.IsSizeKnown()) {
+                return float_constructors;
+            }
+            switch (meta.image.GetSize()) {
+            case Tegra::Shader::ImageAtomicSize::U32:
+                return {"uint", "uvec2", "uvec3", "uvec4"};
+            case Tegra::Shader::ImageAtomicSize::S32:
+                return {"int", "ivec2", "ivec3", "ivec4"};
+            default:
+                UNIMPLEMENTED_MSG("Unimplemented image size={}",
+                                  static_cast<u32>(meta.image.GetSize()));
+                return float_constructors;
+            }
+        }();
+
+        const std::size_t values_count{meta.values.size()};
+        std::string expr = fmt::format("{}(", constructors.at(values_count - 1));
+        for (std::size_t i = 0; i < values_count; ++i) {
+            expr += Visit(meta.values.at(i));
+            if (i + 1 < values_count) {
+                expr += ", ";
+            }
+        }
+        expr += ')';
+        return expr;
+    }
+
+    std::string AtomicImage(Operation operation, const char* opname) {
+        constexpr std::array<const char*, 4> constructors{"int(", "ivec2(", "ivec3(", "ivec4("};
+        const auto meta{std::get<MetaImage>(operation.GetMeta())};
+        ASSERT(meta.values.size() == 1);
+        ASSERT(meta.image.IsSizeKnown());
+
+        const auto [value_cast, result_cast] = [&]() -> std::pair<const char*, const char*> {
+            switch (const auto size = meta.image.GetSize(); size) {
+            case Tegra::Shader::ImageAtomicSize::U32:
+                return {"ftou", "utof"};
+            case Tegra::Shader::ImageAtomicSize::S32:
+                return {"ftoi", "itof"};
+            default:
+                UNIMPLEMENTED_MSG("Unimplemented image size={}", static_cast<u32>(size));
+                return {"ftoi", "itof"};
+            }
+        }();
+
+        return fmt::format("{}({}({}, {}, {}({})))", result_cast, opname, GetImage(meta.image),
+                           BuildIntegerCoordinates(operation), value_cast, Visit(meta.values[0]));
     }
 
     std::string Assign(Operation operation) {
@@ -1569,36 +1654,38 @@ private:
     }
 
     std::string ImageStore(Operation operation) {
-        constexpr std::array<const char*, 4> constructors{"int(", "ivec2(", "ivec3(", "ivec4("};
         const auto meta{std::get<MetaImage>(operation.GetMeta())};
-
-        std::string expr = "imageStore(";
-        expr += GetImage(meta.image);
-        expr += ", ";
-
-        const std::size_t coords_count{operation.GetOperandsCount()};
-        expr += constructors.at(coords_count - 1);
-        for (std::size_t i = 0; i < coords_count; ++i) {
-            expr += VisitOperand(operation, i, Type::Int);
-            if (i + 1 < coords_count) {
-                expr += ", ";
-            }
-        }
-        expr += "), ";
-
-        const std::size_t values_count{meta.values.size()};
-        UNIMPLEMENTED_IF(values_count != 4);
-        expr += "vec4(";
-        for (std::size_t i = 0; i < values_count; ++i) {
-            expr += Visit(meta.values.at(i));
-            if (i + 1 < values_count) {
-                expr += ", ";
-            }
-        }
-        expr += "));";
-
-        code.AddLine(expr);
+        code.AddLine("imageStore({}, {}, {});", GetImage(meta.image),
+                     BuildIntegerCoordinates(operation), BuildImageValues(operation));
         return {};
+    }
+
+    std::string AtomicImageAdd(Operation operation) {
+        return AtomicImage(operation, "imageAtomicAdd");
+    }
+
+    std::string AtomicImageMin(Operation operation) {
+        return AtomicImage(operation, "imageAtomicMin");
+    }
+
+    std::string AtomicImageMax(Operation operation) {
+        return AtomicImage(operation, "imageAtomicMax");
+    }
+
+    std::string AtomicImageAnd(Operation operation) {
+        return AtomicImage(operation, "imageAtomicAnd");
+    }
+
+    std::string AtomicImageOr(Operation operation) {
+        return AtomicImage(operation, "imageAtomicOr");
+    }
+
+    std::string AtomicImageXor(Operation operation) {
+        return AtomicImage(operation, "imageAtomicXor");
+    }
+
+    std::string AtomicImageExchange(Operation operation) {
+        return AtomicImage(operation, "imageAtomicExchange");
     }
 
     std::string Branch(Operation operation) {
@@ -1849,6 +1936,13 @@ private:
         &GLSLDecompiler::TexelFetch,
 
         &GLSLDecompiler::ImageStore,
+        &GLSLDecompiler::AtomicImageAdd,
+        &GLSLDecompiler::AtomicImageMin,
+        &GLSLDecompiler::AtomicImageMax,
+        &GLSLDecompiler::AtomicImageAnd,
+        &GLSLDecompiler::AtomicImageOr,
+        &GLSLDecompiler::AtomicImageXor,
+        &GLSLDecompiler::AtomicImageExchange,
 
         &GLSLDecompiler::Branch,
         &GLSLDecompiler::BranchIndirect,
