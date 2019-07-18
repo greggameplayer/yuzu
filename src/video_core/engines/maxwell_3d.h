@@ -1162,24 +1162,30 @@ public:
         union {
             struct {
                 bool null_dirty;
+
                 // Vertex Attributes
                 bool vertex_attrib_format;
+
                 // Vertex Arrays
                 std::array<bool, 32> vertex_array;
 
                 bool vertex_array_buffers;
+
                 // Vertex Instances
                 std::array<bool, 32> vertex_instance;
 
                 bool vertex_instances;
+
                 // Render Targets
                 std::array<bool, 8> render_target;
                 bool depth_buffer;
 
                 bool render_settings;
+
                 // Shaders
                 bool shaders;
-                // State
+
+                // Rasterizer State
                 bool viewport;
                 bool clip_coefficient;
                 bool cull_mode;
@@ -1276,6 +1282,15 @@ private:
 
     /// Interpreter for the macro codes uploaded to the GPU.
     MacroInterpreter macro_interpreter;
+
+    static constexpr u32 null_cb_data = 0xFFFFFFFF;
+    struct {
+        std::array<std::array<u32, 0x4000>, 16> buffer;
+        u32 current{null_cb_data};
+        u32 id{null_cb_data};
+        u32 start_pos{};
+        u32 counter{};
+    } cb_data_state;
 
     Upload::State upload_state;
 

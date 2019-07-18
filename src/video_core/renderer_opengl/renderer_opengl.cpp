@@ -110,6 +110,7 @@ void RendererOpenGL::SwapBuffers(
 
     // Maintain the rasterizer's state as a priority
     OpenGLState prev_state = OpenGLState::GetCurState();
+    state.AllDirty();
     state.Apply();
 
     if (framebuffer) {
@@ -147,6 +148,7 @@ void RendererOpenGL::SwapBuffers(
     system.GetPerfStats().BeginSystemFrame();
 
     // Restore the rasterizer state
+    prev_state.AllDirty();
     prev_state.Apply();
 }
 
@@ -214,6 +216,7 @@ void RendererOpenGL::InitOpenGLObjects() {
     // Link shaders and get variable locations
     shader.CreateFromSource(vertex_shader, nullptr, fragment_shader);
     state.draw.shader_program = shader.handle;
+    state.AllDirty();
     state.Apply();
     uniform_modelview_matrix = glGetUniformLocation(shader.handle, "modelview_matrix");
     uniform_color_texture = glGetUniformLocation(shader.handle, "color_texture");
@@ -350,12 +353,14 @@ void RendererOpenGL::DrawScreenTriangles(const ScreenInfo& screen_info, float x,
     // Workaround brigthness problems in SMO by enabling sRGB in the final output
     // if it has been used in the frame. Needed because of this bug in QT: QTBUG-50987
     state.framebuffer_srgb.enabled = OpenGLState::GetsRGBUsed();
+    state.AllDirty();
     state.Apply();
     glNamedBufferSubData(vertex_buffer.handle, 0, sizeof(vertices), vertices.data());
     glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
     // Restore default state
     state.framebuffer_srgb.enabled = false;
     state.texture_units[0].texture = 0;
+    state.AllDirty();
     state.Apply();
     // Clear sRGB state for the next frame
     OpenGLState::ClearsRGBUsed();
@@ -400,6 +405,7 @@ void RendererOpenGL::CaptureScreenshot() {
     GLuint old_read_fb = state.draw.read_framebuffer;
     GLuint old_draw_fb = state.draw.draw_framebuffer;
     state.draw.read_framebuffer = state.draw.draw_framebuffer = screenshot_framebuffer.handle;
+    state.AllDirty();
     state.Apply();
 
     Layout::FramebufferLayout layout{renderer_settings.screenshot_framebuffer_layout};
@@ -419,6 +425,7 @@ void RendererOpenGL::CaptureScreenshot() {
     screenshot_framebuffer.Release();
     state.draw.read_framebuffer = old_read_fb;
     state.draw.draw_framebuffer = old_draw_fb;
+    state.AllDirty();
     state.Apply();
     glDeleteRenderbuffers(1, &renderbuffer);
 

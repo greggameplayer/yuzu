@@ -554,43 +554,23 @@ void RasterizerOpenGL::ConfigureClearFramebuffer(OpenGLState& current_state, boo
     const auto& regs = gpu.regs;
 
     texture_cache.GuardRenderTargets(true);
+    FramebufferCacheKey fbkey;
     View color_surface{};
+
     if (using_color_fb) {
-        color_surface = texture_cache.GetColorBufferSurface(regs.clear_buffers.RT, false);
+        fbkey.is_single_buffer = true;
+        fbkey.colors[0] = texture_cache.GetColorBufferSurface(regs.clear_buffers.RT, false);
+        fbkey.color_attachments[0] = GL_COLOR_ATTACHMENT0;
     }
     View depth_surface{};
     if (using_depth_fb || using_stencil_fb) {
-        depth_surface = texture_cache.GetDepthBufferSurface(false);
+        fbkey.zeta = texture_cache.GetDepthBufferSurface(false);
+        fbkey.stencil_enable = using_stencil_fb;
     }
     texture_cache.GuardRenderTargets(false);
 
-    current_state.draw.draw_framebuffer = clear_framebuffer.handle;
+    current_state.draw.draw_framebuffer = framebuffer_cache.GetFramebuffer(fbkey);
     current_state.ApplyFramebufferState();
-
-    if (color_surface) {
-        color_surface->Attach(GL_COLOR_ATTACHMENT0, GL_DRAW_FRAMEBUFFER);
-    } else {
-        glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, 0, 0);
-    }
-
-    if (depth_surface) {
-        const auto& params = depth_surface->GetSurfaceParams();
-        switch (params.type) {
-        case VideoCore::Surface::SurfaceType::Depth: {
-            depth_surface->Attach(GL_DEPTH_ATTACHMENT, GL_DRAW_FRAMEBUFFER);
-            glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER, GL_STENCIL_ATTACHMENT, GL_TEXTURE_2D, 0, 0);
-            break;
-        }
-        case VideoCore::Surface::SurfaceType::DepthStencil: {
-            depth_surface->Attach(GL_DEPTH_ATTACHMENT, GL_DRAW_FRAMEBUFFER);
-            break;
-        }
-        default: { UNIMPLEMENTED(); }
-        }
-    } else {
-        glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_TEXTURE_2D, 0,
-                               0);
-    }
 }
 
 void RasterizerOpenGL::Clear() {
@@ -793,43 +773,6 @@ void RasterizerOpenGL::DrawArrays() {
 
     accelerate_draw = AccelDraw::Disabled;
     gpu.dirty.memory_general = false;
-}
-
-void RasterizerOpenGL::DispatchCompute(GPUVAddr code_addr) {
-    if (!GLAD_GL_ARB_compute_variable_group_size) {
-        LOG_ERROR(Render_OpenGL, "Compute is currently not supported on this device due to the "
-                                 "lack of GL_ARB_compute_variable_group_size");
-        return;
-    }
-
-    auto kernel = shader_cache.GetComputeKernel(code_addr);
-    const auto [program, next_bindings] = kernel->GetProgramHandle({});
-    state.draw.shader_program = program;
-    state.draw.program_pipeline = 0;
-
-    const std::size_t buffer_size =
-        Tegra::Engines::KeplerCompute::NumConstBuffers *
-        (Maxwell::MaxConstBufferSize + device.GetUniformBufferAlignment());
-    buffer_cache.Map(buffer_size);
-
-    bind_ubo_pushbuffer.Setup(0);
-    bind_ssbo_pushbuffer.Setup(0);
-
-    SetupComputeConstBuffers(kernel);
-    SetupComputeGlobalMemory(kernel);
-
-    buffer_cache.Unmap();
-
-    bind_ubo_pushbuffer.Bind();
-    bind_ssbo_pushbuffer.Bind();
-
-    state.ApplyShaderProgram();
-    state.ApplyProgramPipeline();
-
-    const auto& launch_desc = system.GPU().KeplerCompute().launch_description;
-    glDispatchComputeGroupSizeARB(launch_desc.grid_dim_x, launch_desc.grid_dim_y,
-                                  launch_desc.grid_dim_z, launch_desc.block_dim_x,
-                                  launch_desc.block_dim_y, launch_desc.block_dim_z);
 }
 
 void RasterizerOpenGL::DispatchCompute(GPUVAddr code_addr) {
@@ -1109,8 +1052,9 @@ void RasterizerOpenGL::SyncCullMode() {
     const auto& regs = maxwell3d.regs;
 
     state.cull.enabled = regs.cull.enabled != 0;
-    state.cull.front_face = MaxwellToGL::FrontFace(regs.cull.front_face);
-    state.cull.mode = MaxwellToGL::CullFace(regs.cull.cull_face);
+    if (state.cull.enabled) {
+        state.cull.front_face = MaxwellToGL::FrontFace(regs.cull.front_face);
+        state.cull.mode = MaxwellToGL::CullFace(regs.cull.cull_face);
 
     const bool flip_triangles{regs.screen_y_control.triangle_rast_flip == 0 ||
                               regs.viewport_transform[0].scale_y < 0.0f};
@@ -1140,12 +1084,23 @@ void RasterizerOpenGL::SyncDepthTestState() {
 
     state.depth.test_enabled = regs.depth_test_enable != 0;
     state.depth.write_mask = regs.depth_write_enabled ? GL_TRUE : GL_FALSE;
+
+    if (!state.depth.test_enabled) {
+        return;
+    }
+
     state.depth.test_func = MaxwellToGL::ComparisonOp(regs.depth_test_func);
 }
 
 void RasterizerOpenGL::SyncStencilTestState() {
     auto& maxwell3d = system.GPU().Maxwell3D();
     if (!maxwell3d.dirty.stencil_test) {
+        return;
+    }
+    const auto& regs = maxwell3d.regs;
+
+    state.stencil.test_enabled = regs.stencil_enable != 0;
+    if (!regs.stencil_enable) {
         return;
     }
     const auto& regs = maxwell3d.regs;
@@ -1175,7 +1130,7 @@ void RasterizerOpenGL::SyncStencilTestState() {
         state.stencil.back.action_depth_fail = GL_KEEP;
         state.stencil.back.action_depth_pass = GL_KEEP;
     }
-    state.MarkDirtyStencilState(true);
+    state.MarkDirtyStencilState();
     maxwell3d.dirty.stencil_test = false;
 }
 
@@ -1197,7 +1152,7 @@ void RasterizerOpenGL::SyncColorMask() {
         dest.alpha_enabled = (source.A == 0) ? GL_FALSE : GL_TRUE;
     }
 
-    state.MarkDirtyColorMask(true);
+    state.MarkDirtyColorMask();
     maxwell3d.dirty.color_mask = false;
 }
 
@@ -1241,7 +1196,7 @@ void RasterizerOpenGL::SyncBlendState() {
             state.blend[i].enabled = false;
         }
         maxwell3d.dirty.blend_state = false;
-        state.MarkDirtyBlendState(true);
+        state.MarkDirtyBlendState();
         return;
     }
 
@@ -1259,7 +1214,7 @@ void RasterizerOpenGL::SyncBlendState() {
         blend.dst_a_func = MaxwellToGL::BlendFunc(src.factor_dest_a);
     }
 
-    state.MarkDirtyBlendState(true);
+    state.MarkDirtyBlendState();
     maxwell3d.dirty.blend_state = false;
 }
 
@@ -1325,7 +1280,7 @@ void RasterizerOpenGL::SyncPolygonOffset() {
     state.polygon_offset.factor = regs.polygon_offset_factor;
     state.polygon_offset.clamp = regs.polygon_offset_clamp;
 
-    state.MarkDirtyPolygonOffset(true);
+    state.MarkDirtyPolygonOffset();
     maxwell3d.dirty.polygon_offset = false;
 }
 

@@ -155,8 +155,7 @@ public:
         if (!maxwell3d.dirty.render_target[index]) {
             return render_targets[index].view;
         }
-
-        maxwell3d.dirty_flags.color_buffer.reset(index);
+        maxwell3d.dirty.render_target[index] = false;
 
         const auto& regs{maxwell3d.regs};
         if (index >= regs.rt_control.count || regs.rt[index].Address() == 0 ||
