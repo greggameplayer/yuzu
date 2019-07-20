@@ -554,23 +554,43 @@ void RasterizerOpenGL::ConfigureClearFramebuffer(OpenGLState& current_state, boo
     const auto& regs = gpu.regs;
 
     texture_cache.GuardRenderTargets(true);
-    FramebufferCacheKey fbkey;
     View color_surface{};
-
     if (using_color_fb) {
-        fbkey.is_single_buffer = true;
-        fbkey.colors[0] = texture_cache.GetColorBufferSurface(regs.clear_buffers.RT, false);
-        fbkey.color_attachments[0] = GL_COLOR_ATTACHMENT0;
+        color_surface = texture_cache.GetColorBufferSurface(regs.clear_buffers.RT, false);
     }
     View depth_surface{};
     if (using_depth_fb || using_stencil_fb) {
-        fbkey.zeta = texture_cache.GetDepthBufferSurface(false);
-        fbkey.stencil_enable = using_stencil_fb;
+        depth_surface = texture_cache.GetDepthBufferSurface(false);
     }
     texture_cache.GuardRenderTargets(false);
 
-    current_state.draw.draw_framebuffer = framebuffer_cache.GetFramebuffer(fbkey);
+    current_state.draw.draw_framebuffer = clear_framebuffer.handle;
     current_state.ApplyFramebufferState();
+
+    if (color_surface) {
+        color_surface->Attach(GL_COLOR_ATTACHMENT0, GL_DRAW_FRAMEBUFFER);
+    } else {
+        glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, 0, 0);
+    }
+
+    if (depth_surface) {
+        const auto& params = depth_surface->GetSurfaceParams();
+        switch (params.type) {
+        case VideoCore::Surface::SurfaceType::Depth: {
+            depth_surface->Attach(GL_DEPTH_ATTACHMENT, GL_DRAW_FRAMEBUFFER);
+            glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER, GL_STENCIL_ATTACHMENT, GL_TEXTURE_2D, 0, 0);
+            break;
+        }
+        case VideoCore::Surface::SurfaceType::DepthStencil: {
+            depth_surface->Attach(GL_DEPTH_ATTACHMENT, GL_DRAW_FRAMEBUFFER);
+            break;
+        }
+        default: { UNIMPLEMENTED(); }
+        }
+    } else {
+        glFramebufferTexture2D(GL_DRAW_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_TEXTURE_2D, 0,
+                               0);
+    }
 }
 
 void RasterizerOpenGL::Clear() {
