@@ -2,12 +2,11 @@
 
 Scroll down for the original README.md!
 
-Base revision: 6738fb5fef789d8e6674459b1bf656d0f983b159
+Base revision: 27e10e0442dfd347387c6eaf148b27f5cc38bcaf
 
 |Pull Request|Commit|Title|Author|Merged?|
 |----|----|----|----|----|
 |[1](https://github.com/yuzu-emu/yuzu-canary/pull/1)|[a8dfe54](https://github.com/yuzu-emu/yuzu-canary/pull/1/files/)|Canary Base|[chris062689](https://github.com/chris062689)|Yes|
-|[2735](https://github.com/yuzu-emu/yuzu/pull/2735)|[7a35178](https://github.com/yuzu-emu/yuzu/pull/2735/files/)|Rework Dirty Flags in GPU Pipeline, Optimize CBData and Redo Clearing mechanism|[FernandoS27](https://github.com/FernandoS27)|Yes|
 |[2734](https://github.com/yuzu-emu/yuzu/pull/2734)|[2a4044a](https://github.com/yuzu-emu/yuzu/pull/2734/files/)|gl_rasterizer: Implement compute shaders|[ReinUsesLisp](https://github.com/ReinUsesLisp)|Yes|
 |[2710](https://github.com/yuzu-emu/yuzu/pull/2710)|[abb2c5f](https://github.com/yuzu-emu/yuzu/pull/2710/files/)|am/kernel: Fix various bugs related to applet signalling and software keyboard|[DarkLordZach](https://github.com/DarkLordZach)|Yes|
 |[2707](https://github.com/yuzu-emu/yuzu/pull/2707)|[adab188](https://github.com/yuzu-emu/yuzu/pull/2707/files/)|system_archive: Add open-source reimplementation of MiiModel data|[DarkLordZach](https://github.com/DarkLordZach)|Yes|
