@@ -1328,6 +1328,13 @@ private:
         &SPIRVDecompiler::TexelFetch,
 
         &SPIRVDecompiler::ImageStore,
+        nullptr,
+        nullptr,
+        nullptr,
+        nullptr,
+        nullptr,
+        nullptr,
+        nullptr,
 
         &SPIRVDecompiler::Branch,
         &SPIRVDecompiler::BranchIndirect,
