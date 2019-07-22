@@ -929,6 +929,11 @@ private:
         return {};
     }
 
+    Id ImageAtomicOperation(Operation operation) {
+        UNIMPLEMENTED();
+        return {};
+    }
+
     Id Branch(Operation operation) {
         const auto target = std::get_if<ImmediateNode>(&*operation[0]);
         UNIMPLEMENTED_IF(!target);
@@ -1328,6 +1333,13 @@ private:
         &SPIRVDecompiler::TexelFetch,
 
         &SPIRVDecompiler::ImageStore,
+        &SPIRVDecompiler::ImageAtomicOperation, // Add
+        &SPIRVDecompiler::ImageAtomicOperation, // Min
+        &SPIRVDecompiler::ImageAtomicOperation, // Max
+        &SPIRVDecompiler::ImageAtomicOperation, // And
+        &SPIRVDecompiler::ImageAtomicOperation, // Or
+        &SPIRVDecompiler::ImageAtomicOperation, // Xor
+        &SPIRVDecompiler::ImageAtomicOperation, // Exchange
 
         &SPIRVDecompiler::Branch,
         &SPIRVDecompiler::BranchIndirect,
