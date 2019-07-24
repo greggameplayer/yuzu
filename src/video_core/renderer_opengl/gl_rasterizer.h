@@ -64,10 +64,14 @@ public:
     void FlushRegion(CacheAddr addr, u64 size) override;
     void InvalidateRegion(CacheAddr addr, u64 size) override;
     void FlushAndInvalidateRegion(CacheAddr addr, u64 size) override;
+    u32 IsCacheHit(GPUVAddr gpu_addr, std::size_t size) override;
     void TickFrame() override;
     bool AccelerateSurfaceCopy(const Tegra::Engines::Fermi2D::Regs::Surface& src,
                                const Tegra::Engines::Fermi2D::Regs::Surface& dst,
                                const Tegra::Engines::Fermi2D::Config& copy_config) override;
+    void AccelerateDMATexture(const Tegra::Engines::MaxwellDMA::SurfaceConfig& src_config,
+                              const Tegra::Engines::MaxwellDMA::SurfaceConfig& dst_config,
+                              const Tegra::Engines::MaxwellDMA::CopyConfig& copy_config) override;
     bool AccelerateDisplay(const Tegra::FramebufferConfig& config, VAddr framebuffer_addr,
                            u32 pixel_stride) override;
     bool AccelerateDrawBatch(bool is_indexed) override;

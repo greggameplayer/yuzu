@@ -8,6 +8,7 @@
 #include <functional>
 #include "common/common_types.h"
 #include "video_core/engines/fermi_2d.h"
+#include "video_core/engines/maxwell_dma.h"
 #include "video_core/gpu.h"
 
 namespace Tegra {
@@ -22,6 +23,13 @@ enum class LoadCallbackStage {
     Build,
     Complete,
 };
+
+enum Caches : u32 {
+    TextureCache = 1,
+    BufferCache = 2,
+    ShaderCache = 4,
+};
+
 using DiskResourceLoadCallback = std::function<void(LoadCallbackStage, std::size_t, std::size_t)>;
 
 class RasterizerInterface {
@@ -50,6 +58,11 @@ public:
     /// and invalidated
     virtual void FlushAndInvalidateRegion(CacheAddr addr, u64 size) = 0;
 
+    /// Checks if the memory adress and size is within any of caches of the gpu.
+    /// The result will be a flag variable based on VideoCore::Caches, turning on
+    /// corresponding bits for caches that were hit.
+    virtual u32 IsCacheHit(GPUVAddr gpu_addr, std::size_t size) = 0;
+
     /// Notify rasterizer that a frame is about to finish
     virtual void TickFrame() = 0;
 
@@ -59,6 +72,10 @@ public:
                                        const Tegra::Engines::Fermi2D::Config& copy_config) {
         return false;
     }
+
+    virtual void AccelerateDMATexture(const Tegra::Engines::MaxwellDMA::SurfaceConfig& src_config,
+                                      const Tegra::Engines::MaxwellDMA::SurfaceConfig& dst_config,
+                                      const Tegra::Engines::MaxwellDMA::CopyConfig& copy_config) {}
 
     /// Attempt to use a faster method to display the framebuffer to screen
     virtual bool AccelerateDisplay(const Tegra::FramebufferConfig& config, VAddr framebuffer_addr,

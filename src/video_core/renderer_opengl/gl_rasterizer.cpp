@@ -868,6 +868,14 @@ void RasterizerOpenGL::FlushAndInvalidateRegion(CacheAddr addr, u64 size) {
     InvalidateRegion(addr, size);
 }
 
+u32 RasterizerOpenGL::IsCacheHit(const GPUVAddr gpu_addr, const std::size_t size) {
+    u32 flags = 0;
+    if (texture_cache.IsHit(gpu_addr, size)) {
+        flags |= VideoCore::Caches::TextureCache;
+    }
+    return flags;
+}
+
 void RasterizerOpenGL::TickFrame() {
     buffer_cache.TickFrame();
 }
@@ -878,6 +886,13 @@ bool RasterizerOpenGL::AccelerateSurfaceCopy(const Tegra::Engines::Fermi2D::Regs
     MICROPROFILE_SCOPE(OpenGL_Blits);
     texture_cache.DoFermiCopy(src, dst, copy_config);
     return true;
+}
+
+void RasterizerOpenGL::AccelerateDMATexture(
+    const Tegra::Engines::MaxwellDMA::SurfaceConfig& src_config,
+    const Tegra::Engines::MaxwellDMA::SurfaceConfig& dst_config,
+    const Tegra::Engines::MaxwellDMA::CopyConfig& copy_config) {
+    texture_cache.AccelerateDMA(src_config, dst_config, copy_config);
 }
 
 bool RasterizerOpenGL::AccelerateDisplay(const Tegra::FramebufferConfig& config,
