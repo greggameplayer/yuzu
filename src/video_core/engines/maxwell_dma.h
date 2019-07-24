@@ -58,10 +58,6 @@ public:
                 BitField<16, 16, u32> pos_y;
             };
 
-            u32 BlockWidth() const {
-                return block_width.Value();
-            }
-
             u32 BlockHeight() const {
                 return block_height.Value();
             }
@@ -181,33 +177,6 @@ public:
         };
     } regs{};
 
-    struct SurfaceConfig {
-        bool in_cache;
-        u32 bytes_per_pixel;
-        GPUVAddr gpu_addr;
-        std::size_t size;
-        bool is_linear;
-        union {
-            struct {
-                u32 pitch;
-                u32 width;
-                u32 height;
-            };
-            Regs::Parameters tiled;
-        };
-    };
-
-    struct CopyConfig {
-        u32 src_pos_x;
-        u32 src_pos_y;
-        u32 src_pos_z;
-        u32 dst_pos_x;
-        u32 dst_pos_y;
-        u32 dst_pos_z;
-        u32 width;
-        u32 height;
-    };
-
 private:
     Core::System& system;
 
@@ -217,11 +186,6 @@ private:
 
     std::vector<u8> read_buffer;
     std::vector<u8> write_buffer;
-
-    void TiledLinearCopy(std::size_t src_size, std::size_t dst_size, std::size_t bytes_per_pixel);
-    void LinearTiledCopy(std::size_t src_size, std::size_t dst_size, std::size_t bytes_per_pixel);
-    void TextureAccelerateDMA(std::size_t src_size, std::size_t dst_size, bool src_hit,
-                              bool dst_hit, std::size_t bytes_per_pixel);
 
     /// Performs the copy from the source buffer to the destination buffer as configured in the
     /// registers.
