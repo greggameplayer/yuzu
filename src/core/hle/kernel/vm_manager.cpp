@@ -764,11 +764,15 @@ void VMManager::MergeAdjacentVMA(VirtualMemoryArea& left, const VirtualMemoryAre
             // Fast case: left is an entire backing block.
             left.backing_block->insert(left.backing_block->end(), right_begin, right_end);
         } else {
+            // Slow case: make a new memory block for left and right.
             const auto left_begin = left.backing_block->begin() + left.offset;
             const auto left_end = left_begin + left.size;
 
-            // Slow case: make a new memory block for left and right.
+            const auto left_size = static_cast<std::size_t>(std::distance(left_begin, left_end));
+            const auto right_size = static_cast<std::size_t>(std::distance(right_begin, right_end));
+
             auto new_memory = std::make_shared<std::vector<u8>>();
+            new_memory->reserve(left_size + right_size);
             new_memory->insert(new_memory->end(), left_begin, left_end);
             new_memory->insert(new_memory->end(), right_begin, right_end);
 
