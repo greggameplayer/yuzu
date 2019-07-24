@@ -7,6 +7,7 @@ Base revision: f601f25bcc76f54ac0fa983cd74141bb075468de
 |Pull Request|Commit|Title|Author|Merged?|
 |----|----|----|----|----|
 |[1](https://github.com/yuzu-emu/yuzu-canary/pull/1)|[a8dfe54](https://github.com/yuzu-emu/yuzu-canary/pull/1/files/)|Canary Base|[chris062689](https://github.com/chris062689)|Yes|
+|[2737](https://github.com/yuzu-emu/yuzu/pull/2737)|[d614193](https://github.com/yuzu-emu/yuzu/pull/2737/files/)|Shader_Ir: Correct tracking to track from right to left|[FernandoS27](https://github.com/FernandoS27)|Yes|
 |[2710](https://github.com/yuzu-emu/yuzu/pull/2710)|[abb2c5f](https://github.com/yuzu-emu/yuzu/pull/2710/files/)|am/kernel: Fix various bugs related to applet signalling and software keyboard|[DarkLordZach](https://github.com/DarkLordZach)|Yes|
 |[2707](https://github.com/yuzu-emu/yuzu/pull/2707)|[adab188](https://github.com/yuzu-emu/yuzu/pull/2707/files/)|system_archive: Add open-source reimplementation of MiiModel data|[DarkLordZach](https://github.com/DarkLordZach)|Yes|
 |[2704](https://github.com/yuzu-emu/yuzu/pull/2704)|[e42bcf2](https://github.com/yuzu-emu/yuzu/pull/2704/files/)|maxwell3d: Implement Conditional Rendering|[FernandoS27](https://github.com/FernandoS27)|Yes|
