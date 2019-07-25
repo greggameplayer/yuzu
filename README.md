@@ -2,13 +2,12 @@
 
 Scroll down for the original README.md!
 
-Base revision: 9be9600bdcf0119e16d0cbbd7a50dcd2a6137efa
+Base revision: b0ff3179ef8f4ebb6ccd2bdc9bccc64e3212edee
 
 |Pull Request|Commit|Title|Author|Merged?|
 |----|----|----|----|----|
 |[1](https://github.com/yuzu-emu/yuzu-canary/pull/1)|[a8dfe54](https://github.com/yuzu-emu/yuzu-canary/pull/1/files/)|Canary Base|[chris062689](https://github.com/chris062689)|Yes|
 |[2747](https://github.com/yuzu-emu/yuzu/pull/2747)|[16730c4](https://github.com/yuzu-emu/yuzu/pull/2747/files/)|service/audren_u: Unstub ListAudioDeviceName|[lioncash](https://github.com/lioncash)|Yes|
-|[2737](https://github.com/yuzu-emu/yuzu/pull/2737)|[d614193](https://github.com/yuzu-emu/yuzu/pull/2737/files/)|Shader_Ir: Correct tracking to track from right to left|[FernandoS27](https://github.com/FernandoS27)|Yes|
 |[2710](https://github.com/yuzu-emu/yuzu/pull/2710)|[abb2c5f](https://github.com/yuzu-emu/yuzu/pull/2710/files/)|am/kernel: Fix various bugs related to applet signalling and software keyboard|[DarkLordZach](https://github.com/DarkLordZach)|Yes|
 |[2707](https://github.com/yuzu-emu/yuzu/pull/2707)|[adab188](https://github.com/yuzu-emu/yuzu/pull/2707/files/)|system_archive: Add open-source reimplementation of MiiModel data|[DarkLordZach](https://github.com/DarkLordZach)|Yes|
 |[2592](https://github.com/yuzu-emu/yuzu/pull/2592)|[0fc9895](https://github.com/yuzu-emu/yuzu/pull/2592/files/)|Implement GPU Synchronization Mechanisms & Correct NVFlinger|[FernandoS27](https://github.com/FernandoS27)|Yes|
