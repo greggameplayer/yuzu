@@ -19,12 +19,10 @@ using Tegra::Texture::ConvertFromGuestToHost;
 using VideoCore::MortonSwizzleMode;
 using VideoCore::Surface::SurfaceCompression;
 
-StagingCache::StagingCache() = default;
-
-StagingCache::~StagingCache() = default;
-
-SurfaceBaseImpl::SurfaceBaseImpl(GPUVAddr gpu_addr, const SurfaceParams& params)
-    : params{params}, host_memory_size{params.GetHostSizeInBytes()}, gpu_addr{gpu_addr},
+SurfaceBaseImpl::SurfaceBaseImpl(GPUVAddr gpu_addr, const SurfaceParams& params,
+                                 std::vector<u8>& temporary_buffer)
+    : params{params}, temporary_buffer{temporary_buffer},
+      host_memory_size{params.GetHostSizeInBytes()}, gpu_addr{gpu_addr},
       mipmap_sizes(params.num_levels), mipmap_offsets(params.num_levels) {
     std::size_t offset = 0;
     for (u32 level = 0; level < params.num_levels; ++level) {
