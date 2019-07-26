@@ -266,7 +266,7 @@ void SwizzleSubrect(u32 subrect_width, u32 subrect_height, u32 source_pitch, u32
         const u32 gob_address_y =
             (dst_y / (gob_size_y * block_height)) * gob_size * block_height * image_width_in_gobs +
             ((dst_y % (gob_size_y * block_height)) / gob_size_y) * gob_size;
-        const auto& table = legacy_swizzle_table[line % gob_size_y];
+        const auto& table = legacy_swizzle_table[dst_y % gob_size_y];
         for (u32 x = 0; x < subrect_width; ++x) {
             const u32 dst_x = x + offset_x;
             const u32 gob_address =
