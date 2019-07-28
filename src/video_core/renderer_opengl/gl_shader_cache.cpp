@@ -23,9 +23,6 @@ namespace OpenGL {
 
 using VideoCommon::Shader::ProgramCode;
 
-// One UBO is always reserved for emulation values on staged shaders
-constexpr u32 STAGE_RESERVED_UBOS = 1;
-
 struct UnspecializedShader {
     std::string code;
     GLShader::ShaderEntries entries;
@@ -228,10 +225,6 @@ CachedProgram SpecializeShader(const std::string& code, const GLShader::ShaderEn
     }
     source += '\n';
 
-    if (program_type != ProgramType::Compute) {
-        source += fmt::format("#define EMULATION_UBO_BINDING {}\n", base_bindings.cbuf++);
-    }
-
     for (const auto& cbuf : entries.const_buffers) {
         source +=
             fmt::format("#define CBUF_BINDING_{} {}\n", cbuf.GetIndex(), base_bindings.cbuf++);
@@ -277,7 +270,7 @@ CachedProgram SpecializeShader(const std::string& code, const GLShader::ShaderEn
     OGLShader shader;
     shader.Create(source.c_str(), GetShaderType(program_type));
 
-    auto program = std::make_shared<OGLProgram>();
+    auto program = std::make_shared<GLShader::StageProgram>();
     program->Create(true, hint_retrievable, shader.handle);
     return program;
 }
@@ -352,10 +345,11 @@ Shader CachedShader::CreateKernelFromCache(const ShaderParameters& params,
         new CachedShader(params, ProgramType::Compute, std::move(result)));
 }
 
-std::tuple<GLuint, BaseBindings> CachedShader::GetProgramHandle(const ProgramVariant& variant) {
-    GLuint handle{};
+std::tuple<GLShader::StageProgram&, BaseBindings> CachedShader::GetProgramHandle(
+    const ProgramVariant& variant) {
+    GLShader::StageProgram* stage_program{};
     if (program_type == ProgramType::Geometry) {
-        handle = GetGeometryShader(variant);
+        stage_program = &GetGeometryShader(variant);
     } else {
         const auto [entry, is_cache_miss] = programs.try_emplace(variant);
         auto& program = entry->second;
@@ -368,22 +362,18 @@ std::tuple<GLuint, BaseBindings> CachedShader::GetProgramHandle(const ProgramVar
 
             LabelGLObject(GL_PROGRAM, program->handle, cpu_addr);
         }
-
-        handle = program->handle;
+        stage_program = &*program;
     }
 
-    auto base_bindings = variant.base_bindings;
+    auto base_bindings{variant.base_bindings};
     base_bindings.cbuf += static_cast<u32>(entries.const_buffers.size());
-    if (program_type != ProgramType::Compute) {
-        base_bindings.cbuf += STAGE_RESERVED_UBOS;
-    }
     base_bindings.gmem += static_cast<u32>(entries.global_memory_entries.size());
     base_bindings.sampler += static_cast<u32>(entries.samplers.size());
 
-    return {handle, base_bindings};
+    return {*stage_program, base_bindings};
 }
 
-GLuint CachedShader::GetGeometryShader(const ProgramVariant& variant) {
+GLShader::StageProgram& CachedShader::GetGeometryShader(const ProgramVariant& variant) {
     const auto [entry, is_cache_miss] = geometry_programs.try_emplace(variant);
     auto& programs = entry->second;
 
@@ -409,10 +399,10 @@ GLuint CachedShader::GetGeometryShader(const ProgramVariant& variant) {
     }
 }
 
-GLuint CachedShader::LazyGeometryProgram(CachedProgram& target_program,
-                                         const ProgramVariant& variant) {
+GLShader::StageProgram& CachedShader::LazyGeometryProgram(CachedProgram& target_program,
+                                                          const ProgramVariant& variant) {
     if (target_program) {
-        return target_program->handle;
+        return *target_program;
     }
     const auto [glsl_name, debug_name, vertices] = GetPrimitiveDescription(variant.primitive_mode);
     target_program = TryLoadProgram(variant);
@@ -422,8 +412,7 @@ GLuint CachedShader::LazyGeometryProgram(CachedProgram& target_program,
     }
 
     LabelGLObject(GL_PROGRAM, target_program->handle, cpu_addr, debug_name);
-
-    return target_program->handle;
+    return *target_program;
 };
 
 CachedProgram CachedShader::TryLoadProgram(const ProgramVariant& variant) const {
@@ -570,7 +559,7 @@ CachedProgram ShaderCacheOpenGL::GeneratePrecompiledProgram(
         return {};
     }
 
-    CachedProgram shader = std::make_shared<OGLProgram>();
+    CachedProgram shader = std::make_shared<GLShader::StageProgram>();
     shader->handle = glCreateProgram();
     glProgramParameteri(shader->handle, GL_PROGRAM_SEPARABLE, GL_TRUE);
     glProgramBinary(shader->handle, dump.binary_format, dump.binary.data(),
