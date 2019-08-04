@@ -582,6 +582,11 @@ union Instruction {
     BitField<48, 16, u64> opcode;
 
     union {
+        BitField<8, 5, ConditionCode> cc;
+        BitField<13, 1, u64> trigger;
+    } nop;
+
+    union {
         BitField<8, 8, Register> gpr;
         BitField<20, 24, s64> offset;
     } gmem;
@@ -1545,6 +1550,7 @@ public:
         SUST,   // Surface Store
         SUATOM, // Surface Atomic Operation
         EXIT,
+        NOP,
         IPA,
         OUT_R, // Emit vertex/primitive
         ISBERD,
@@ -1825,6 +1831,7 @@ private:
             INST("1101111101011---", Id::TMML, Type::Texture, "TMML"),
             INST("11101011001-----", Id::SUST, Type::Image, "SUST"),
             INST("1110101000------", Id::SUATOM, Type::Image, "SUATOM_D"),
+            INST("0101000010110---", Id::NOP, Type::Trivial, "NOP"),
             INST("11100000--------", Id::IPA, Type::Trivial, "IPA"),
             INST("1111101111100---", Id::OUT_R, Type::Trivial, "OUT_R"),
             INST("1110111111010---", Id::ISBERD, Type::Trivial, "ISBERD"),
