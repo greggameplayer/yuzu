@@ -814,16 +814,19 @@ void RasterizerOpenGL::DispatchCompute(GPUVAddr code_addr) {
     const auto& launch_desc = system.GPU().KeplerCompute().launch_description;
     const u32 smem_size = launch_desc.grid_dim_x.Value() * launch_desc.grid_dim_y.Value() *
                           launch_desc.grid_dim_z.Value() * launch_desc.shared_alloc.Value();
+    const bool has_smem = smem_size > 0;
     buffer_size += static_cast<std::size_t>(smem_size) + device.GetShaderStorageBufferAlignment();
 
     buffer_cache.Map(buffer_size);
 
     bind_ubo_pushbuffer.Setup(0);
-    bind_ssbo_pushbuffer.Setup(0);
+    bind_ssbo_pushbuffer.Setup(has_smem ? 0 : 1);
 
-    const auto [smem_buffer, smem_offset] =
-        buffer_cache.UploadHostMemory(nullptr, smem_size, device.GetShaderStorageBufferAlignment());
-    bind_ssbo_pushbuffer.Push(smem_buffer, static_cast<GLintptr>(smem_offset), smem_size);
+    if (has_smem) {
+        const auto [smem_buffer, smem_offset] = buffer_cache.UploadHostMemory(
+            nullptr, smem_size, device.GetShaderStorageBufferAlignment());
+        bind_ssbo_pushbuffer.Push(smem_buffer, static_cast<GLintptr>(smem_offset), smem_size);
+    }
 
     SetupComputeConstBuffers(kernel);
     SetupComputeGlobalMemory(kernel);
