@@ -207,18 +207,20 @@ CachedProgram SpecializeShader(const std::string& code, const GLShader::ShaderEn
     auto base_bindings{variant.base_bindings};
     const auto primitive_mode{variant.primitive_mode};
     const auto texture_buffer_usage{variant.texture_buffer_usage};
+    const bool is_compute{program_type == ProgramType::Compute};
 
     std::string source = "#version 430 core\n"
                          "#extension GL_ARB_separate_shader_objects : enable\n";
     if (entries.shader_viewport_layer_array) {
         source += "#extension GL_ARB_shader_viewport_layer_array : enable\n";
     }
-    if (program_type == ProgramType::Compute) {
+    if (is_compute) {
         source += "#extension GL_ARB_compute_variable_group_size : require\n";
+        base_bindings.gmem += GLShader::NUM_KERNEL_RESERVED_SSBOS;
     }
     source += '\n';
 
-    if (program_type != ProgramType::Compute) {
+    if (!is_compute) {
         source += fmt::format("#define EMULATION_UBO_BINDING {}\n", base_bindings.cbuf++);
     }
 
@@ -254,7 +256,7 @@ CachedProgram SpecializeShader(const std::string& code, const GLShader::ShaderEn
         source += "layout (" + std::string(glsl_topology) + ") in;\n";
         source += "#define MAX_VERTEX_INPUT " + std::to_string(max_vertices) + '\n';
     }
-    if (program_type == ProgramType::Compute) {
+    if (is_compute) {
         source += "layout (local_size_variable) in;\n";
     }
 
