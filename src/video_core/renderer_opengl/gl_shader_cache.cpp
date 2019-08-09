@@ -23,9 +23,6 @@ namespace OpenGL {
 
 using VideoCommon::Shader::ProgramCode;
 
-// One UBO is always reserved for emulation values on staged shaders
-constexpr u32 STAGE_RESERVED_UBOS = 1;
-
 struct UnspecializedShader {
     std::string code;
     GLShader::ShaderEntries entries;
@@ -364,9 +361,12 @@ std::tuple<GLuint, BaseBindings> CachedShader::GetProgramHandle(const ProgramVar
     auto base_bindings = variant.base_bindings;
     base_bindings.cbuf += static_cast<u32>(entries.const_buffers.size());
     if (program_type != ProgramType::Compute) {
-        base_bindings.cbuf += STAGE_RESERVED_UBOS;
+        base_bindings.cbuf += GLShader::NUM_STAGE_RESERVED_UBOS;
     }
     base_bindings.gmem += static_cast<u32>(entries.global_memory_entries.size());
+    if (program_type == ProgramType::Compute) {
+        base_bindings.gmem += GLShader::NUM_KERNEL_RESERVED_SSBOS;
+    }
     base_bindings.sampler += static_cast<u32>(entries.samplers.size());
 
     return {handle, base_bindings};

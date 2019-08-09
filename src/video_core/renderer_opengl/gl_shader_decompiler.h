@@ -41,6 +41,12 @@ using ProgramResult = std::pair<std::string, ShaderEntries>;
 using SamplerEntry = VideoCommon::Shader::Sampler;
 using ImageEntry = VideoCommon::Shader::Image;
 
+constexpr u32 SMEM_BINDING = 0;
+constexpr u32 SMEM_SIZE_LOCATION = 0;
+
+constexpr u32 NUM_STAGE_RESERVED_UBOS = 1;
+constexpr u32 NUM_KERNEL_RESERVED_SSBOS = 1;
+
 class ConstBufferEntry : public VideoCommon::Shader::ConstBuffer {
 public:
     explicit ConstBufferEntry(u32 max_offset, bool is_indirect, u32 index)
