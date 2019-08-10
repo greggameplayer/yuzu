@@ -538,6 +538,12 @@ enum class PhysicalAttributeDirection : u64 {
     Output = 1,
 };
 
+enum class VoteOperation : u64 {
+    All = 0, // allThreadsNV
+    Any = 1, // anyThreadNV
+    Eq = 2,  // allThreadsEqualNV
+};
+
 union Instruction {
     Instruction& operator=(const Instruction& instr) {
         value = instr.value;
@@ -558,6 +564,13 @@ union Instruction {
     BitField<28, 8, Register> gpr28;
     BitField<39, 8, Register> gpr39;
     BitField<48, 16, u64> opcode;
+
+    union {
+        BitField<48, 2, VoteOperation> operation;
+        BitField<45, 3, u64> dest_pred;
+        BitField<39, 3, u64> value;
+        BitField<42, 1, u64> negate_value;
+    } vote;
 
     union {
         BitField<8, 8, Register> gpr;
@@ -1484,6 +1497,7 @@ public:
         SYNC,
         BRK,
         DEPBAR,
+        VOTE,
         BFE_C,
         BFE_R,
         BFE_IMM,
@@ -1645,6 +1659,7 @@ public:
         Hfma2,
         Flow,
         Synch,
+        Warp,
         Memory,
         Texture,
         Image,
@@ -1771,6 +1786,7 @@ private:
             INST("111000110100---", Id::BRK, Type::Flow, "BRK"),
             INST("111000110000----", Id::EXIT, Type::Flow, "EXIT"),
             INST("1111000011110---", Id::DEPBAR, Type::Synch, "DEPBAR"),
+            INST("0101000011011---", Id::VOTE, Type::Warp, "VOTE"),
             INST("1110111111011---", Id::LD_A, Type::Memory, "LD_A"),
             INST("1110111101001---", Id::LD_S, Type::Memory, "LD_S"),
             INST("1110111101000---", Id::LD_L, Type::Memory, "LD_L"),
