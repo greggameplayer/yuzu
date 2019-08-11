@@ -23,9 +23,6 @@ namespace OpenGL {
 
 using VideoCommon::Shader::ProgramCode;
 
-// One UBO is always reserved for emulation values on staged shaders
-constexpr u32 STAGE_RESERVED_UBOS = 1;
-
 struct UnspecializedShader {
     std::string code;
     GLShader::ShaderEntries entries;
@@ -213,6 +210,7 @@ CachedProgram SpecializeShader(const std::string& code, const GLShader::ShaderEn
     auto base_bindings{variant.base_bindings};
     const auto primitive_mode{variant.primitive_mode};
     const auto texture_buffer_usage{variant.texture_buffer_usage};
+    const bool is_compute{program_type == ProgramType::Compute};
 
     std::string source = "#version 430 core\n"
                          "#extension GL_ARB_separate_shader_objects : enable\n";
@@ -223,12 +221,13 @@ CachedProgram SpecializeShader(const std::string& code, const GLShader::ShaderEn
     if (entries.shader_viewport_layer_array) {
         source += "#extension GL_ARB_shader_viewport_layer_array : enable\n";
     }
-    if (program_type == ProgramType::Compute) {
+    if (is_compute) {
         source += "#extension GL_ARB_compute_variable_group_size : require\n";
+        base_bindings.gmem += GLShader::NUM_KERNEL_RESERVED_SSBOS;
     }
     source += '\n';
 
-    if (program_type != ProgramType::Compute) {
+    if (!is_compute) {
         source += fmt::format("#define EMULATION_UBO_BINDING {}\n", base_bindings.cbuf++);
     }
 
@@ -267,7 +266,7 @@ CachedProgram SpecializeShader(const std::string& code, const GLShader::ShaderEn
         source += "layout (" + std::string(glsl_topology) + ") in;\n\n";
         source += "#define MAX_VERTEX_INPUT " + std::to_string(max_vertices) + '\n';
     }
-    if (program_type == ProgramType::Compute) {
+    if (is_compute) {
         source += "layout (local_size_variable) in;\n";
     }
 
@@ -375,9 +374,12 @@ std::tuple<GLuint, BaseBindings> CachedShader::GetProgramHandle(const ProgramVar
     auto base_bindings = variant.base_bindings;
     base_bindings.cbuf += static_cast<u32>(entries.const_buffers.size());
     if (program_type != ProgramType::Compute) {
-        base_bindings.cbuf += STAGE_RESERVED_UBOS;
+        base_bindings.cbuf += GLShader::NUM_STAGE_RESERVED_UBOS;
     }
     base_bindings.gmem += static_cast<u32>(entries.global_memory_entries.size());
+    if (program_type == ProgramType::Compute) {
+        base_bindings.gmem += GLShader::NUM_KERNEL_RESERVED_SSBOS;
+    }
     base_bindings.sampler += static_cast<u32>(entries.samplers.size());
 
     return {handle, base_bindings};

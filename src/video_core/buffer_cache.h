@@ -187,7 +187,9 @@ private:
                                   std::size_t alignment) {
         AlignBuffer(alignment);
         const std::size_t uploaded_offset = buffer_offset;
-        std::memcpy(buffer_ptr, raw_pointer, size);
+        if (raw_pointer != nullptr) {
+            std::memcpy(buffer_ptr, raw_pointer, size);
+        }
 
         buffer_ptr += size;
         buffer_offset += size;

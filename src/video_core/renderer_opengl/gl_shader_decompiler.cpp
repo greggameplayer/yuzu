@@ -177,6 +177,7 @@ public:
         DeclareRegisters();
         DeclarePredicates();
         DeclareLocalMemory();
+        DeclareSharedMemory();
         DeclareInternalFlags();
         DeclareInputAttributes();
         DeclareOutputAttributes();
@@ -350,6 +351,24 @@ private:
         const auto element_count = Common::AlignUp(local_memory_size, 4) / 4;
         code.AddLine("float {}[{}];", GetLocalMemory(), element_count);
         code.AddNewLine();
+    }
+
+    void DeclareSharedMemory() {
+        if (stage != ProgramType::Compute) {
+            return;
+        }
+        code.AddLine("layout (location = {}) uniform uint smem_size;", SMEM_SIZE_LOCATION);
+        code.AddLine("layout (std430, binding = {}) buffer FloatSharedMemory {{ float {}[]; }};",
+                     SMEM_BINDING, GetSharedMemory());
+        code.AddLine("layout (std430, binding = {}) buffer SignedSharedMemory {{ int {}[]; }};",
+                     SMEM_BINDING, GetSignedSharedMemory());
+        code.AddLine("layout (std430, binding = {}) buffer UnsignedSharedMemory {{ uint {}[]; }};",
+                     SMEM_BINDING, GetUnsignedSharedMemory());
+
+        code.AddLine("\nconst uint WORKGROUP_INDEX =\n"
+                     "    gl_WorkGroupID.z * gl_NumWorkGroups.x * gl_NumWorkGroups.y +\n"
+                     "    gl_WorkGroupID.y * gl_NumWorkGroups.x +\n"
+                     "    gl_WorkGroupID.x;\n");
     }
 
     void DeclareInternalFlags() {
@@ -723,6 +742,11 @@ private:
                 LOG_WARNING(Render_OpenGL, "Local memory is stubbed on compute shaders");
             }
             return fmt::format("{}[ftou({}) / 4]", GetLocalMemory(), Visit(lmem->GetAddress()));
+        }
+
+        if (const auto smem = std::get_if<SmemNode>(&*node)) {
+            return fmt::format("{}[(WORKGROUP_INDEX * smem_size + ftou({})) / 4]",
+                               GetSharedMemory(), Visit(smem->GetAddress()));
         }
 
         if (const auto internal_flag = std::get_if<InternalFlagNode>(&*node)) {
@@ -1169,6 +1193,10 @@ private:
                 LOG_WARNING(Render_OpenGL, "Local memory is stubbed on compute shaders");
             }
             target = fmt::format("{}[ftou({}) / 4]", GetLocalMemory(), Visit(lmem->GetAddress()));
+        } else if (const auto smem = std::get_if<SmemNode>(&*dest)) {
+            ASSERT(stage == ProgramType::Compute);
+            target = fmt::format("{}[(WORKGROUP_INDEX * smem_size + ftou({})) / 4]",
+                                 GetSharedMemory(), Visit(smem->GetAddress()));
         } else if (const auto gmem = std::get_if<GmemNode>(&*dest)) {
             const std::string real = Visit(gmem->GetRealAddress());
             const std::string base = Visit(gmem->GetBaseAddress());
@@ -2017,6 +2045,18 @@ private:
 
     std::string GetLocalMemory() const {
         return "lmem_" + suffix;
+    }
+
+    std::string GetSharedMemory() const {
+        return fmt::format("smem_{}", suffix);
+    }
+
+    std::string GetUnsignedSharedMemory() const {
+        return fmt::format("uint_smem_{}", suffix);
+    }
+
+    std::string GetSignedSharedMemory() const {
+        return fmt::format("sint_smem_{}", suffix);
     }
 
     std::string GetInternalFlag(InternalFlag flag) const {
