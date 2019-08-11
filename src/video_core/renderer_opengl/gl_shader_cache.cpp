@@ -213,11 +213,9 @@ CachedProgram SpecializeShader(const std::string& code, const GLShader::ShaderEn
     const bool is_compute{program_type == ProgramType::Compute};
 
     std::string source = "#version 430 core\n"
-                         "#extension GL_ARB_separate_shader_objects : enable\n";
-    if (program_type == ProgramType::Compute) {
-        source += "#extension GL_ARB_compute_variable_group_size : require\n";
-    }
-    source += '\n';
+                         "#extension GL_ARB_separate_shader_objects : enable\n"
+                         "#extension GL_NV_gpu_shader5 : enable\n"
+                         "#extension GL_NV_shader_thread_group : enable\n";
     if (entries.shader_viewport_layer_array) {
         source += "#extension GL_ARB_shader_viewport_layer_array : enable\n";
     }
