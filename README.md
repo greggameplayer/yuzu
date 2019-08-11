@@ -7,9 +7,11 @@ Base revision: 978f7067eeb8553e2adccf128d28658881246d27
 |Pull Request|Commit|Title|Author|Merged?|
 |----|----|----|----|----|
 |[1](https://github.com/yuzu-emu/yuzu-canary/pull/1)|[a8dfe54](https://github.com/yuzu-emu/yuzu-canary/pull/1/files/)|Canary Base|[chris062689](https://github.com/chris062689)|Yes|
+|[2783](https://github.com/yuzu-emu/yuzu/pull/2783)|[99c0230](https://github.com/yuzu-emu/yuzu/pull/2783/files/)|Implement a New LLE Buffer Cache|[FernandoS27](https://github.com/FernandoS27)|Yes|
 |[2778](https://github.com/yuzu-emu/yuzu/pull/2778)|[2ff8044](https://github.com/yuzu-emu/yuzu/pull/2778/files/)|shader_ir: Implement NOP|[ReinUsesLisp](https://github.com/ReinUsesLisp)|Yes|
 |[2777](https://github.com/yuzu-emu/yuzu/pull/2777)|[ec0da3e](https://github.com/yuzu-emu/yuzu/pull/2777/files/)|half_set_predicate: Fix HSETP2_C constant buffer offset|[ReinUsesLisp](https://github.com/ReinUsesLisp)|Yes|
 |[2768](https://github.com/yuzu-emu/yuzu/pull/2768)|[77f1a67](https://github.com/yuzu-emu/yuzu/pull/2768/files/)|decode/half_set_predicate: Fix predicates|[ReinUsesLisp](https://github.com/ReinUsesLisp)|Yes|
+|[2753](https://github.com/yuzu-emu/yuzu/pull/2753)|[11f4e73](https://github.com/yuzu-emu/yuzu/pull/2753/files/)|Shader_Ir: Implement F16 Variants of F2F, F2I, I2F.|[FernandoS27](https://github.com/FernandoS27)|Yes|
 |[2747](https://github.com/yuzu-emu/yuzu/pull/2747)|[16730c4](https://github.com/yuzu-emu/yuzu/pull/2747/files/)|service/audren_u: Unstub ListAudioDeviceName|[lioncash](https://github.com/lioncash)|Yes|
 |[2710](https://github.com/yuzu-emu/yuzu/pull/2710)|[abb2c5f](https://github.com/yuzu-emu/yuzu/pull/2710/files/)|am/kernel: Fix various bugs related to applet signalling and software keyboard|[DarkLordZach](https://github.com/DarkLordZach)|Yes|
 |[2707](https://github.com/yuzu-emu/yuzu/pull/2707)|[adab188](https://github.com/yuzu-emu/yuzu/pull/2707/files/)|system_archive: Add open-source reimplementation of MiiModel data|[DarkLordZach](https://github.com/DarkLordZach)|Yes|
