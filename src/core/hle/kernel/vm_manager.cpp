@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <iterator>
 #include <utility>
+#include "common/alignment.h"
 #include "common/assert.h"
 #include "common/logging/log.h"
 #include "common/memory_hook.h"
@@ -103,7 +104,7 @@ bool VMManager::IsValidHandle(VMAHandle handle) const {
 }
 
 ResultVal<VMManager::VMAHandle> VMManager::MapMemoryBlock(VAddr target,
-                                                          std::shared_ptr<std::vector<u8>> block,
+                                                          std::shared_ptr<PhysicalMemory> block,
                                                           std::size_t offset, u64 size,
                                                           MemoryState state, VMAPermission perm) {
     ASSERT(block != nullptr);
@@ -260,7 +261,7 @@ ResultVal<VAddr> VMManager::SetHeapSize(u64 size) {
 
     if (heap_memory == nullptr) {
         // Initialize heap
-        heap_memory = std::make_shared<std::vector<u8>>(size);
+        heap_memory = std::make_shared<PhysicalMemory>(size);
         heap_end = heap_region_base + size;
     } else {
         UnmapRange(heap_region_base, GetCurrentHeapSize());
@@ -338,7 +339,7 @@ ResultCode VMManager::MapPhysicalMemory(VAddr target, u64 size) {
             const auto map_size = std::min(end_addr - cur_addr, vma_end - cur_addr);
             if (vma.state == MemoryState::Unmapped) {
                 const auto map_res =
-                    MapMemoryBlock(cur_addr, std::make_shared<std::vector<u8>>(map_size), 0,
+                    MapMemoryBlock(cur_addr, std::make_shared<PhysicalMemory>(map_size, 0), 0,
                                    map_size, MemoryState::Heap, VMAPermission::ReadWrite);
                 result = map_res.Code();
                 if (result.IsError()) {
@@ -436,7 +437,7 @@ ResultCode VMManager::UnmapPhysicalMemory(VAddr target, u64 size) {
     if (result.IsError()) {
         for (const auto [map_address, map_size] : unmapped_regions) {
             const auto remap_res =
-                MapMemoryBlock(map_address, std::make_shared<std::vector<u8>>(map_size), 0,
+                MapMemoryBlock(map_address, std::make_shared<PhysicalMemory>(map_size, 0), 0,
                                map_size, MemoryState::Heap, VMAPermission::None);
             ASSERT_MSG(remap_res.Succeeded(), "Failed to remap a memory block.");
         }
@@ -589,7 +590,7 @@ ResultCode VMManager::MirrorMemory(VAddr dst_addr, VAddr src_addr, u64 size, Mem
     ASSERT_MSG(vma_offset + size <= vma->second.size,
                "Shared memory exceeds bounds of mapped block");
 
-    const std::shared_ptr<std::vector<u8>>& backing_block = vma->second.backing_block;
+    const std::shared_ptr<PhysicalMemory>& backing_block = vma->second.backing_block;
     const std::size_t backing_block_offset = vma->second.offset + vma_offset;
 
     CASCADE_RESULT(auto new_vma,
@@ -602,7 +603,7 @@ ResultCode VMManager::MirrorMemory(VAddr dst_addr, VAddr src_addr, u64 size, Mem
     return RESULT_SUCCESS;
 }
 
-void VMManager::RefreshMemoryBlockMappings(const std::vector<u8>* block) {
+void VMManager::RefreshMemoryBlockMappings(const PhysicalMemory* block) {
     // If this ever proves to have a noticeable performance impact, allow users of the function to
     // specify a specific range of addresses to limit the scan to.
     for (const auto& p : vma_map) {
@@ -761,18 +762,12 @@ void VMManager::MergeAdjacentVMA(VirtualMemoryArea& left, const VirtualMemoryAre
             left.backing_block->insert(left.backing_block->end(), right_begin, right_end);
         } else {
             // Slow case: make a new memory block for left and right.
-            const auto left_begin = left.backing_block->begin() + left.offset;
-            const auto left_end = left_begin + left.size;
-
-            const auto left_size = static_cast<std::size_t>(std::distance(left_begin, left_end));
-            const auto right_size = static_cast<std::size_t>(std::distance(right_begin, right_end));
-
-            auto new_memory = std::make_shared<std::vector<u8>>();
-            new_memory->reserve(left_size + right_size);
-            new_memory->insert(new_memory->end(), left_begin, left_end);
-            new_memory->insert(new_memory->end(), right_begin, right_end);
-
-            left.backing_block = std::move(new_memory);
+            auto new_memory = std::make_shared<PhysicalMemory>();
+            new_memory->insert(new_memory->end(), left.backing_block->begin() + left.offset,
+                               left.backing_block->begin() + left.offset + left.size);
+            new_memory->insert(new_memory->end(), right.backing_block->begin() + right.offset,
+                               right.backing_block->begin() + right.offset + right.size);
+            left.backing_block = new_memory;
             left.offset = 0;
         }
 
