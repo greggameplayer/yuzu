@@ -241,6 +241,57 @@ constexpr const char* GetTypeString(Type type) {
     }
 }
 
+constexpr const char* GetImageTypeDeclaration(Tegra::Shader::ImageType image_type) {
+    switch (image_type) {
+    case Tegra::Shader::ImageType::Texture1D:
+        return "image1D";
+    case Tegra::Shader::ImageType::TextureBuffer:
+        return "imageBuffer";
+    case Tegra::Shader::ImageType::Texture1DArray:
+        return "image1DArray";
+    case Tegra::Shader::ImageType::Texture2D:
+        return "image2D";
+    case Tegra::Shader::ImageType::Texture2DArray:
+        return "image2DArray";
+    case Tegra::Shader::ImageType::Texture3D:
+        return "image3D";
+    default:
+        UNREACHABLE();
+        return "image1D";
+    }
+}
+
+std::pair<const char*, const char*> DeduceImageType(const Image& image) {
+    if (!image.IsSizeKnown()) {
+        return {"", ""};
+    }
+    switch (image.GetSize()) {
+    case Tegra::Shader::ImageAtomicSize::U32:
+        return {"u", "r32ui, "};
+    case Tegra::Shader::ImageAtomicSize::S32:
+        return {"i", "r32i, "};
+    default:
+        UNIMPLEMENTED_MSG("Unimplemented atomic size={}", static_cast<u32>(image.GetSize()));
+        return {"", ""};
+    }
+}
+
+std::pair<std::array<const char*, 4>, Type> GetImageConstructorAndType(const Image& image) {
+    constexpr std::array float_constructors{"float", "vec2", "vec3", "vec4"};
+    if (!image.IsSizeKnown()) {
+        return {float_constructors, Type::Float};
+    }
+    switch (image.GetSize()) {
+    case Tegra::Shader::ImageAtomicSize::U32:
+        return {{"uint", "uvec2", "uvec3", "uvec4"}, Type::Uint};
+    case Tegra::Shader::ImageAtomicSize::S32:
+        return {{"int", "ivec2", "ivec3", "ivec4"}, Type::Uint};
+    default:
+        UNIMPLEMENTED_MSG("Unimplemented image size={}", static_cast<u32>(image.GetSize()));
+        return {float_constructors, Type::Float};
+    }
+}
+
 /// Generates code to use for a swizzle operation.
 constexpr const char* GetSwizzle(u32 element) {
     constexpr std::array swizzle = {".x", ".y", ".z", ".w"};
@@ -706,41 +757,8 @@ private:
     void DeclareImages() {
         const auto& images{ir.GetImages()};
         for (const auto& [offset, image] : images) {
-            const char* image_type = [&] {
-                switch (image.GetType()) {
-                case Tegra::Shader::ImageType::Texture1D:
-                    return "image1D";
-                case Tegra::Shader::ImageType::TextureBuffer:
-                    return "imageBuffer";
-                case Tegra::Shader::ImageType::Texture1DArray:
-                    return "image1DArray";
-                case Tegra::Shader::ImageType::Texture2D:
-                    return "image2D";
-                case Tegra::Shader::ImageType::Texture2DArray:
-                    return "image2DArray";
-                case Tegra::Shader::ImageType::Texture3D:
-                    return "image3D";
-                default:
-                    UNREACHABLE();
-                    return "image1D";
-                }
-            }();
-
-            const auto [type_prefix, format] = [&]() -> std::pair<const char*, const char*> {
-                if (!image.IsSizeKnown()) {
-                    return {"", ""};
-                }
-                switch (image.GetSize()) {
-                case Tegra::Shader::ImageAtomicSize::U32:
-                    return {"u", "r32ui, "};
-                case Tegra::Shader::ImageAtomicSize::S32:
-                    return {"i", "r32i, "};
-                default:
-                    UNIMPLEMENTED_MSG("Unimplemented atomic size={}",
-                                      static_cast<u32>(image.GetSize()));
-                    return {"", ""};
-                }
-            }();
+            const auto [type_prefix, format] = DeduceImageType(image);
+            const auto image_type = GetImageTypeDeclaration(image.GetType());
 
             std::string qualifier = "coherent volatile";
             if (image.IsRead() && !image.IsWritten()) {
@@ -1213,22 +1231,7 @@ private:
 
     std::string BuildImageValues(Operation operation) {
         const auto meta{std::get<MetaImage>(operation.GetMeta())};
-        const auto [constructors, type] = [&]() -> std::pair<std::array<const char*, 4>, Type> {
-            constexpr std::array float_constructors{"float", "vec2", "vec3", "vec4"};
-            if (!meta.image.IsSizeKnown()) {
-                return {float_constructors, Type::Float};
-            }
-            switch (meta.image.GetSize()) {
-            case Tegra::Shader::ImageAtomicSize::U32:
-                return {{"uint", "uvec2", "uvec3", "uvec4"}, Type::Uint};
-            case Tegra::Shader::ImageAtomicSize::S32:
-                return {{"int", "ivec2", "ivec3", "ivec4"}, Type::Uint};
-            default:
-                UNIMPLEMENTED_MSG("Unimplemented image size={}",
-                                  static_cast<u32>(meta.image.GetSize()));
-                return {float_constructors, Type::Float};
-            }
-        }();
+        const auto [constructors, type] = GetImageConstructorAndType(meta.image);
 
         const std::size_t values_count{meta.values.size()};
         std::string expr = fmt::format("{}(", constructors.at(values_count - 1));
@@ -1243,7 +1246,6 @@ private:
     }
 
     Expression AtomicImage(Operation operation, const char* opname) {
-        constexpr std::array constructors{"int(", "ivec2(", "ivec3(", "ivec4("};
         const auto meta{std::get<MetaImage>(operation.GetMeta())};
         ASSERT(meta.values.size() == 1);
         ASSERT(meta.image.IsSizeKnown());
@@ -1514,6 +1516,8 @@ private:
         case Tegra::Shader::HalfType::H1_H1:
             return {fmt::format("vec2({}[1])", operand.AsHalfFloat()), Type::HalfFloat};
         }
+        UNREACHABLE();
+        return {"0", Type::Int};
     }
 
     Expression HMergeF32(Operation operation) {
