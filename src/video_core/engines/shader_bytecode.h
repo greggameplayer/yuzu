@@ -1411,7 +1411,7 @@ union Instruction {
             ASSERT(mode == SurfaceDataMode::D_BA);
             return store_data_layout;
         }
-    } sust;
+    } suldst;
 
     union {
         BitField<28, 1, u64> is_ba;
