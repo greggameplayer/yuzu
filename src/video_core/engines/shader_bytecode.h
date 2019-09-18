@@ -1573,6 +1573,7 @@ public:
         TMML_B, // Texture Mip Map Level
         TMML,   // Texture Mip Map Level
         SUST,   // Surface Store
+        SULD,   // Surface Load
         SUATOM, // Surface Atomic Operation
         EXIT,
         NOP,
@@ -1857,6 +1858,7 @@ private:
             INST("110111110110----", Id::TMML_B, Type::Texture, "TMML_B"),
             INST("1101111101011---", Id::TMML, Type::Texture, "TMML"),
             INST("11101011001-----", Id::SUST, Type::Image, "SUST"),
+            INST("11101011000-----", Id::SULD, Type::Image, "SULD"),
             INST("1110101000------", Id::SUATOM, Type::Image, "SUATOM_D"),
             INST("0101000010110---", Id::NOP, Type::Trivial, "NOP"),
             INST("11100000--------", Id::IPA, Type::Trivial, "IPA"),
