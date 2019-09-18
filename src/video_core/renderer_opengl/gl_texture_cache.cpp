@@ -248,7 +248,8 @@ CachedSurface::CachedSurface(const GPUVAddr gpu_addr, const SurfaceParams& param
 
 void CachedSurface::Init() {
     target = GetTextureTarget(params.target);
-    u32 resolution_factor = IsRescaled() ? static_cast<u32>(Settings::values.resolution_factor) : 1;
+    const u32 resolution_factor =
+        IsRescaled() ? static_cast<u32>(Settings::values.resolution_factor) : 1;
     texture = CreateTexture(params, target, internal_format, texture_buffer, resolution_factor);
     DecorateSurfaceName();
     main_view = CreateViewInner(
@@ -481,8 +482,8 @@ void TextureCacheOpenGL::ImageCopy(Surface& src_surface, Surface& dst_surface,
         // A fallback is needed
         return;
     }
-    bool src_rescaled = src_surface->IsRescaled();
-    bool dst_rescaled = dst_surface->IsRescaled();
+    const bool src_rescaled = src_surface->IsRescaled();
+    const bool dst_rescaled = dst_surface->IsRescaled();
     if (src_rescaled != dst_rescaled) {
         LOG_CRITICAL(HW_GPU, "Rescaling Database is incorrectly set! Rescan the database!.");
     }
@@ -554,8 +555,8 @@ void TextureCacheOpenGL::ImageBlit(View& src_view, View& dst_view,
     const Common::Rectangle<u32>& dst_rect = copy_config.dst_rect;
     const bool is_linear = copy_config.filter == Tegra::Engines::Fermi2D::Filter::Linear;
 
-    bool src_rescaled = src_view->GetParent().IsRescaled();
-    bool dst_rescaled = dst_view->GetParent().IsRescaled();
+    const bool src_rescaled = src_view->GetParent().IsRescaled();
+    const bool dst_rescaled = dst_view->GetParent().IsRescaled();
     const u32 factor1 = src_rescaled ? static_cast<u32>(Settings::values.resolution_factor) : 1U;
     const u32 factor2 = dst_rescaled ? static_cast<u32>(Settings::values.resolution_factor) : 1U;
 
@@ -574,8 +575,8 @@ void TextureCacheOpenGL::BufferCopy(Surface& src_surface, Surface& dst_surface) 
     const auto source_format = GetFormatTuple(src_params.pixel_format, src_params.component_type);
     const auto dest_format = GetFormatTuple(dst_params.pixel_format, dst_params.component_type);
 
-    bool src_rescaled = src_surface->IsRescaled();
-    bool dst_rescaled = dst_surface->IsRescaled();
+    const bool src_rescaled = src_surface->IsRescaled();
+    const bool dst_rescaled = dst_surface->IsRescaled();
     if (src_rescaled != dst_rescaled) {
         LOG_CRITICAL(HW_GPU, "Rescaling Database is incorrectly set! Rescan the database!.");
     }
