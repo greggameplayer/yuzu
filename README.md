@@ -8,8 +8,9 @@ Base revision: b31880dc5e0d9aab1171d3476453ad2db00cfd3a
 |----|----|----|----|----|
 |[1](https://github.com/yuzu-emu/yuzu-canary/pull/1)|[a8dfe54](https://github.com/yuzu-emu/yuzu-canary/pull/1/files/)|Canary Base|[chris062689](https://github.com/chris062689)|Yes|
 |[2872](https://github.com/yuzu-emu/yuzu/pull/2872)|[50259d7](https://github.com/yuzu-emu/yuzu/pull/2872/files/)|Core/Memory: Only FlushAndInvalidate GPU if the page is marked as RasterizerCachedMemory|[FernandoS27](https://github.com/FernandoS27)|Yes|
-|[2870](https://github.com/yuzu-emu/yuzu/pull/2870)|[2ad19d0](https://github.com/yuzu-emu/yuzu/pull/2870/files/)|Implement a MME Draw commands Inliner and correct host instance drawing|[FernandoS27](https://github.com/FernandoS27)|Yes|
+|[2870](https://github.com/yuzu-emu/yuzu/pull/2870)|[7761e44](https://github.com/yuzu-emu/yuzu/pull/2870/files/)|Implement a MME Draw commands Inliner and correct host instance drawing|[FernandoS27](https://github.com/FernandoS27)|Yes|
 |[2868](https://github.com/yuzu-emu/yuzu/pull/2868)|[2dd6411](https://github.com/yuzu-emu/yuzu/pull/2868/files/)|maxwell_to_gl: Fix mipmap filtering|[ReinUsesLisp](https://github.com/ReinUsesLisp)|Yes|
+|[2855](https://github.com/yuzu-emu/yuzu/pull/2855)|[0526bf1](https://github.com/yuzu-emu/yuzu/pull/2855/files/)|shader_ir/warp: Implement SHFL for Nvidia devices|[ReinUsesLisp](https://github.com/ReinUsesLisp)|Yes|
 |[2846](https://github.com/yuzu-emu/yuzu/pull/2846)|[17a9b01](https://github.com/yuzu-emu/yuzu/pull/2846/files/)|gl_shader_decompiler: Avoid writing output attribute when unimplemented|[ReinUsesLisp](https://github.com/ReinUsesLisp)|Yes|
 |[2710](https://github.com/yuzu-emu/yuzu/pull/2710)|[abb2c5f](https://github.com/yuzu-emu/yuzu/pull/2710/files/)|am/kernel: Fix various bugs related to applet signalling and software keyboard|[DarkLordZach](https://github.com/DarkLordZach)|Yes|
 |[2576](https://github.com/yuzu-emu/yuzu/pull/2576)|[b957a48](https://github.com/yuzu-emu/yuzu/pull/2576/files/)|nsp: Fix various errors with loading and processing of extracted NSPs|[DarkLordZach](https://github.com/DarkLordZach)|Yes|
