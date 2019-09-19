@@ -7,6 +7,7 @@ Base revision: b31880dc5e0d9aab1171d3476453ad2db00cfd3a
 |Pull Request|Commit|Title|Author|Merged?|
 |----|----|----|----|----|
 |[1](https://github.com/yuzu-emu/yuzu-canary/pull/1)|[a8dfe54](https://github.com/yuzu-emu/yuzu-canary/pull/1/files/)|Canary Base|[chris062689](https://github.com/chris062689)|Yes|
+|[2872](https://github.com/yuzu-emu/yuzu/pull/2872)|[50259d7](https://github.com/yuzu-emu/yuzu/pull/2872/files/)|Core/Memory: Only FlushAndInvalidate GPU if the page is marked as RasterizerCachedMemory|[FernandoS27](https://github.com/FernandoS27)|Yes|
 |[2870](https://github.com/yuzu-emu/yuzu/pull/2870)|[2ad19d0](https://github.com/yuzu-emu/yuzu/pull/2870/files/)|Implement a MME Draw commands Inliner and correct host instance drawing|[FernandoS27](https://github.com/FernandoS27)|Yes|
 |[2868](https://github.com/yuzu-emu/yuzu/pull/2868)|[2dd6411](https://github.com/yuzu-emu/yuzu/pull/2868/files/)|maxwell_to_gl: Fix mipmap filtering|[ReinUsesLisp](https://github.com/ReinUsesLisp)|Yes|
 |[2846](https://github.com/yuzu-emu/yuzu/pull/2846)|[17a9b01](https://github.com/yuzu-emu/yuzu/pull/2846/files/)|gl_shader_decompiler: Avoid writing output attribute when unimplemented|[ReinUsesLisp](https://github.com/ReinUsesLisp)|Yes|
