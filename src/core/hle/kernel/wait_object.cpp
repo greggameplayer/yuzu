@@ -6,6 +6,8 @@
 #include "common/assert.h"
 #include "common/common_types.h"
 #include "common/logging/log.h"
+#include "core/core.h"
+#include "core/core_cpu.h"
 #include "core/hle/kernel/object.h"
 #include "core/hle/kernel/process.h"
 #include "core/hle/kernel/thread.h"
@@ -48,17 +50,8 @@ SharedPtr<Thread> WaitObject::GetHighestPriorityReadyThread() const {
         if (ShouldWait(thread.get()))
             continue;
 
-        // A thread is ready to run if it's either in ThreadStatus::WaitSynch
-        // and the rest of the objects it is waiting on are ready.
-        bool ready_to_run = true;
-        if (thread_status == ThreadStatus::WaitSynch) {
-            ready_to_run = thread->AllWaitObjectsReady();
-        }
-
-        if (ready_to_run) {
-            candidate = thread.get();
-            candidate_priority = thread->GetPriority();
-        }
+        candidate = thread.get();
+        candidate_priority = thread->GetPriority();
     }
 
     return candidate;
@@ -95,6 +88,7 @@ void WaitObject::WakeupWaitingThread(SharedPtr<Thread> thread) {
     }
     if (resume) {
         thread->ResumeFromWait();
+        Core::System::GetInstance().PrepareReschedule(thread->GetProcessorID());
     }
 }
 
