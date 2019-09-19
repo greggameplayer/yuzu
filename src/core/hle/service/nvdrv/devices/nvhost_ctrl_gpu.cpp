@@ -15,15 +15,14 @@ namespace Service::Nvidia::Devices {
 nvhost_ctrl_gpu::nvhost_ctrl_gpu(Core::System& system) : nvdevice(system) {}
 nvhost_ctrl_gpu::~nvhost_ctrl_gpu() = default;
 
-u32 nvhost_ctrl_gpu::ioctl(Ioctl command, const std::vector<u8>& input,
-                           const std::vector<u8>& input2, std::vector<u8>& output,
-                           std::vector<u8>& output2, IoctlCtrl& ctrl, IoctlVersion version) {
+u32 nvhost_ctrl_gpu::ioctl(Ioctl command, const std::vector<u8>& input, std::vector<u8>& output,
+                           IoctlCtrl& ctrl) {
     LOG_DEBUG(Service_NVDRV, "called, command=0x{:08X}, input_size=0x{:X}, output_size=0x{:X}",
               command.raw, input.size(), output.size());
 
     switch (static_cast<IoctlCommand>(command.raw)) {
     case IoctlCommand::IocGetCharacteristicsCommand:
-        return GetCharacteristics(input, output, output2, version);
+        return GetCharacteristics(input, output);
     case IoctlCommand::IocGetTPCMasksCommand:
         return GetTPCMasks(input, output);
     case IoctlCommand::IocGetActiveSlotMaskCommand:
@@ -45,8 +44,7 @@ u32 nvhost_ctrl_gpu::ioctl(Ioctl command, const std::vector<u8>& input,
     return 0;
 }
 
-u32 nvhost_ctrl_gpu::GetCharacteristics(const std::vector<u8>& input, std::vector<u8>& output,
-                                        std::vector<u8>& output2, IoctlVersion version) {
+u32 nvhost_ctrl_gpu::GetCharacteristics(const std::vector<u8>& input, std::vector<u8>& output) {
     LOG_DEBUG(Service_NVDRV, "called");
     IoctlCharacteristics params{};
     std::memcpy(&params, input.data(), input.size());
@@ -87,13 +85,7 @@ u32 nvhost_ctrl_gpu::GetCharacteristics(const std::vector<u8>& input, std::vecto
     params.gc.gr_compbit_store_base_hw = 0x0;
     params.gpu_characteristics_buf_size = 0xA0;
     params.gpu_characteristics_buf_addr = 0xdeadbeef; // Cannot be 0 (UNUSED)
-
-    if (version == IoctlVersion::Version3) {
-        std::memcpy(output.data(), input.data(), output.size());
-        std::memcpy(output2.data(), &params.gc, output2.size());
-    } else {
-        std::memcpy(output.data(), &params, output.size());
-    }
+    std::memcpy(output.data(), &params, output.size());
     return 0;
 }
 

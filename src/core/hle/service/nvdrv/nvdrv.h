@@ -106,9 +106,8 @@ public:
     /// Opens a device node and returns a file descriptor to it.
     u32 Open(const std::string& device_name);
     /// Sends an ioctl command to the specified file descriptor.
-    u32 Ioctl(u32 fd, u32 command, const std::vector<u8>& input, const std::vector<u8>& input2,
-              std::vector<u8>& output, std::vector<u8>& output2, IoctlCtrl& ctrl,
-              IoctlVersion version);
+    u32 Ioctl(u32 fd, u32 command, const std::vector<u8>& input, std::vector<u8>& output,
+              IoctlCtrl& ctrl);
     /// Closes a device file descriptor and returns operation success.
     ResultCode Close(u32 fd);
 
