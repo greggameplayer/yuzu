@@ -214,6 +214,7 @@ CachedProgram SpecializeShader(const std::string& code, const GLShader::ShaderEn
 #extension GL_EXT_shader_image_load_formatted : enable
 #extension GL_NV_gpu_shader5 : enable
 #extension GL_NV_shader_thread_group : enable
+#extension GL_NV_shader_thread_shuffle : enable
 )";
     if (program_type == ProgramType::Compute) {
         source += "#extension GL_ARB_compute_variable_group_size : require\n";
