@@ -1672,7 +1672,8 @@ public:
     }
 
     void operator()(VideoCommon::Shader::ExprVar& expr) {
-        current_id = decomp.Emit(decomp.OpLoad(decomp.t_bool, decomp.flow_variables.at(expr.var_index)));
+        current_id =
+            decomp.Emit(decomp.OpLoad(decomp.t_bool, decomp.flow_variables.at(expr.var_index)));
     }
 
     void operator()(VideoCommon::Shader::ExprBoolean& expr) {
@@ -1754,7 +1755,8 @@ public:
         const Id loop_end_block = decomp.OpLabel();
         current_loop_exit = endloop_label;
         decomp.Emit(loop_label);
-        decomp.Emit(decomp.OpLoopMerge(endloop_label, loop_end_block, spv::LoopControlMask::MaskNone));
+        decomp.Emit(
+            decomp.OpLoopMerge(endloop_label, loop_end_block, spv::LoopControlMask::MaskNone));
         decomp.Emit(decomp.OpBranch(loop_start_block));
         decomp.Emit(loop_start_block);
         ASTNode current = ast.nodes.GetFirst();
