@@ -7,6 +7,7 @@ Base revision: aaec1562f8631303d1a5abb6c75f2422d6d7cf71
 |Pull Request|Commit|Title|Author|Merged?|
 |----|----|----|----|----|
 |[1](https://github.com/yuzu-emu/yuzu-canary/pull/1)|[a8dfe54](https://github.com/yuzu-emu/yuzu-canary/pull/1/files/)|Canary Base|[chris062689](https://github.com/chris062689)|Yes|
+|[2899](https://github.com/yuzu-emu/yuzu/pull/2899)|[2b43393](https://github.com/yuzu-emu/yuzu/pull/2899/files/)| shader/texture: Defer sampler types for TXQ|[ReinUsesLisp](https://github.com/ReinUsesLisp)|Yes|
 |[2869](https://github.com/yuzu-emu/yuzu/pull/2869)|[4400097](https://github.com/yuzu-emu/yuzu/pull/2869/files/)|shader/image: Implement SULD and fix SUATOM|[ReinUsesLisp](https://github.com/ReinUsesLisp)|Yes|
 |[2860](https://github.com/yuzu-emu/yuzu/pull/2860)|[f510aba](https://github.com/yuzu-emu/yuzu/pull/2860/files/)|Implement Native Resolution Rescaling|[FernandoS27](https://github.com/FernandoS27)|Yes|
 |[2710](https://github.com/yuzu-emu/yuzu/pull/2710)|[abb2c5f](https://github.com/yuzu-emu/yuzu/pull/2710/files/)|am/kernel: Fix various bugs related to applet signalling and software keyboard|[DarkLordZach](https://github.com/DarkLordZach)|Yes|
