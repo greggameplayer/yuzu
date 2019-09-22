@@ -1999,11 +1999,6 @@ private:
         static constexpr std::string_view ShuffleUp = "shuffleUpNV";
         static constexpr std::string_view ShuffleDown = "shuffleDownNV";
         static constexpr std::string_view ShuffleButterfly = "shuffleXorNV";
-        static constexpr std::string_view Add = "Add";
-        static constexpr std::string_view And = "And";
-        static constexpr std::string_view Or = "Or";
-        static constexpr std::string_view Xor = "Xor";
-        static constexpr std::string_view Exchange = "Exchange";
     };
 
     static constexpr std::array operation_decompilers = {
