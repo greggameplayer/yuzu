@@ -2,17 +2,13 @@
 
 Scroll down for the original README.md!
 
-Base revision: cf1e4770f910a49c3fbfeb881168e5f3def26484
+Base revision: aaec1562f8631303d1a5abb6c75f2422d6d7cf71
 
 |Pull Request|Commit|Title|Author|Merged?|
 |----|----|----|----|----|
 |[1](https://github.com/yuzu-emu/yuzu-canary/pull/1)|[a8dfe54](https://github.com/yuzu-emu/yuzu-canary/pull/1/files/)|Canary Base|[chris062689](https://github.com/chris062689)|Yes|
-|[2891](https://github.com/yuzu-emu/yuzu/pull/2891)|[01fc969](https://github.com/yuzu-emu/yuzu/pull/2891/files/)|video_core: Implement RGBX16F and lower Surface Copy log severity|[FearlessTobi](https://github.com/FearlessTobi)|Yes|
-|[2877](https://github.com/yuzu-emu/yuzu/pull/2877)|[e9d19ad](https://github.com/yuzu-emu/yuzu/pull/2877/files/)|Added frame_count for REV5 audio renderer|[ogniK5377](https://github.com/ogniK5377)|Yes|
-|[2876](https://github.com/yuzu-emu/yuzu/pull/2876)|[2ca842f](https://github.com/yuzu-emu/yuzu/pull/2876/files/)|AcquireNpadStyleSetUpdateEventHandle should have a separate event for each controller type|[ogniK5377](https://github.com/ogniK5377)|Yes|
-|[2873](https://github.com/yuzu-emu/yuzu/pull/2873)|[6325c30](https://github.com/yuzu-emu/yuzu/pull/2873/files/)|Initial implementation of Ioctl2 & Ioctl3|[ogniK5377](https://github.com/ogniK5377)|Yes|
-|[2870](https://github.com/yuzu-emu/yuzu/pull/2870)|[433e764](https://github.com/yuzu-emu/yuzu/pull/2870/files/)|Implement a MME Draw commands Inliner and correct host instance drawing|[FernandoS27](https://github.com/FernandoS27)|Yes|
-|[2867](https://github.com/yuzu-emu/yuzu/pull/2867)|[af809b4](https://github.com/yuzu-emu/yuzu/pull/2867/files/)|gl_rasterizer: Remove unused code paths from ConfigureFramebuffers|[ReinUsesLisp](https://github.com/ReinUsesLisp)|Yes|
+|[2869](https://github.com/yuzu-emu/yuzu/pull/2869)|[4400097](https://github.com/yuzu-emu/yuzu/pull/2869/files/)|shader/image: Implement SULD and fix SUATOM|[ReinUsesLisp](https://github.com/ReinUsesLisp)|Yes|
+|[2860](https://github.com/yuzu-emu/yuzu/pull/2860)|[f510aba](https://github.com/yuzu-emu/yuzu/pull/2860/files/)|Implement Native Resolution Rescaling|[FernandoS27](https://github.com/FernandoS27)|Yes|
 |[2710](https://github.com/yuzu-emu/yuzu/pull/2710)|[abb2c5f](https://github.com/yuzu-emu/yuzu/pull/2710/files/)|am/kernel: Fix various bugs related to applet signalling and software keyboard|[DarkLordZach](https://github.com/DarkLordZach)|Yes|
 |[2574](https://github.com/yuzu-emu/yuzu/pull/2574)|[425cdf9](https://github.com/yuzu-emu/yuzu/pull/2574/files/)|arm_dynarmic: Check if jit is nullptr when preparing reschedule|[DarkLordZach](https://github.com/DarkLordZach)|Yes|
 |[2542](https://github.com/yuzu-emu/yuzu/pull/2542)|[7aeb676](https://github.com/yuzu-emu/yuzu/pull/2542/files/)|lbl: Implement brightness and backlight services|[DarkLordZach](https://github.com/DarkLordZach)|Yes|

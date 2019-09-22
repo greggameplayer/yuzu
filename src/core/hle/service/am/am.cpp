@@ -282,7 +282,7 @@ ISelfController::ISelfController(Core::System& system_,
 
     RegisterHandlers(functions);
 
-    auto& kernel = system_.Kernel();
+    auto& kernel = system.Kernel();
     launchable_event = Kernel::WritableEvent::CreateEventPair(kernel, Kernel::ResetType::Manual,
                                                               "ISelfController:LaunchableEvent");
 
@@ -1065,7 +1065,7 @@ IApplicationFunctions::IApplicationFunctions(Core::System& system_)
 
     RegisterHandlers(functions);
 
-    auto& kernel = Core::System::GetInstance().Kernel();
+    auto& kernel = system.Kernel();
     gpu_error_detected_event = Kernel::WritableEvent::CreateEventPair(
         kernel, Kernel::ResetType::Manual, "IApplicationFunctions:GpuErrorDetectedSystemEvent");
 }
