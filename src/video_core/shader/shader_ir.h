@@ -15,8 +15,6 @@
 #include "video_core/engines/maxwell_3d.h"
 #include "video_core/engines/shader_bytecode.h"
 #include "video_core/engines/shader_header.h"
-#include "video_core/shader/ast.h"
-#include "video_core/shader/compiler_settings.h"
 #include "video_core/shader/node.h"
 
 namespace VideoCommon::Shader {
@@ -66,8 +64,7 @@ struct GlobalMemoryUsage {
 
 class ShaderIR final {
 public:
-    explicit ShaderIR(const ProgramCode& program_code, u32 main_offset, std::size_t size,
-                      CompilerSettings settings);
+    explicit ShaderIR(const ProgramCode& program_code, u32 main_offset, std::size_t size);
     ~ShaderIR();
 
     const std::map<u32, NodeBlock>& GetBasicBlocks() const {
@@ -147,31 +144,11 @@ public:
         return disable_flow_stack;
     }
 
-    bool IsDecompiled() const {
-        return decompiled;
-    }
-
-    const ASTManager& GetASTManager() const {
-        return program_manager;
-    }
-
-    ASTNode GetASTProgram() const {
-        return program_manager.GetProgram();
-    }
-
-    u32 GetASTNumVariables() const {
-        return program_manager.GetVariables();
-    }
-
     u32 ConvertAddressToNvidiaSpace(const u32 address) const {
         return (address - main_offset) * sizeof(Tegra::Shader::Instruction);
     }
 
-    /// Returns a condition code evaluated from internal flags
-    Node GetConditionCode(Tegra::Shader::ConditionCode cc) const;
-
 private:
-    friend class ASTDecoder;
     void Decode();
 
     NodeBlock DecodeRange(u32 begin, u32 end);
@@ -236,7 +213,7 @@ private:
     /// Generates a node representing an output attribute. Keeps track of used attributes.
     Node GetOutputAttribute(Tegra::Shader::Attribute::Index index, u64 element, Node buffer);
     /// Generates a node representing an internal flag
-    Node GetInternalFlag(InternalFlag flag, bool negated = false) const;
+    Node GetInternalFlag(InternalFlag flag, bool negated = false);
     /// Generates a node representing a local memory address
     Node GetLocalMemory(Node address);
     /// Generates a node representing a shared memory address
@@ -293,6 +270,9 @@ private:
 
     /// Returns a predicate combiner operation
     OperationCode GetPredicateCombiner(Tegra::Shader::PredOperation operation);
+
+    /// Returns a condition code evaluated from internal flags
+    Node GetConditionCode(Tegra::Shader::ConditionCode cc);
 
     /// Accesses a texture sampler
     const Sampler& GetSampler(Tegra::Shader::Sampler sampler, bool is_type_known,
@@ -381,7 +361,6 @@ private:
     const ProgramCode& program_code;
     const u32 main_offset;
     const std::size_t program_size;
-    bool decompiled{};
     bool disable_flow_stack{};
 
     u32 coverage_begin{};
@@ -389,8 +368,6 @@ private:
 
     std::map<u32, NodeBlock> basic_blocks;
     NodeBlock global_code;
-    ASTManager program_manager;
-    CompilerSettings settings{};
 
     std::set<u32> used_registers;
     std::set<Tegra::Shader::Pred> used_predicates;
