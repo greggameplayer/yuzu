@@ -1989,6 +1989,12 @@ private:
         Func() = delete;
         ~Func() = delete;
 
+        static constexpr std::string_view Add = "Add";
+        static constexpr std::string_view And = "And";
+        static constexpr std::string_view Or = "Or";
+        static constexpr std::string_view Xor = "Xor";
+        static constexpr std::string_view Exchange = "Exchange";
+
         static constexpr std::string_view ShuffleIndexed = "shuffleNV";
         static constexpr std::string_view ShuffleUp = "shuffleUpNV";
         static constexpr std::string_view ShuffleDown = "shuffleDownNV";
