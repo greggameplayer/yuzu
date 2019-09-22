@@ -225,7 +225,7 @@ void Init(std::shared_ptr<SM::ServiceManager>& sm, Core::System& system) {
     HID::InstallInterfaces(*sm);
     LBL::InstallInterfaces(*sm);
     LDN::InstallInterfaces(*sm);
-    LDR::InstallInterfaces(system);
+    LDR::InstallInterfaces(*sm);
     LM::InstallInterfaces(*sm);
     Migration::InstallInterfaces(*sm);
     Mii::InstallInterfaces(*sm);

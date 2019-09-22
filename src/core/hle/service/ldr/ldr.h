@@ -11,6 +11,6 @@ class ServiceManager;
 namespace Service::LDR {
 
 /// Registers all LDR services with the specified service manager.
-void InstallInterfaces(Core::System& system);
+void InstallInterfaces(SM::ServiceManager& sm);
 
 } // namespace Service::LDR
