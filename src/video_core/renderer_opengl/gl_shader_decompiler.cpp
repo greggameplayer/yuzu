@@ -335,7 +335,7 @@ public:
         if (!ir.IsFlowStackDisabled()) {
             for (const auto stack : std::array{MetaStackClass::Ssy, MetaStackClass::Pbk}) {
                 code.AddLine("uint {}[{}];", FlowStackName(stack), FLOW_STACK_SIZE);
-                code.AddLine("uint {} = 0u;", FlowStackTopName(stack));
+                code.AddLine("uint {} = 0U;", FlowStackTopName(stack));
             }
         }
 
@@ -1838,10 +1838,9 @@ private:
         return {};
     }
 
-    Expression WriteExit() {
+    void PreExit() {
         if (stage != ProgramType::Fragment) {
-            code.AddLine("return;");
-            return {};
+            return;
         }
         const auto& used_registers = ir.GetRegisters();
         const auto SafeGetRegister = [&](u32 reg) -> Expression {
@@ -1873,13 +1872,12 @@ private:
             // already contains one past the last color register.
             code.AddLine("gl_FragDepth = {};", SafeGetRegister(current_reg + 1).AsFloat());
         }
-
-        code.AddLine("return;");
-        return {};
     }
 
     Expression Exit(Operation operation) {
-        return WriteExit();
+        PreExit();
+        code.AddLine("return;");
+        return {};
     }
 
     Expression Discard(Operation operation) {
@@ -2278,7 +2276,7 @@ const std::string flow_var = "flow_var_";
 
 class ExprDecompiler {
 public:
-    ExprDecompiler(GLSLDecompiler& decomp) : decomp{decomp} {}
+    explicit ExprDecompiler(GLSLDecompiler& decomp) : decomp{decomp} {}
 
     void operator()(VideoCommon::Shader::ExprAnd& expr) {
         inner += "( ";
@@ -2302,12 +2300,12 @@ public:
     }
 
     void operator()(VideoCommon::Shader::ExprPredicate& expr) {
-        auto pred = static_cast<Tegra::Shader::Pred>(expr.predicate);
+        const auto pred = static_cast<Tegra::Shader::Pred>(expr.predicate);
         inner += decomp.GetPredicate(pred);
     }
 
     void operator()(VideoCommon::Shader::ExprCondCode& expr) {
-        Node cc = decomp.ir.GetConditionCode(expr.cc);
+        const Node cc = decomp.ir.GetConditionCode(expr.cc);
         std::string target;
 
         if (const auto pred = std::get_if<PredicateNode>(&*cc)) {
@@ -2322,6 +2320,8 @@ public:
             }
         } else if (const auto flag = std::get_if<InternalFlagNode>(&*cc)) {
             target = decomp.GetInternalFlag(flag->GetFlag());
+        } else {
+            UNREACHABLE();
         }
         inner += target;
     }
@@ -2339,13 +2339,13 @@ public:
     }
 
 private:
-    std::string inner{};
+    std::string inner;
     GLSLDecompiler& decomp;
 };
 
 class ASTDecompiler {
 public:
-    ASTDecompiler(GLSLDecompiler& decomp) : decomp{decomp} {}
+    explicit ASTDecompiler(GLSLDecompiler& decomp) : decomp{decomp} {}
 
     void operator()(VideoCommon::Shader::ASTProgram& ast) {
         ASTNode current = ast.nodes.GetFirst();
@@ -2418,7 +2418,7 @@ public:
     }
 
     void operator()(VideoCommon::Shader::ASTReturn& ast) {
-        bool is_true = VideoCommon::Shader::ExprIsTrue(ast.condition);
+        const bool is_true = VideoCommon::Shader::ExprIsTrue(ast.condition);
         if (!is_true) {
             ExprDecompiler expr_parser{decomp};
             std::visit(expr_parser, *ast.condition);
@@ -2428,7 +2428,8 @@ public:
         if (ast.kills) {
             decomp.code.AddLine("discard;");
         } else {
-            decomp.WriteExit();
+            decomp.PreExit();
+            decomp.code.AddLine("return;");
         }
         if (!is_true) {
             decomp.code.scope--;
@@ -2437,7 +2438,7 @@ public:
     }
 
     void operator()(VideoCommon::Shader::ASTBreak& ast) {
-        bool is_true = VideoCommon::Shader::ExprIsTrue(ast.condition);
+        const bool is_true = VideoCommon::Shader::ExprIsTrue(ast.condition);
         if (!is_true) {
             ExprDecompiler expr_parser{decomp};
             std::visit(expr_parser, *ast.condition);
@@ -2460,7 +2461,7 @@ private:
 };
 
 void GLSLDecompiler::DecompileAST() {
-    u32 num_flow_variables = ir.GetASTNumVariables();
+    const u32 num_flow_variables = ir.GetASTNumVariables();
     for (u32 i = 0; i < num_flow_variables; i++) {
         code.AddLine("bool {}{} = false;", flow_var, i);
     }
