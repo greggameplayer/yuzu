@@ -703,11 +703,6 @@ bool RasterizerOpenGL::DrawBatch(bool is_indexed) {
 
     MICROPROFILE_SCOPE(OpenGL_Drawing);
 
-    auto& maxwell3d = system.GPU().Maxwell3D();
-    if (!maxwell3d.ShouldExecute()) {
-        return false;
-    }
-
     DrawPrelude();
 
     const auto& regs = maxwell3d.regs;
@@ -738,11 +733,6 @@ bool RasterizerOpenGL::DrawMultiBatch(bool is_indexed) {
     accelerate_draw = is_indexed ? AccelDraw::Indexed : AccelDraw::Arrays;
 
     MICROPROFILE_SCOPE(OpenGL_Drawing);
-
-    auto& maxwell3d = system.GPU().Maxwell3D();
-    if (!maxwell3d.ShouldExecute()) {
-        return false;
-    }
 
     DrawPrelude();
 
