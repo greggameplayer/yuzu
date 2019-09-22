@@ -16,6 +16,8 @@ class FileSystemController;
 
 namespace NS {
 
+void EncryptSharedFont(const std::vector<u32>& input, std::vector<u8>& output, std::size_t& offset);
+
 class PL_U final : public ServiceFramework<PL_U> {
 public:
     explicit PL_U(Core::System& system);
