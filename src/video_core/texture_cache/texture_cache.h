@@ -167,7 +167,7 @@ public:
         depth_buffer.view = surface_view.second;
         if (depth_buffer.target) {
             depth_buffer.target->MarkAsRenderTarget(true, DEPTH_RT);
-            if (IsResolutionScannerEnabled()) {
+            if (IsResScannerEnabled()) {
                 MarkScanner(depth_buffer.target);
             }
         }
@@ -205,7 +205,7 @@ public:
         render_targets[index].view = surface_view.second;
         if (render_targets[index].target) {
             render_targets[index].target->MarkAsRenderTarget(true, static_cast<u32>(index));
-            if (IsResolutionScannerEnabled()) {
+            if (IsResScannerEnabled()) {
                 MarkScanner(render_targets[index].target);
             }
         }
@@ -248,7 +248,7 @@ public:
         std::lock_guard lock{mutex};
         std::pair<TSurface, TView> dst_surface = GetFermiSurface(dst_config);
         std::pair<TSurface, TView> src_surface = GetFermiSurface(src_config);
-        if (IsResolutionScannerEnabled()) {
+        if (IsResScannerEnabled()) {
             bool is_candidate = IsInRSDatabase(src_surface.first);
             if (is_candidate) {
                 MarkScanner(dst_surface.first);
@@ -278,7 +278,7 @@ public:
     }
 
     bool IsResolutionScalingEnabled() {
-        if (IsResolutionScannerEnabled()) {
+        if (IsResScannerEnabled()) {
             return CheckBlackListMatch();
         }
         if (!EnabledRescaling()) {
@@ -385,7 +385,7 @@ protected:
             ManageRenderTargetUnregister(surface);
         }
 
-        if (IsResolutionScannerEnabled()) {
+        if (IsResScannerEnabled()) {
             if (reason == UnregisterReason::Restructured) {
                 UnmarkScanner(surface);
             }
@@ -541,7 +541,7 @@ private:
                 ImageCopy(current_surface, new_surface, brick);
             }
         }
-        if (IsResolutionScannerEnabled()) {
+        if (IsResScannerEnabled()) {
             if (IsInRSDatabase(current_surface)) {
                 if (IsRSBlacklisted(new_surface)) {
                     UnmarkScanner(current_surface);
@@ -824,7 +824,7 @@ private:
         if (!surface->IsModified()) {
             return;
         }
-        if (IsResolutionScannerEnabled()) {
+        if (IsResScannerEnabled()) {
             UnmarkScanner(surface);
         }
         staging_cache.GetBuffer(0).resize(surface->GetHostSizeInBytes());
@@ -901,7 +901,7 @@ private:
         return enable_resolution_scaling;
     }
 
-    bool IsResolutionScannerEnabled() const {
+    bool IsResScannerEnabled() const {
         return Settings::values.use_resolution_scanner;
     }
 
@@ -919,12 +919,12 @@ private:
         scaling_database.Register(params.pixel_format, params.width, params.height);
     }
 
-    bool IsRSBlacklisted(const TSurface& surface) const {
+    bool IsRSBlacklisted(const TSurface& surface) {
         const auto params = surface->GetSurfaceParams();
         return scaling_database.IsBlacklisted(params.pixel_format, params.width, params.height);
     }
 
-    bool IsInRSDatabase(const TSurface& surface) const {
+    bool IsInRSDatabase(const TSurface& surface) {
         const auto& params = surface->GetSurfaceParams();
         return scaling_database.IsInDatabase(params.pixel_format, params.width, params.height);
     }

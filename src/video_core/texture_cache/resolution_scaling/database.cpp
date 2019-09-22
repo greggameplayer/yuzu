@@ -23,7 +23,9 @@ std::string GetBaseDir() {
     return FileUtil::GetUserPath(FileUtil::UserPath::RescalingDir);
 }
 
-ScalingDatabase::ScalingDatabase(Core::System& system) : system{system} {}
+ScalingDatabase::ScalingDatabase(Core::System& system) : database{}, blacklist{}, system{system} {
+    title_id = 0;
+}
 
 ScalingDatabase::~ScalingDatabase() {
     SaveDatabase();
@@ -41,8 +43,7 @@ void ScalingDatabase::LoadDatabase() {
     if (!exists) {
         return;
     }
-    std::ifstream file;
-    OpenFStream(file, path, std::ios_base::in);
+    std::ifstream file(path);
     json in;
     file >> in;
     u32 version = in["version"].get<u32>();
@@ -72,7 +73,7 @@ void ScalingDatabase::SaveDatabase() {
         return;
     }
     json out;
-    out.emplace("version", DBVersion);
+    out["version"] = DBVersion;
     auto entries = json::array();
     for (const auto& key : database) {
         entries.push_back({
@@ -81,7 +82,7 @@ void ScalingDatabase::SaveDatabase() {
             {"height", key.height},
         });
     }
-    out.emplace("entries", std::move(entries));
+    out["entries"] = std::move(entries);
     auto blacklist_entries = json::array();
     for (const auto& key : blacklist) {
         blacklist_entries.push_back({
@@ -90,22 +91,22 @@ void ScalingDatabase::SaveDatabase() {
             {"height", key.height},
         });
     }
-    out.emplace("blacklist", std::move(blacklist_entries));
+    out["blacklist"] = blacklist_entries;
     const std::string path = GetProfilePath();
-    std::ofstream file;
-    OpenFStream(file, path, std::ios_base::out);
+    std::ofstream file(path);
     file << std::setw(4) << out << std::endl;
 }
 
 void ScalingDatabase::Register(PixelFormat format, u32 width, u32 height) {
-    const ResolutionKey key{format, width, height};
+    ResolutionKey key{format, width, height};
     if (blacklist.count(key) == 0) {
+        ResolutionKey key{format, width, height};
         database.insert(key);
     }
 }
 
 void ScalingDatabase::Unregister(PixelFormat format, u32 width, u32 height) {
-    const ResolutionKey key{format, width, height};
+    ResolutionKey key{format, width, height};
     database.erase(key);
     blacklist.insert(key);
 }
