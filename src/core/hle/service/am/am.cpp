@@ -232,12 +232,12 @@ IDebugFunctions::IDebugFunctions() : ServiceFramework{"IDebugFunctions"} {
 
 IDebugFunctions::~IDebugFunctions() = default;
 
-ISelfController::ISelfController(Core::System& system,
-                                 std::shared_ptr<NVFlinger::NVFlinger> nvflinger)
-    : ServiceFramework("ISelfController"), system(system), nvflinger(std::move(nvflinger)) {
+ISelfController::ISelfController(Core::System& system_,
+                                 std::shared_ptr<NVFlinger::NVFlinger> nvflinger_)
+    : ServiceFramework("ISelfController"), nvflinger(std::move(nvflinger_)) {
     // clang-format off
     static const FunctionInfo functions[] = {
-        {0, &ISelfController::Exit, "Exit"},
+        {0, nullptr, "Exit"},
         {1, &ISelfController::LockExit, "LockExit"},
         {2, &ISelfController::UnlockExit, "UnlockExit"},
         {3, &ISelfController::EnterFatalSection, "EnterFatalSection"},
@@ -298,28 +298,15 @@ ISelfController::ISelfController(Core::System& system,
 
 ISelfController::~ISelfController() = default;
 
-void ISelfController::Exit(Kernel::HLERequestContext& ctx) {
-    LOG_DEBUG(Service_AM, "called");
-
-    system.Shutdown();
-
-    IPC::ResponseBuilder rb{ctx, 2};
-    rb.Push(RESULT_SUCCESS);
-}
-
 void ISelfController::LockExit(Kernel::HLERequestContext& ctx) {
-    LOG_DEBUG(Service_AM, "called");
-
-    system.SetExitLock(true);
+    LOG_WARNING(Service_AM, "(STUBBED) called");
 
     IPC::ResponseBuilder rb{ctx, 2};
     rb.Push(RESULT_SUCCESS);
 }
 
 void ISelfController::UnlockExit(Kernel::HLERequestContext& ctx) {
-    LOG_DEBUG(Service_AM, "called");
-
-    system.SetExitLock(false);
+    LOG_WARNING(Service_AM, "(STUBBED) called");
 
     IPC::ResponseBuilder rb{ctx, 2};
     rb.Push(RESULT_SUCCESS);
@@ -561,10 +548,6 @@ void AppletMessageQueue::OperationModeChanged() {
     PushMessage(AppletMessage::OperationModeChanged);
     PushMessage(AppletMessage::PerformanceModeChanged);
     on_operation_mode_changed.writable->Signal();
-}
-
-void AppletMessageQueue::RequestExit() {
-    PushMessage(AppletMessage::ExitRequested);
 }
 
 ICommonStateGetter::ICommonStateGetter(Core::System& system,

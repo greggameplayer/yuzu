@@ -332,10 +332,6 @@ public:
 
     const Service::APM::Controller& GetAPMController() const;
 
-    void SetExitLock(bool locked);
-
-    bool GetExitLock() const;
-
 private:
     System();
 
