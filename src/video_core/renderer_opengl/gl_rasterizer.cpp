@@ -705,6 +705,7 @@ bool RasterizerOpenGL::DrawBatch(bool is_indexed) {
 
     DrawPrelude();
 
+    auto& maxwell3d = system.GPU().Maxwell3D();
     const auto& regs = maxwell3d.regs;
     const auto current_instance = maxwell3d.state.current_instance;
     DrawParams draw_call{};
@@ -736,6 +737,7 @@ bool RasterizerOpenGL::DrawMultiBatch(bool is_indexed) {
 
     DrawPrelude();
 
+    auto& maxwell3d = system.GPU().Maxwell3D();
     const auto& regs = maxwell3d.regs;
     const auto& draw_setup = maxwell3d.mme_draw;
     DrawParams draw_call{};
