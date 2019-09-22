@@ -157,7 +157,7 @@ u32 ShaderIR::DecodeArithmeticInteger(NodeBlock& bb, u32 pc) {
             case OpCode::Id::ICMP_IMM:
                 return {Immediate(instr.alu.GetSignedImm20_20()), GetRegister(instr.gpr39)};
             default:
-                UNIMPLEMENTED();
+                UNREACHABLE();
                 return {zero, zero};
             }
         }();

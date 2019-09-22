@@ -2,16 +2,17 @@
 
 Scroll down for the original README.md!
 
-Base revision: 183c445c30ad9fa1f58660ff578ecf1b78e51b25
+Base revision: a1b8e5d09a3a38f7d29c2d10985a444dde4faea8
 
 |Pull Request|Commit|Title|Author|Merged?|
 |----|----|----|----|----|
 |[1](https://github.com/yuzu-emu/yuzu-canary/pull/1)|[a8dfe54](https://github.com/yuzu-emu/yuzu-canary/pull/1/files/)|Canary Base|[chris062689](https://github.com/chris062689)|Yes|
-|[2878](https://github.com/yuzu-emu/yuzu/pull/2878)|[9709fda](https://github.com/yuzu-emu/yuzu/pull/2878/files/)|Shader_IR: Implement ICMP.Instruction|[FernandoS27](https://github.com/FernandoS27)|Yes|
+|[2891](https://github.com/yuzu-emu/yuzu/pull/2891)|[01fc969](https://github.com/yuzu-emu/yuzu/pull/2891/files/)|video_core: Implement RGBX16F and lower Surface Copy log severity|[FearlessTobi](https://github.com/FearlessTobi)|Yes|
 |[2877](https://github.com/yuzu-emu/yuzu/pull/2877)|[e9d19ad](https://github.com/yuzu-emu/yuzu/pull/2877/files/)|Added frame_count for REV5 audio renderer|[ogniK5377](https://github.com/ogniK5377)|Yes|
 |[2876](https://github.com/yuzu-emu/yuzu/pull/2876)|[2ca842f](https://github.com/yuzu-emu/yuzu/pull/2876/files/)|AcquireNpadStyleSetUpdateEventHandle should have a separate event for each controller type|[ogniK5377](https://github.com/ogniK5377)|Yes|
 |[2873](https://github.com/yuzu-emu/yuzu/pull/2873)|[0740758](https://github.com/yuzu-emu/yuzu/pull/2873/files/)|Initial implementation of Ioctl2 & Ioctl3|[ogniK5377](https://github.com/ogniK5377)|Yes|
 |[2870](https://github.com/yuzu-emu/yuzu/pull/2870)|[433e764](https://github.com/yuzu-emu/yuzu/pull/2870/files/)|Implement a MME Draw commands Inliner and correct host instance drawing|[FernandoS27](https://github.com/FernandoS27)|Yes|
+|[2867](https://github.com/yuzu-emu/yuzu/pull/2867)|[af809b4](https://github.com/yuzu-emu/yuzu/pull/2867/files/)|gl_rasterizer: Remove unused code paths from ConfigureFramebuffers|[ReinUsesLisp](https://github.com/ReinUsesLisp)|Yes|
 |[2710](https://github.com/yuzu-emu/yuzu/pull/2710)|[abb2c5f](https://github.com/yuzu-emu/yuzu/pull/2710/files/)|am/kernel: Fix various bugs related to applet signalling and software keyboard|[DarkLordZach](https://github.com/DarkLordZach)|Yes|
 |[2574](https://github.com/yuzu-emu/yuzu/pull/2574)|[425cdf9](https://github.com/yuzu-emu/yuzu/pull/2574/files/)|arm_dynarmic: Check if jit is nullptr when preparing reschedule|[DarkLordZach](https://github.com/DarkLordZach)|Yes|
 |[2542](https://github.com/yuzu-emu/yuzu/pull/2542)|[7aeb676](https://github.com/yuzu-emu/yuzu/pull/2542/files/)|lbl: Implement brightness and backlight services|[DarkLordZach](https://github.com/DarkLordZach)|Yes|
@@ -33,9 +34,11 @@ yuzu emulator
 
 yuzu is an experimental open-source emulator for the Nintendo Switch from the creators of [Citra](https://citra-emu.org/).
 
-It is written in C++ with portability in mind, with builds actively maintained for Windows, Linux and macOS. The emulator is currently only useful for homebrew development and research purposes.
+It is written in C++ with portability in mind, with builds actively maintained for Windows and Linux. The emulator is capable of running several commercial games.
 
-yuzu only emulates a subset of Switch hardware and therefore is generally only useful for running/debugging homebrew applications. yuzu can boot some games, to varying degrees of success.
+yuzu only emulates a subset of Switch hardware and therefore most commercial games **do not** run at full speed or are not fully functional.
+
+Do you want to check which games are compatible and which ones are not? Please visit our [Compatibility page](https://yuzu-emu.org/game/)!
 
 yuzu is licensed under the GPLv2 (or any later version). Refer to the license.txt file included.
 

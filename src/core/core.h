@@ -48,6 +48,10 @@ namespace APM {
 class Controller;
 }
 
+namespace FileSystem {
+class FileSystemController;
+} // namespace FileSystem
+
 namespace Glue {
 class ARPManager;
 }
@@ -308,6 +312,10 @@ public:
     FileSys::ContentProvider& GetContentProvider();
 
     const FileSys::ContentProvider& GetContentProvider() const;
+
+    Service::FileSystem::FileSystemController& GetFileSystemController();
+
+    const Service::FileSystem::FileSystemController& GetFileSystemController() const;
 
     void RegisterContentProvider(FileSys::ContentProviderUnionSlot slot,
                                  FileSys::ContentProvider* provider);
