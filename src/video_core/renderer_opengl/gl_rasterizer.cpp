@@ -1005,7 +1005,8 @@ TextureBufferUsage RasterizerOpenGL::SetupComputeTextures(const Shader& kernel) 
             }
             const auto cbuf = entry.GetBindlessCBuf();
             Tegra::Texture::TextureHandle tex_handle;
-            tex_handle.raw = compute.AccessConstBuffer32(Tegra::Engines::ShaderType::Compute, cbuf.first, cbuf.second);
+            tex_handle.raw = compute.AccessConstBuffer32(Tegra::Engines::ShaderType::Compute,
+                                                         cbuf.first, cbuf.second);
             return compute.GetTextureInfo(tex_handle, entry.GetOffset());
         }();
 
@@ -1050,7 +1051,8 @@ void RasterizerOpenGL::SetupComputeImages(const Shader& shader) {
             }
             const auto cbuf = entry.GetBindlessCBuf();
             Tegra::Texture::TextureHandle tex_handle;
-            tex_handle.raw = compute.AccessConstBuffer32(Tegra::Engines::ShaderType::Compute, cbuf.first, cbuf.second);
+            tex_handle.raw = compute.AccessConstBuffer32(Tegra::Engines::ShaderType::Compute,
+                                                         cbuf.first, cbuf.second);
             return compute.GetTextureInfo(tex_handle, entry.GetOffset()).tic;
         }();
         SetupImage(bindpoint, tic, entry);
