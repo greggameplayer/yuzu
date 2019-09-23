@@ -19,7 +19,6 @@
 #include "core/file_sys/romfs.h"
 #include "core/file_sys/system_archive/system_archive.h"
 #include "core/hle/ipc_helpers.h"
-#include "core/hle/kernel/physical_memory.h"
 #include "core/hle/kernel/shared_memory.h"
 #include "core/hle/service/filesystem/filesystem.h"
 #include "core/hle/service/ns/pl_u.h"
