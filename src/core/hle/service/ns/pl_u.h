@@ -5,7 +5,7 @@
 #pragma once
 
 #include <memory>
-#include "core/hle/kernel/physical_memory.h"
+#include <vector>
 #include "core/hle/service/service.h"
 
 namespace Service {
