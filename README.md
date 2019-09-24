@@ -2,12 +2,11 @@
 
 Scroll down for the original README.md!
 
-Base revision: 2f5545f8de907d1e58b65d4f75b4403628d6a136
+Base revision: 376f1a443216196b71d4cf88c3dcdfe2bad57802
 
 |Pull Request|Commit|Title|Author|Merged?|
 |----|----|----|----|----|
 |[1](https://github.com/yuzu-emu/yuzu-canary/pull/1)|[a8dfe54](https://github.com/yuzu-emu/yuzu-canary/pull/1/files/)|Canary Base|[chris062689](https://github.com/chris062689)|Yes|
-|[2869](https://github.com/yuzu-emu/yuzu/pull/2869)|[4400097](https://github.com/yuzu-emu/yuzu/pull/2869/files/)|shader/image: Implement SULD and fix SUATOM|[ReinUsesLisp](https://github.com/ReinUsesLisp)|Yes|
 |[2860](https://github.com/yuzu-emu/yuzu/pull/2860)|[f510aba](https://github.com/yuzu-emu/yuzu/pull/2860/files/)|Implement Native Resolution Rescaling|[FernandoS27](https://github.com/FernandoS27)|Yes|
 |[2859](https://github.com/yuzu-emu/yuzu/pull/2859)|[727ce55](https://github.com/yuzu-emu/yuzu/pull/2859/files/)|hid: Stub SetNpadJoyAssignmentModeSingle and GetNpadHandheldActivationMode|[Morph1984](https://github.com/Morph1984)|Yes|
 |[2710](https://github.com/yuzu-emu/yuzu/pull/2710)|[abb2c5f](https://github.com/yuzu-emu/yuzu/pull/2710/files/)|am/kernel: Fix various bugs related to applet signalling and software keyboard|[DarkLordZach](https://github.com/DarkLordZach)|Yes|

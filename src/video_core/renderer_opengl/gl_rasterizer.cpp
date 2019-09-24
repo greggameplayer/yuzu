@@ -422,7 +422,6 @@ void RasterizerOpenGL::ConfigureFramebuffers() {
     texture_cache.GuardRenderTargets(false);
 
     state.draw.draw_framebuffer = framebuffer_cache.GetFramebuffer(fbkey);
-    SyncViewport(state, false);
 }
 
 void RasterizerOpenGL::ConfigureClearFramebuffer(OpenGLState& current_state, bool using_color_fb,
