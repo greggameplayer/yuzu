@@ -2,13 +2,15 @@
 
 Scroll down for the original README.md!
 
-Base revision: 376f1a443216196b71d4cf88c3dcdfe2bad57802
+Base revision: 8a2e96de2e2f9075d82b0e5ceea17ab7c0397d8f
 
 |Pull Request|Commit|Title|Author|Merged?|
 |----|----|----|----|----|
 |[1](https://github.com/yuzu-emu/yuzu-canary/pull/1)|[a8dfe54](https://github.com/yuzu-emu/yuzu-canary/pull/1/files/)|Canary Base|[chris062689](https://github.com/chris062689)|Yes|
-|[2860](https://github.com/yuzu-emu/yuzu/pull/2860)|[f510aba](https://github.com/yuzu-emu/yuzu/pull/2860/files/)|Implement Native Resolution Rescaling|[FernandoS27](https://github.com/FernandoS27)|Yes|
-|[2859](https://github.com/yuzu-emu/yuzu/pull/2859)|[727ce55](https://github.com/yuzu-emu/yuzu/pull/2859/files/)|hid: Stub SetNpadJoyAssignmentModeSingle and GetNpadHandheldActivationMode|[Morph1984](https://github.com/Morph1984)|Yes|
+|[2914](https://github.com/yuzu-emu/yuzu/pull/2914)|[4e3310a](https://github.com/yuzu-emu/yuzu/pull/2914/files/)|Fermi2D: limit blit area to only available area|[FernandoS27](https://github.com/FernandoS27)|Yes|
+|[2912](https://github.com/yuzu-emu/yuzu/pull/2912)|[f4e4024](https://github.com/yuzu-emu/yuzu/pull/2912/files/)|General fixes to Async GPU|[FernandoS27](https://github.com/FernandoS27)|Yes|
+|[2904](https://github.com/yuzu-emu/yuzu/pull/2904)|[77fbf29](https://github.com/yuzu-emu/yuzu/pull/2904/files/)|Signal styleset changes at a better time|[ogniK5377](https://github.com/ogniK5377)|Yes|
+|[2859](https://github.com/yuzu-emu/yuzu/pull/2859)|[9503946](https://github.com/yuzu-emu/yuzu/pull/2859/files/)|hid: Stub SetNpadJoyAssignmentModeSingle and GetNpadHandheldActivationMode|[Morph1984](https://github.com/Morph1984)|Yes|
 |[2710](https://github.com/yuzu-emu/yuzu/pull/2710)|[abb2c5f](https://github.com/yuzu-emu/yuzu/pull/2710/files/)|am/kernel: Fix various bugs related to applet signalling and software keyboard|[DarkLordZach](https://github.com/DarkLordZach)|Yes|
 |[2574](https://github.com/yuzu-emu/yuzu/pull/2574)|[425cdf9](https://github.com/yuzu-emu/yuzu/pull/2574/files/)|arm_dynarmic: Check if jit is nullptr when preparing reschedule|[DarkLordZach](https://github.com/DarkLordZach)|Yes|
 |[2542](https://github.com/yuzu-emu/yuzu/pull/2542)|[7aeb676](https://github.com/yuzu-emu/yuzu/pull/2542/files/)|lbl: Implement brightness and backlight services|[DarkLordZach](https://github.com/DarkLordZach)|Yes|
