@@ -7,6 +7,7 @@ Base revision: 8a2e96de2e2f9075d82b0e5ceea17ab7c0397d8f
 |Pull Request|Commit|Title|Author|Merged?|
 |----|----|----|----|----|
 |[1](https://github.com/yuzu-emu/yuzu-canary/pull/1)|[a8dfe54](https://github.com/yuzu-emu/yuzu-canary/pull/1/files/)|Canary Base|[chris062689](https://github.com/chris062689)|Yes|
+|[2917](https://github.com/yuzu-emu/yuzu/pull/2917)|[278d653](https://github.com/yuzu-emu/yuzu/pull/2917/files/)|TextureCache: Add the ability to deduce if two textures are depth on blit.|[FernandoS27](https://github.com/FernandoS27)|Yes|
 |[2914](https://github.com/yuzu-emu/yuzu/pull/2914)|[4e3310a](https://github.com/yuzu-emu/yuzu/pull/2914/files/)|Fermi2D: limit blit area to only available area|[FernandoS27](https://github.com/FernandoS27)|Yes|
 |[2912](https://github.com/yuzu-emu/yuzu/pull/2912)|[f4e4024](https://github.com/yuzu-emu/yuzu/pull/2912/files/)|General fixes to Async GPU|[FernandoS27](https://github.com/FernandoS27)|Yes|
 |[2904](https://github.com/yuzu-emu/yuzu/pull/2904)|[77fbf29](https://github.com/yuzu-emu/yuzu/pull/2904/files/)|Signal styleset changes at a better time|[ogniK5377](https://github.com/ogniK5377)|Yes|
