@@ -6,11 +6,9 @@
 
 #include <list>
 #include <optional>
-#include <set>
+#include <unordered_set>
 
 #include "video_core/engines/shader_bytecode.h"
-#include "video_core/shader/ast.h"
-#include "video_core/shader/compiler_settings.h"
 #include "video_core/shader/shader_ir.h"
 
 namespace VideoCommon::Shader {
@@ -69,15 +67,13 @@ struct ShaderBlock {
 
 struct ShaderCharacteristics {
     std::list<ShaderBlock> blocks{};
-    std::set<u32> labels{};
+    bool decompilable{};
     u32 start{};
     u32 end{};
-    ASTManager manager{true, true};
-    CompilerSettings settings{};
+    std::unordered_set<u32> labels{};
 };
 
-std::unique_ptr<ShaderCharacteristics> ScanFlow(const ProgramCode& program_code, u32 program_size,
-                                                u32 start_address,
-                                                const CompilerSettings& settings);
+std::optional<ShaderCharacteristics> ScanFlow(const ProgramCode& program_code,
+                                              std::size_t program_size, u32 start_address);
 
 } // namespace VideoCommon::Shader
