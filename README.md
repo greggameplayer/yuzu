@@ -2,7 +2,7 @@
 
 Scroll down for the original README.md!
 
-Base revision: 8a2e96de2e2f9075d82b0e5ceea17ab7c0397d8f
+Base revision: e11afeb34d7b4493a94c18fd7960df97b7d95156
 
 |Pull Request|Commit|Title|Author|Merged?|
 |----|----|----|----|----|
@@ -13,7 +13,6 @@ Base revision: 8a2e96de2e2f9075d82b0e5ceea17ab7c0397d8f
 |[2904](https://github.com/yuzu-emu/yuzu/pull/2904)|[77fbf29](https://github.com/yuzu-emu/yuzu/pull/2904/files/)|Signal styleset changes at a better time|[ogniK5377](https://github.com/ogniK5377)|Yes|
 |[2859](https://github.com/yuzu-emu/yuzu/pull/2859)|[9503946](https://github.com/yuzu-emu/yuzu/pull/2859/files/)|hid: Stub SetNpadJoyAssignmentModeSingle and GetNpadHandheldActivationMode|[Morph1984](https://github.com/Morph1984)|Yes|
 |[2710](https://github.com/yuzu-emu/yuzu/pull/2710)|[abb2c5f](https://github.com/yuzu-emu/yuzu/pull/2710/files/)|am/kernel: Fix various bugs related to applet signalling and software keyboard|[DarkLordZach](https://github.com/DarkLordZach)|Yes|
-|[2574](https://github.com/yuzu-emu/yuzu/pull/2574)|[425cdf9](https://github.com/yuzu-emu/yuzu/pull/2574/files/)|arm_dynarmic: Check if jit is nullptr when preparing reschedule|[DarkLordZach](https://github.com/DarkLordZach)|Yes|
 |[2542](https://github.com/yuzu-emu/yuzu/pull/2542)|[7aeb676](https://github.com/yuzu-emu/yuzu/pull/2542/files/)|lbl: Implement brightness and backlight services|[DarkLordZach](https://github.com/DarkLordZach)|Yes|
 |[2365](https://github.com/yuzu-emu/yuzu/pull/2365)|[4fe8093](https://github.com/yuzu-emu/yuzu/pull/2365/files/)|Workaround to Mutex Corruption|[FernandoS27](https://github.com/FernandoS27)|Yes|
 |[1703](https://github.com/yuzu-emu/yuzu/pull/1703)|[09d8109](https://github.com/yuzu-emu/yuzu/pull/1703/files/)|nvdrv: Stub nvdec/vic ioctls to bypass nvdec movies|[DarkLordZach](https://github.com/DarkLordZach)|Yes|
