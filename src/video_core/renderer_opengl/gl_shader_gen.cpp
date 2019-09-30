@@ -11,6 +11,8 @@
 namespace OpenGL::GLShader {
 
 using Tegra::Engines::Maxwell3D;
+using VideoCommon::Shader::CompileDepth;
+using VideoCommon::Shader::CompilerSettings;
 using VideoCommon::Shader::ProgramCode;
 using VideoCommon::Shader::ShaderIR;
 
@@ -23,13 +25,25 @@ ProgramResult GenerateVertexShader(const Device& device, const ShaderSetup& setu
     std::string out = "// Shader Unique Id: VS" + id + "\n\n";
     out += GetCommonDeclarations();
 
-    const ShaderIR program_ir(setup.program.code, PROGRAM_OFFSET, setup.program.size_a);
+    out += R"(
+layout (std140, binding = EMULATION_UBO_BINDING) uniform vs_config {
+    vec4 viewport_flip;
+    uvec4 config_pack; // instance_id, flip_stage, y_direction, padding
+};
+
+)";
+
+    CompilerSettings settings;
+    settings.depth = CompileDepth::NoFlowStack;
+
+    const ShaderIR program_ir(setup.program.code, PROGRAM_OFFSET, setup.program.size_a, settings);
     const auto stage = setup.IsDualProgram() ? ProgramType::VertexA : ProgramType::VertexB;
     ProgramResult program = Decompile(device, program_ir, stage, "vertex");
     out += program.first;
 
     if (setup.IsDualProgram()) {
-        const ShaderIR program_ir_b(setup.program.code_b, PROGRAM_OFFSET, setup.program.size_b);
+        const ShaderIR program_ir_b(setup.program.code_b, PROGRAM_OFFSET, setup.program.size_b,
+                                    settings);
         ProgramResult program_b = Decompile(device, program_ir_b, ProgramType::VertexB, "vertex_b");
         out += program_b.first;
     }
@@ -64,7 +78,18 @@ ProgramResult GenerateGeometryShader(const Device& device, const ShaderSetup& se
     std::string out = "// Shader Unique Id: GS" + id + "\n\n";
     out += GetCommonDeclarations();
 
-    const ShaderIR program_ir(setup.program.code, PROGRAM_OFFSET, setup.program.size_a);
+    out += R"(
+layout (std140, binding = EMULATION_UBO_BINDING) uniform gs_config {
+    vec4 viewport_flip;
+    uvec4 config_pack; // instance_id, flip_stage, y_direction, padding
+};
+
+)";
+
+    CompilerSettings settings;
+    settings.depth = CompileDepth::NoFlowStack;
+
+    const ShaderIR program_ir(setup.program.code, PROGRAM_OFFSET, setup.program.size_a, settings);
     ProgramResult program = Decompile(device, program_ir, ProgramType::Geometry, "geometry");
     out += program.first;
 
@@ -93,7 +118,10 @@ layout (location = 6) out vec4 FragColor6;
 layout (location = 7) out vec4 FragColor7;
 
 )";
-    const ShaderIR program_ir(setup.program.code, PROGRAM_OFFSET, setup.program.size_a);
+    CompilerSettings settings;
+    settings.depth = CompileDepth::NoFlowStack;
+
+    const ShaderIR program_ir(setup.program.code, PROGRAM_OFFSET, setup.program.size_a, settings);
     ProgramResult program = Decompile(device, program_ir, ProgramType::Fragment, "fragment");
     out += program.first;
 
@@ -112,7 +140,10 @@ ProgramResult GenerateComputeShader(const Device& device, const ShaderSetup& set
     std::string out = "// Shader Unique Id: CS" + id + "\n\n";
     out += GetCommonDeclarations();
 
-    const ShaderIR program_ir(setup.program.code, COMPUTE_OFFSET, setup.program.size_a);
+    CompilerSettings settings;
+    settings.depth = CompileDepth::NoFlowStack;
+
+    const ShaderIR program_ir(setup.program.code, COMPUTE_OFFSET, setup.program.size_a, settings);
     ProgramResult program = Decompile(device, program_ir, ProgramType::Compute, "compute");
     out += program.first;
 
