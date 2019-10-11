@@ -6,23 +6,46 @@
 
 #include "core/hle/service/service.h"
 
-namespace Service::BCAT {
+namespace Core {
+class System;
+}
+
+namespace Service {
+
+namespace FileSystem {
+class FileSystemController;
+} // namespace FileSystem
+
+namespace BCAT {
+
+class Backend;
 
 class Module final {
 public:
     class Interface : public ServiceFramework<Interface> {
     public:
-        explicit Interface(std::shared_ptr<Module> module, const char* name);
+        explicit Interface(Core::System& system_, std::shared_ptr<Module> module_,
+                           FileSystem::FileSystemController& fsc_, const char* name);
         ~Interface() override;
 
         void CreateBcatService(Kernel::HLERequestContext& ctx);
+        void CreateDeliveryCacheStorageService(Kernel::HLERequestContext& ctx);
+        void CreateDeliveryCacheStorageServiceWithApplicationId(Kernel::HLERequestContext& ctx);
 
     protected:
+        FileSystem::FileSystemController& fsc;
+
         std::shared_ptr<Module> module;
+        std::unique_ptr<Backend> backend;
+
+    private:
+        Core::System& system;
     };
 };
 
 /// Registers all BCAT services with the specified service manager.
-void InstallInterfaces(SM::ServiceManager& service_manager);
+void InstallInterfaces(Core::System& system);
 
-} // namespace Service::BCAT
+} // namespace BCAT
+
+} // namespace Service

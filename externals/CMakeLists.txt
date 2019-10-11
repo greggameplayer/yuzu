@@ -74,6 +74,12 @@ if (ENABLE_VULKAN)
     add_subdirectory(sirit)
 endif()
 
+# zlib
+add_subdirectory(zlib EXCLUDE_FROM_ALL)
+
+# libzip
+add_subdirectory(libzip EXCLUDE_FROM_ALL)
+
 if (ENABLE_WEB_SERVICE)
     # LibreSSL
     set(LIBRESSL_SKIP_INSTALL ON CACHE BOOL "")

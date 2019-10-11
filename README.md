@@ -2,16 +2,16 @@
 
 Scroll down for the original README.md!
 
-Base revision: e11afeb34d7b4493a94c18fd7960df97b7d95156
+Base revision: b41692b69b778ce553c03461e4c66d9a3f58175e
 
 |Pull Request|Commit|Title|Author|Merged?|
 |----|----|----|----|----|
 |[1](https://github.com/yuzu-emu/yuzu-canary/pull/1)|[a8dfe54](https://github.com/yuzu-emu/yuzu-canary/pull/1/files/)|Canary Base|[chris062689](https://github.com/chris062689)|Yes|
-|[2917](https://github.com/yuzu-emu/yuzu/pull/2917)|[278d653](https://github.com/yuzu-emu/yuzu/pull/2917/files/)|TextureCache: Add the ability to deduce if two textures are depth on blit.|[FernandoS27](https://github.com/FernandoS27)|Yes|
-|[2914](https://github.com/yuzu-emu/yuzu/pull/2914)|[4e3310a](https://github.com/yuzu-emu/yuzu/pull/2914/files/)|Fermi2D: limit blit area to only available area|[FernandoS27](https://github.com/FernandoS27)|Yes|
-|[2912](https://github.com/yuzu-emu/yuzu/pull/2912)|[f4e4024](https://github.com/yuzu-emu/yuzu/pull/2912/files/)|General fixes to Async GPU|[FernandoS27](https://github.com/FernandoS27)|Yes|
-|[2904](https://github.com/yuzu-emu/yuzu/pull/2904)|[77fbf29](https://github.com/yuzu-emu/yuzu/pull/2904/files/)|Signal styleset changes at a better time|[ogniK5377](https://github.com/ogniK5377)|Yes|
-|[2859](https://github.com/yuzu-emu/yuzu/pull/2859)|[9503946](https://github.com/yuzu-emu/yuzu/pull/2859/files/)|hid: Stub SetNpadJoyAssignmentModeSingle and GetNpadHandheldActivationMode|[Morph1984](https://github.com/Morph1984)|Yes|
+|[2945](https://github.com/yuzu-emu/yuzu/pull/2945)|[d8497fe](https://github.com/yuzu-emu/yuzu/pull/2945/files/)|nifm: Only return that there's an internet connection when there's a BCATServer|[FernandoS27](https://github.com/FernandoS27)|Yes|
+|[2930](https://github.com/yuzu-emu/yuzu/pull/2930)|[a0702e2](https://github.com/yuzu-emu/yuzu/pull/2930/files/)|file_sys: Add code to access raw gamecard partitions and lazily load them|[DarkLordZach](https://github.com/DarkLordZach)|Yes|
+|[2914](https://github.com/yuzu-emu/yuzu/pull/2914)|[38137a7](https://github.com/yuzu-emu/yuzu/pull/2914/files/)|Fermi2D: limit blit area to only available area|[FernandoS27](https://github.com/FernandoS27)|Yes|
+|[2912](https://github.com/yuzu-emu/yuzu/pull/2912)|[538f588](https://github.com/yuzu-emu/yuzu/pull/2912/files/)|General fixes to Async GPU|[FernandoS27](https://github.com/FernandoS27)|Yes|
+|[2859](https://github.com/yuzu-emu/yuzu/pull/2859)|[c1e9ca4](https://github.com/yuzu-emu/yuzu/pull/2859/files/)|hid: Stub SetNpadJoyAssignmentModeSingle and GetNpadHandheldActivationMode|[Morph1984](https://github.com/Morph1984)|Yes|
 |[2710](https://github.com/yuzu-emu/yuzu/pull/2710)|[abb2c5f](https://github.com/yuzu-emu/yuzu/pull/2710/files/)|am/kernel: Fix various bugs related to applet signalling and software keyboard|[DarkLordZach](https://github.com/DarkLordZach)|Yes|
 |[2542](https://github.com/yuzu-emu/yuzu/pull/2542)|[7aeb676](https://github.com/yuzu-emu/yuzu/pull/2542/files/)|lbl: Implement brightness and backlight services|[DarkLordZach](https://github.com/DarkLordZach)|Yes|
 |[2365](https://github.com/yuzu-emu/yuzu/pull/2365)|[4fe8093](https://github.com/yuzu-emu/yuzu/pull/2365/files/)|Workaround to Mutex Corruption|[FernandoS27](https://github.com/FernandoS27)|Yes|
@@ -27,7 +27,6 @@ End of merge log. You can find the original README.md below the break.
 yuzu emulator
 =============
 [![Travis CI Build Status](https://travis-ci.org/yuzu-emu/yuzu.svg?branch=master)](https://travis-ci.org/yuzu-emu/yuzu)
-[![AppVeyor CI Build Status](https://ci.appveyor.com/api/projects/status/77k97svb2usreu68?svg=true)](https://ci.appveyor.com/project/bunnei/yuzu)
 [![Azure Mainline CI Build Status](https://dev.azure.com/yuzu-emu/yuzu/_apis/build/status/yuzu%20mainline?branchName=master)](https://dev.azure.com/yuzu-emu/yuzu/)
 
 yuzu is an experimental open-source emulator for the Nintendo Switch from the creators of [Citra](https://citra-emu.org/).

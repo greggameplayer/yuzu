@@ -8,7 +8,6 @@
 #include <memory>
 #include <string>
 
-#include <map>
 #include "common/common_types.h"
 #include "core/file_sys/vfs_types.h"
 #include "core/hle/kernel/object.h"
@@ -59,6 +58,10 @@ namespace Glue {
 class ARPManager;
 }
 
+namespace LM {
+class Manager;
+} // namespace LM
+
 namespace SM {
 class ServiceManager;
 } // namespace SM
@@ -99,6 +102,8 @@ FileSys::VirtualFile GetGameFileFromPath(const FileSys::VirtualFilesystem& vfs,
 
 class System {
 public:
+    using CurrentBuildProcessID = std::array<u8, 0x20>;
+
     System(const System&) = delete;
     System& operator=(const System&) = delete;
 
@@ -336,9 +341,17 @@ public:
 
     const Service::APM::Controller& GetAPMController() const;
 
+    Service::LM::Manager& GetLogManager();
+
+    const Service::LM::Manager& GetLogManager() const;
+
     void SetExitLock(bool locked);
 
     bool GetExitLock() const;
+
+    void SetCurrentProcessBuildID(const CurrentBuildProcessID& id);
+
+    const CurrentBuildProcessID& GetCurrentProcessBuildID() const;
 
 private:
     System();
@@ -362,9 +375,5 @@ private:
 
     static System s_instance;
 };
-
-inline Kernel::Process* CurrentProcess() {
-    return System::GetInstance().CurrentProcess();
-}
 
 } // namespace Core

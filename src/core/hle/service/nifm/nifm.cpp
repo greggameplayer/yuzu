@@ -9,8 +9,16 @@
 #include "core/hle/kernel/writable_event.h"
 #include "core/hle/service/nifm/nifm.h"
 #include "core/hle/service/service.h"
+#include "core/settings.h"
 
 namespace Service::NIFM {
+
+enum class RequestState : u32 {
+    NotSubmitted = 1,
+    Error = 1, ///< The duplicate 1 is intentional; it means both not submitted and error on HW.
+    Pending = 2,
+    Connected = 3,
+};
 
 class IScanRequest final : public ServiceFramework<IScanRequest> {
 public:
@@ -81,7 +89,12 @@ private:
 
         IPC::ResponseBuilder rb{ctx, 3};
         rb.Push(RESULT_SUCCESS);
-        rb.Push<u32>(0);
+
+        if (Settings::values.bcat_backend == "none") {
+            rb.PushEnum(RequestState::NotSubmitted);
+        } else {
+            rb.PushEnum(RequestState::Connected);
+        }
     }
 
     void GetResult(Kernel::HLERequestContext& ctx) {
@@ -189,14 +202,22 @@ private:
 
         IPC::ResponseBuilder rb{ctx, 3};
         rb.Push(RESULT_SUCCESS);
-        rb.Push<u8>(0);
+        if (Settings::values.bcat_backend == "none") {
+            rb.Push<u8>(0);
+        } else {
+            rb.Push<u8>(1);
+        }
     }
     void IsAnyInternetRequestAccepted(Kernel::HLERequestContext& ctx) {
         LOG_WARNING(Service_NIFM, "(STUBBED) called");
 
         IPC::ResponseBuilder rb{ctx, 3};
         rb.Push(RESULT_SUCCESS);
-        rb.Push<u8>(0);
+        if (Settings::values.bcat_backend == "none") {
+            rb.Push<u8>(0);
+        } else {
+            rb.Push<u8>(1);
+        }
     }
     Core::System& system;
 };

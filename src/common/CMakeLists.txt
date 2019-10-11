@@ -15,11 +15,23 @@ if (DEFINED ENV{CI})
     set(BUILD_TAG $ENV{AZURE_REPO_TAG})
   endif()
 endif()
+if (DEFINED ENV{TITLEBARFORMATIDLE})
+  set(TITLE_BAR_FORMAT_IDLE $ENV{TITLEBARFORMATIDLE})
+endif ()
+if (DEFINED ENV{TITLEBARFORMATRUNNING})
+  set(TITLE_BAR_FORMAT_RUNNING $ENV{TITLEBARFORMATRUNNING})
+endif ()
+if (DEFINED ENV{DISPLAYVERSION})
+  set(DISPLAY_VERSION $ENV{DISPLAYVERSION})
+endif ()
 add_custom_command(OUTPUT scm_rev.cpp
     COMMAND ${CMAKE_COMMAND}
       -DSRC_DIR="${CMAKE_SOURCE_DIR}"
       -DBUILD_REPOSITORY="${BUILD_REPOSITORY}"
+      -DTITLE_BAR_FORMAT_IDLE="${TITLE_BAR_FORMAT_IDLE}"
+      -DTITLE_BAR_FORMAT_RUNNING="${TITLE_BAR_FORMAT_RUNNING}"
       -DBUILD_TAG="${BUILD_TAG}"
+      -DBUILD_ID="${DISPLAY_VERSION}"
       -P "${CMAKE_SOURCE_DIR}/CMakeModules/GenerateSCMRev.cmake"
     DEPENDS
       # WARNING! It was too much work to try and make a common location for this list,
@@ -60,9 +72,15 @@ add_custom_command(OUTPUT scm_rev.cpp
       "${VIDEO_CORE}/shader/decode/video.cpp"
       "${VIDEO_CORE}/shader/decode/warp.cpp"
       "${VIDEO_CORE}/shader/decode/xmad.cpp"
+      "${VIDEO_CORE}/shader/ast.cpp"
+      "${VIDEO_CORE}/shader/ast.h"
       "${VIDEO_CORE}/shader/control_flow.cpp"
       "${VIDEO_CORE}/shader/control_flow.h"
+      "${VIDEO_CORE}/shader/compiler_settings.cpp"
+      "${VIDEO_CORE}/shader/compiler_settings.h"
       "${VIDEO_CORE}/shader/decode.cpp"
+      "${VIDEO_CORE}/shader/expr.cpp"
+      "${VIDEO_CORE}/shader/expr.h"
       "${VIDEO_CORE}/shader/node.h"
       "${VIDEO_CORE}/shader/node_helper.cpp"
       "${VIDEO_CORE}/shader/node_helper.h"

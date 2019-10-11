@@ -525,6 +525,17 @@ void Config::ReadDebuggingValues() {
     qt_config->endGroup();
 }
 
+void Config::ReadServiceValues() {
+    qt_config->beginGroup(QStringLiteral("Services"));
+    Settings::values.bcat_backend =
+        ReadSetting(QStringLiteral("bcat_backend"), QStringLiteral("boxcat"))
+            .toString()
+            .toStdString();
+    Settings::values.bcat_boxcat_local =
+        ReadSetting(QStringLiteral("bcat_boxcat_local"), false).toBool();
+    qt_config->endGroup();
+}
+
 void Config::ReadDisabledAddOnValues() {
     const auto size = qt_config->beginReadArray(QStringLiteral("DisabledAddOns"));
 
@@ -707,6 +718,8 @@ void Config::ReadUIValues() {
     UISettings::values.callout_flags = ReadSetting(QStringLiteral("calloutFlags"), 0).toUInt();
     UISettings::values.show_console = ReadSetting(QStringLiteral("showConsole"), false).toBool();
     UISettings::values.profile_index = ReadSetting(QStringLiteral("profileIndex"), 0).toUInt();
+    UISettings::values.pause_when_in_background =
+        ReadSetting(QStringLiteral("pauseWhenInBackground"), false).toBool();
 
     ApplyDefaultProfileIfInputInvalid();
 
@@ -771,6 +784,7 @@ void Config::ReadValues() {
     ReadMiscellaneousValues();
     ReadDebuggingValues();
     ReadWebServiceValues();
+    ReadServiceValues();
     ReadDisabledAddOnValues();
     ReadUIValues();
 }
@@ -868,6 +882,7 @@ void Config::SaveValues() {
     SaveMiscellaneousValues();
     SaveDebuggingValues();
     SaveWebServiceValues();
+    SaveServiceValues();
     SaveDisabledAddOnValues();
     SaveUIValues();
 }
@@ -962,6 +977,14 @@ void Config::SaveDebuggingValues() {
     WriteSetting(QStringLiteral("dump_nso"), Settings::values.dump_nso, false);
     WriteSetting(QStringLiteral("quest_flag"), Settings::values.quest_flag, false);
 
+    qt_config->endGroup();
+}
+
+void Config::SaveServiceValues() {
+    qt_config->beginGroup(QStringLiteral("Services"));
+    WriteSetting(QStringLiteral("bcat_backend"),
+                 QString::fromStdString(Settings::values.bcat_backend), QStringLiteral("null"));
+    WriteSetting(QStringLiteral("bcat_boxcat_local"), Settings::values.bcat_boxcat_local, false);
     qt_config->endGroup();
 }
 
@@ -1107,6 +1130,8 @@ void Config::SaveUIValues() {
     WriteSetting(QStringLiteral("calloutFlags"), UISettings::values.callout_flags, 0);
     WriteSetting(QStringLiteral("showConsole"), UISettings::values.show_console, false);
     WriteSetting(QStringLiteral("profileIndex"), UISettings::values.profile_index, 0);
+    WriteSetting(QStringLiteral("pauseWhenInBackground"),
+                 UISettings::values.pause_when_in_background, false);
 
     qt_config->endGroup();
 }

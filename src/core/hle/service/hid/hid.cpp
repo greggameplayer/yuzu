@@ -38,8 +38,10 @@ namespace Service::HID {
 // Updating period for each HID device.
 // TODO(ogniK): Find actual polling rate of hid
 constexpr s64 pad_update_ticks = static_cast<s64>(Core::Timing::BASE_CLOCK_RATE / 66);
-constexpr s64 accelerometer_update_ticks = static_cast<s64>(Core::Timing::BASE_CLOCK_RATE / 100);
-constexpr s64 gyroscope_update_ticks = static_cast<s64>(Core::Timing::BASE_CLOCK_RATE / 100);
+[[maybe_unused]] constexpr s64 accelerometer_update_ticks =
+    static_cast<s64>(Core::Timing::BASE_CLOCK_RATE / 100);
+[[maybe_unused]] constexpr s64 gyroscope_update_ticks =
+    static_cast<s64>(Core::Timing::BASE_CLOCK_RATE / 100);
 constexpr std::size_t SHARED_MEMORY_SIZE = 0x40000;
 
 IAppletResource::IAppletResource(Core::System& system)
@@ -193,7 +195,7 @@ Hid::Hid(Core::System& system) : ServiceFramework("hid"), system(system) {
         {101, &Hid::GetSupportedNpadStyleSet, "GetSupportedNpadStyleSet"},
         {102, &Hid::SetSupportedNpadIdType, "SetSupportedNpadIdType"},
         {103, &Hid::ActivateNpad, "ActivateNpad"},
-        {104, nullptr, "DeactivateNpad"},
+        {104, &Hid::DeactivateNpad, "DeactivateNpad"},
         {106, &Hid::AcquireNpadStyleSetUpdateEventHandle, "AcquireNpadStyleSetUpdateEventHandle"},
         {107, &Hid::DisconnectNpad, "DisconnectNpad"},
         {108, &Hid::GetPlayerLedPattern, "GetPlayerLedPattern"},
@@ -466,6 +468,17 @@ void Hid::ActivateNpad(Kernel::HLERequestContext& ctx) {
     IPC::ResponseBuilder rb{ctx, 2};
     rb.Push(RESULT_SUCCESS);
     applet_resource->ActivateController(HidController::NPad);
+}
+
+void Hid::DeactivateNpad(Kernel::HLERequestContext& ctx) {
+    IPC::RequestParser rp{ctx};
+    const auto applet_resource_user_id{rp.Pop<u64>()};
+
+    LOG_DEBUG(Service_HID, "called, applet_resource_user_id={}", applet_resource_user_id);
+
+    IPC::ResponseBuilder rb{ctx, 2};
+    rb.Push(RESULT_SUCCESS);
+    applet_resource->DeactivateController(HidController::NPad);
 }
 
 void Hid::AcquireNpadStyleSetUpdateEventHandle(Kernel::HLERequestContext& ctx) {

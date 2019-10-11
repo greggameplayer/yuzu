@@ -10,6 +10,10 @@
 #include "core/file_sys/vfs.h"
 #include "core/hle/result.h"
 
+namespace Core {
+class System;
+}
+
 namespace FileSys {
 class BISFactory;
 class RegisteredCache;
@@ -52,7 +56,7 @@ enum class ImageDirectoryId : u32 {
 
 class FileSystemController {
 public:
-    FileSystemController();
+    explicit FileSystemController(Core::System& system_);
     ~FileSystemController();
 
     ResultCode RegisterRomFS(std::unique_ptr<FileSys::RomFSFactory>&& factory);
@@ -110,6 +114,8 @@ public:
     FileSys::VirtualDir GetModificationLoadRoot(u64 title_id) const;
     FileSys::VirtualDir GetModificationDumpRoot(u64 title_id) const;
 
+    FileSys::VirtualDir GetBCATDirectory(u64 title_id) const;
+
     // Creates the SaveData, SDMC, and BIS Factories. Should be called once and before any function
     // above is called.
     void CreateFactories(FileSys::VfsFilesystem& vfs, bool overwrite = true);
@@ -123,6 +129,8 @@ private:
     std::unique_ptr<FileSys::XCI> gamecard;
     std::unique_ptr<FileSys::RegisteredCache> gamecard_registered;
     std::unique_ptr<FileSys::PlaceholderCache> gamecard_placeholder;
+
+    Core::System& system;
 };
 
 void InstallInterfaces(Core::System& system);
