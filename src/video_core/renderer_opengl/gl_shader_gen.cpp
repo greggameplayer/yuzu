@@ -27,14 +27,6 @@ ProgramResult GenerateVertexShader(const Device& device, const ShaderSetup& setu
     std::string out = "// Shader Unique Id: VS" + id + "\n\n";
     out += GetCommonDeclarations();
 
-    out += R"(
-layout (std140, binding = EMULATION_UBO_BINDING) uniform vs_config {
-    vec4 viewport_flip;
-    uvec4 config_pack; // instance_id, flip_stage, y_direction, padding
-};
-
-)";
-
     const ShaderIR program_ir(setup.program.code, PROGRAM_OFFSET, setup.program.size_a, settings);
     const auto stage = setup.IsDualProgram() ? ProgramType::VertexA : ProgramType::VertexB;
     ProgramResult program = Decompile(device, program_ir, stage, "vertex");
@@ -76,14 +68,6 @@ ProgramResult GenerateGeometryShader(const Device& device, const ShaderSetup& se
 
     std::string out = "// Shader Unique Id: GS" + id + "\n\n";
     out += GetCommonDeclarations();
-
-    out += R"(
-layout (std140, binding = EMULATION_UBO_BINDING) uniform gs_config {
-    vec4 viewport_flip;
-    uvec4 config_pack; // instance_id, flip_stage, y_direction, padding
-};
-
-)";
 
     const ShaderIR program_ir(setup.program.code, PROGRAM_OFFSET, setup.program.size_a, settings);
     ProgramResult program = Decompile(device, program_ir, ProgramType::Geometry, "geometry");
