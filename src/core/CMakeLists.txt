@@ -74,24 +74,10 @@ add_library(core STATIC
     file_sys/sdmc_factory.h
     file_sys/submission_package.cpp
     file_sys/submission_package.h
-    file_sys/system_archive/data/font_chinese_simplified.cpp
-    file_sys/system_archive/data/font_chinese_simplified.h
-    file_sys/system_archive/data/font_chinese_traditional.cpp
-    file_sys/system_archive/data/font_chinese_traditional.h
-    file_sys/system_archive/data/font_extended_chinese_simplified.cpp
-    file_sys/system_archive/data/font_extended_chinese_simplified.h
-    file_sys/system_archive/data/font_korean.cpp
-    file_sys/system_archive/data/font_korean.h
-    file_sys/system_archive/data/font_nintendo_extended.cpp
-    file_sys/system_archive/data/font_nintendo_extended.h
-    file_sys/system_archive/data/font_standard.cpp
-    file_sys/system_archive/data/font_standard.h
     file_sys/system_archive/mii_model.cpp
     file_sys/system_archive/mii_model.h
     file_sys/system_archive/ng_word.cpp
     file_sys/system_archive/ng_word.h
-    file_sys/system_archive/shared_font.cpp
-    file_sys/system_archive/shared_font.h
     file_sys/system_archive/system_archive.cpp
     file_sys/system_archive/system_archive.h
     file_sys/system_archive/system_version.cpp
