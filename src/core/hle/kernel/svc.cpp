@@ -1557,17 +1557,18 @@ static void SleepThread(Core::System& system, s64 nanoseconds) {
 
     auto& scheduler = system.CurrentScheduler();
     auto* const current_thread = scheduler.GetCurrentThread();
+    bool redundant = false;
 
     if (nanoseconds <= 0) {
         switch (static_cast<SleepType>(nanoseconds)) {
         case SleepType::YieldWithoutLoadBalancing:
-            current_thread->YieldSimple();
+            redundant = current_thread->YieldSimple();
             break;
         case SleepType::YieldWithLoadBalancing:
-            current_thread->YieldAndBalanceLoad();
+            redundant = current_thread->YieldAndBalanceLoad();
             break;
         case SleepType::YieldAndWaitForLoadBalancing:
-            current_thread->YieldAndWaitForLoadBalancing();
+            redundant = current_thread->YieldAndWaitForLoadBalancing();
             break;
         default:
             UNREACHABLE_MSG("Unimplemented sleep yield type '{:016X}'!", nanoseconds);
@@ -1576,6 +1577,12 @@ static void SleepThread(Core::System& system, s64 nanoseconds) {
         current_thread->Sleep(nanoseconds);
     }
 
+    if (redundant) {
+        // If it's redundant, the core is pretty much idle. Some games keep idling
+        // a core while it's doing nothing, we advance timing to avoid costly continuos
+        // calls.
+        system.CoreTiming().AddTicks(2000);
+    }
     system.PrepareReschedule(current_thread->GetProcessorID());
 }
 
@@ -1601,6 +1608,8 @@ static ResultCode WaitProcessWideKeyAtomic(Core::System& system, VAddr mutex_add
                   mutex_addr);
         return ERR_INVALID_ADDRESS;
     }
+
+    ASSERT(condition_variable_addr == Common::AlignDown(condition_variable_addr, 4));
 
     auto* const current_process = system.Kernel().CurrentProcess();
     const auto& handle_table = current_process->GetHandleTable();
@@ -1634,6 +1643,8 @@ static ResultCode SignalProcessWideKey(Core::System& system, VAddr condition_var
                                        s32 target) {
     LOG_TRACE(Kernel_SVC, "called, condition_variable_addr=0x{:X}, target=0x{:08X}",
               condition_variable_addr, target);
+
+    ASSERT(condition_variable_addr == Common::AlignDown(condition_variable_addr, 4));
 
     // Retrieve a list of all threads that are waiting for this condition variable.
     std::vector<SharedPtr<Thread>> waiting_threads;
@@ -1675,18 +1686,20 @@ static ResultCode SignalProcessWideKey(Core::System& system, VAddr condition_var
 
         // Atomically read the value of the mutex.
         u32 mutex_val = 0;
+        u32 update_val = 0;
+        const VAddr mutex_address = thread->GetMutexWaitAddress();
         do {
-            monitor.SetExclusive(current_core, thread->GetMutexWaitAddress());
+            monitor.SetExclusive(current_core, mutex_address);
 
             // If the mutex is not yet acquired, acquire it.
-            mutex_val = Memory::Read32(thread->GetMutexWaitAddress());
+            mutex_val = Memory::Read32(mutex_address);
 
             if (mutex_val != 0) {
-                monitor.ClearExclusive();
-                break;
+                update_val = mutex_val | Mutex::MutexHasWaitersFlag;
+            } else {
+                update_val = thread->GetWaitHandle();
             }
-        } while (!monitor.ExclusiveWrite32(current_core, thread->GetMutexWaitAddress(),
-                                           thread->GetWaitHandle()));
+        } while (!monitor.ExclusiveWrite32(current_core, mutex_address, update_val));
         if (mutex_val == 0) {
             // We were able to acquire the mutex, resume this thread.
             ASSERT(thread->GetStatus() == ThreadStatus::WaitCondVar);
@@ -1700,20 +1713,9 @@ static ResultCode SignalProcessWideKey(Core::System& system, VAddr condition_var
             thread->SetLockOwner(nullptr);
             thread->SetMutexWaitAddress(0);
             thread->SetWaitHandle(0);
+            thread->SetWaitSynchronizationResult(RESULT_SUCCESS);
             system.PrepareReschedule(thread->GetProcessorID());
         } else {
-            // Atomically signal that the mutex now has a waiting thread.
-            do {
-                monitor.SetExclusive(current_core, thread->GetMutexWaitAddress());
-
-                // Ensure that the mutex value is still what we expect.
-                u32 value = Memory::Read32(thread->GetMutexWaitAddress());
-                // TODO(Subv): When this happens, the kernel just clears the exclusive state and
-                // retries the initial read for this thread.
-                ASSERT_MSG(mutex_val == value, "Unhandled synchronization primitive case");
-            } while (!monitor.ExclusiveWrite32(current_core, thread->GetMutexWaitAddress(),
-                                               mutex_val | Mutex::MutexHasWaitersFlag));
-
             // The mutex is already owned by some other thread, make this thread wait on it.
             const Handle owner_handle = static_cast<Handle>(mutex_val & Mutex::MutexOwnerMask);
             const auto& handle_table = system.Kernel().CurrentProcess()->GetHandleTable();

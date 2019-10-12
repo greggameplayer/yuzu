@@ -89,16 +89,14 @@ void Cpu::RunLoop(bool tight_loop) {
     if (Kernel::GetCurrentThread() == nullptr) {
         LOG_TRACE(Core, "Core-{} idling", core_index);
         core_timing.Idle();
-        core_timing.Advance();
-        PrepareReschedule();
     } else {
         if (tight_loop) {
             arm_interface->Run();
         } else {
             arm_interface->Step();
         }
-        core_timing.Advance();
     }
+    core_timing.Advance();
 
     Reschedule();
 }
@@ -117,6 +115,10 @@ void Cpu::Reschedule() {
 
     global_scheduler.SelectThread(core_index);
     scheduler->TryDoContextSwitch();
+}
+
+void Cpu::Shutdown() {
+    scheduler->Shutdown();
 }
 
 } // namespace Core

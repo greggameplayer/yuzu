@@ -153,6 +153,9 @@ ResultCode Mutex::Release(VAddr address, Thread* holding_thread) {
     thread->SetCondVarWaitAddress(0);
     thread->SetMutexWaitAddress(0);
     thread->SetWaitHandle(0);
+    thread->SetWaitSynchronizationResult(RESULT_SUCCESS);
+
+    system.PrepareReschedule();
 
     if (thread->GetProcessorID() >= 0)
         system.CpuCore(thread->GetProcessorID()).PrepareReschedule();

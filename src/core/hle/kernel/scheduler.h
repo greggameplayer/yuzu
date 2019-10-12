@@ -115,7 +115,7 @@ public:
      * YieldThread takes a thread and moves it to the back of the it's priority list
      * This operation can be redundant and no scheduling is changed if marked as so.
      */
-    void YieldThread(Thread* thread);
+    bool YieldThread(Thread* thread);
 
     /*
      * YieldThreadAndBalanceLoad takes a thread and moves it to the back of the it's priority list.
@@ -123,7 +123,7 @@ public:
      * a better priority than the next thread in the core.
      * This operation can be redundant and no scheduling is changed if marked as so.
      */
-    void YieldThreadAndBalanceLoad(Thread* thread);
+    bool YieldThreadAndBalanceLoad(Thread* thread);
 
     /*
      * YieldThreadAndWaitForLoadBalancing takes a thread and moves it out of the scheduling queue
@@ -131,7 +131,9 @@ public:
      * a suggested thread is obtained instead.
      * This operation can be redundant and no scheduling is changed if marked as so.
      */
-    void YieldThreadAndWaitForLoadBalancing(Thread* thread);
+    bool YieldThreadAndWaitForLoadBalancing(Thread* thread);
+
+    void PreemptThreads();
 
     u32 CpuCoresCount() const {
         return NUM_CPU_CORES;
@@ -145,13 +147,17 @@ public:
         return reselection_pending.load();
     }
 
+    void Shutdown();
+
 private:
-    void AskForReselectionOrMarkRedundant(Thread* current_thread, Thread* winner);
+    bool AskForReselectionOrMarkRedundant(Thread* current_thread, Thread* winner);
 
     static constexpr u32 min_regular_priority = 2;
     std::array<Common::MultiLevelQueue<Thread*, THREADPRIO_COUNT>, NUM_CPU_CORES> scheduled_queue;
     std::array<Common::MultiLevelQueue<Thread*, THREADPRIO_COUNT>, NUM_CPU_CORES> suggested_queue;
     std::atomic<bool> reselection_pending;
+
+    std::array<u32, NUM_CPU_CORES> preemption_priorities = {59, 59, 59, 62};
 
     /// Lists all thread ids that aren't deleted/etc.
     std::vector<SharedPtr<Thread>> thread_list;
@@ -183,6 +189,11 @@ public:
 
     bool ContextSwitchPending() const {
         return context_switch_pending;
+    }
+
+    void Shutdown() {
+        current_thread = nullptr;
+        selected_thread = nullptr;
     }
 
 private:

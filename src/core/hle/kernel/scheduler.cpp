@@ -118,7 +118,7 @@ void GlobalScheduler::SelectThread(u32 core) {
  * YieldThread takes a thread and moves it to the back of the it's priority list
  * This operation can be redundant and no scheduling is changed if marked as so.
  */
-void GlobalScheduler::YieldThread(Thread* yielding_thread) {
+bool GlobalScheduler::YieldThread(Thread* yielding_thread) {
     // Note: caller should use critical section, etc.
     const u32 core_id = static_cast<u32>(yielding_thread->GetProcessorID());
     const u32 priority = yielding_thread->GetPriority();
@@ -129,7 +129,7 @@ void GlobalScheduler::YieldThread(Thread* yielding_thread) {
     scheduled_queue[core_id].yield(priority);
 
     Thread* winner = scheduled_queue[core_id].front(priority);
-    AskForReselectionOrMarkRedundant(yielding_thread, winner);
+    return AskForReselectionOrMarkRedundant(yielding_thread, winner);
 }
 
 /*
@@ -138,7 +138,7 @@ void GlobalScheduler::YieldThread(Thread* yielding_thread) {
  * a better priority than the next thread in the core.
  * This operation can be redundant and no scheduling is changed if marked as so.
  */
-void GlobalScheduler::YieldThreadAndBalanceLoad(Thread* yielding_thread) {
+bool GlobalScheduler::YieldThreadAndBalanceLoad(Thread* yielding_thread) {
     // Note: caller should check if !thread.IsSchedulerOperationRedundant and use critical section,
     // etc.
     const u32 core_id = static_cast<u32>(yielding_thread->GetProcessorID());
@@ -165,12 +165,12 @@ void GlobalScheduler::YieldThreadAndBalanceLoad(Thread* yielding_thread) {
                     continue;
                 }
             }
-            if (next_thread->GetLastRunningTicks() >= thread->GetLastRunningTicks() ||
-                next_thread->GetPriority() < thread->GetPriority()) {
-                if (thread->GetPriority() <= priority) {
-                    winner = thread;
-                    break;
-                }
+        }
+        if (next_thread->GetLastRunningTicks() >= thread->GetLastRunningTicks() ||
+            next_thread->GetPriority() < thread->GetPriority()) {
+            if (thread->GetPriority() <= priority) {
+                winner = thread;
+                break;
             }
         }
     }
@@ -186,7 +186,7 @@ void GlobalScheduler::YieldThreadAndBalanceLoad(Thread* yielding_thread) {
         winner = next_thread;
     }
 
-    AskForReselectionOrMarkRedundant(yielding_thread, winner);
+    return AskForReselectionOrMarkRedundant(yielding_thread, winner);
 }
 
 /*
@@ -195,7 +195,7 @@ void GlobalScheduler::YieldThreadAndBalanceLoad(Thread* yielding_thread) {
  * a suggested thread is obtained instead.
  * This operation can be redundant and no scheduling is changed if marked as so.
  */
-void GlobalScheduler::YieldThreadAndWaitForLoadBalancing(Thread* yielding_thread) {
+bool GlobalScheduler::YieldThreadAndWaitForLoadBalancing(Thread* yielding_thread) {
     // Note: caller should check if !thread.IsSchedulerOperationRedundant and use critical section,
     // etc.
     Thread* winner = nullptr;
@@ -235,7 +235,91 @@ void GlobalScheduler::YieldThreadAndWaitForLoadBalancing(Thread* yielding_thread
         }
     }
 
-    AskForReselectionOrMarkRedundant(yielding_thread, winner);
+    return AskForReselectionOrMarkRedundant(yielding_thread, winner);
+}
+
+void GlobalScheduler::PreemptThreads() {
+    for (std::size_t core_id = 0; core_id < NUM_CPU_CORES; core_id++) {
+        const u32 priority = preemption_priorities[core_id];
+
+        if (scheduled_queue[core_id].size(priority) > 0) {
+            scheduled_queue[core_id].front(priority)->IncrementYieldCount();
+            scheduled_queue[core_id].yield(priority);
+            if (scheduled_queue[core_id].size(priority) > 1) {
+                scheduled_queue[core_id].front(priority)->IncrementYieldCount();
+            }
+        }
+
+        Thread* current_thread =
+            scheduled_queue[core_id].empty() ? nullptr : scheduled_queue[core_id].front();
+        Thread* winner = nullptr;
+        for (auto& thread : suggested_queue[core_id]) {
+            const s32 source_core = thread->GetProcessorID();
+            if (thread->GetPriority() != priority) {
+                continue;
+            }
+            if (source_core >= 0) {
+                Thread* next_thread = scheduled_queue[source_core].empty()
+                                          ? nullptr
+                                          : scheduled_queue[source_core].front();
+                if (next_thread != nullptr && next_thread->GetPriority() < 2) {
+                    break;
+                }
+                if (next_thread == thread) {
+                    continue;
+                }
+            }
+            if (current_thread != nullptr &&
+                current_thread->GetLastRunningTicks() >= thread->GetLastRunningTicks()) {
+                winner = thread;
+                break;
+            }
+        }
+
+        if (winner != nullptr) {
+            if (winner->IsRunning()) {
+                UnloadThread(winner->GetProcessorID());
+            }
+            TransferToCore(winner->GetPriority(), core_id, winner);
+            current_thread =
+                winner->GetPriority() <= current_thread->GetPriority() ? winner : current_thread;
+        }
+
+        if (current_thread != nullptr && current_thread->GetPriority() > priority) {
+            for (auto& thread : suggested_queue[core_id]) {
+                const s32 source_core = thread->GetProcessorID();
+                if (thread->GetPriority() < priority) {
+                    continue;
+                }
+                if (source_core >= 0) {
+                    Thread* next_thread = scheduled_queue[source_core].empty()
+                                              ? nullptr
+                                              : scheduled_queue[source_core].front();
+                    if (next_thread != nullptr && next_thread->GetPriority() < 2) {
+                        break;
+                    }
+                    if (next_thread == thread) {
+                        continue;
+                    }
+                }
+                if (current_thread != nullptr &&
+                    current_thread->GetLastRunningTicks() >= thread->GetLastRunningTicks()) {
+                    winner = thread;
+                    break;
+                }
+            }
+
+            if (winner != nullptr) {
+                if (winner->IsRunning()) {
+                    UnloadThread(winner->GetProcessorID());
+                }
+                TransferToCore(winner->GetPriority(), core_id, winner);
+                current_thread = winner;
+            }
+        }
+
+        reselection_pending.store(true, std::memory_order_release);
+    }
 }
 
 void GlobalScheduler::Schedule(u32 priority, u32 core, Thread* thread) {
@@ -248,14 +332,22 @@ void GlobalScheduler::SchedulePrepend(u32 priority, u32 core, Thread* thread) {
     scheduled_queue[core].add(thread, priority, false);
 }
 
-void GlobalScheduler::AskForReselectionOrMarkRedundant(Thread* current_thread, Thread* winner) {
+bool GlobalScheduler::AskForReselectionOrMarkRedundant(Thread* current_thread, Thread* winner) {
     if (current_thread == winner) {
-        // TODO(blinkhawk): manage redundant operations, this is not implemented.
-        // as its mostly an optimization.
-        // current_thread->SetRedundantSchedulerOperation();
+        current_thread->IncrementYieldCount();
+        return true;
     } else {
         reselection_pending.store(true, std::memory_order_release);
+        return false;
     }
+}
+
+void GlobalScheduler::Shutdown() {
+    for (std::size_t core = 0; core < NUM_CPU_CORES; core++) {
+        scheduled_queue[core].clear();
+        suggested_queue[core].clear();
+    }
+    thread_list.clear();
 }
 
 GlobalScheduler::~GlobalScheduler() = default;

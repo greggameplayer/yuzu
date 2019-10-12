@@ -41,8 +41,8 @@ Thread::~Thread() = default;
 
 void Thread::Stop() {
     // Cancel any outstanding wakeup events for this thread
-    Core::System::GetInstance().CoreTiming().UnscheduleEvent(kernel.ThreadWakeupCallbackEventType(),
-                                                             callback_handle);
+    kernel.System().CoreTiming().UnscheduleEvent(kernel.ThreadWakeupCallbackEventType(),
+                                                 callback_handle);
     kernel.ThreadWakeupCallbackHandleTable().Close(callback_handle);
     callback_handle = 0;
     SetStatus(ThreadStatus::Dead);
@@ -68,13 +68,13 @@ void Thread::WakeAfterDelay(s64 nanoseconds) {
     // This function might be called from any thread so we have to be cautious and use the
     // thread-safe version of ScheduleEvent.
     const s64 cycles = Core::Timing::nsToCycles(std::chrono::nanoseconds{nanoseconds});
-    Core::System::GetInstance().CoreTiming().ScheduleEvent(
-        cycles, kernel.ThreadWakeupCallbackEventType(), callback_handle);
+    kernel.System().CoreTiming().ScheduleEvent(cycles, kernel.ThreadWakeupCallbackEventType(),
+                                               callback_handle);
 }
 
 void Thread::CancelWakeupTimer() {
-    Core::System::GetInstance().CoreTiming().UnscheduleEvent(kernel.ThreadWakeupCallbackEventType(),
-                                                             callback_handle);
+    kernel.System().CoreTiming().UnscheduleEvent(kernel.ThreadWakeupCallbackEventType(),
+                                                 callback_handle);
 }
 
 static std::optional<s32> GetNextProcessorId(u64 mask) {
@@ -133,6 +133,7 @@ void Thread::ResumeFromWait() {
 
 void Thread::CancelWait() {
     ASSERT(GetStatus() == ThreadStatus::WaitSynch);
+    ClearWaitObjects();
     SetWaitSynchronizationResult(ERR_SYNCHRONIZATION_CANCELED);
     ResumeFromWait();
 }
@@ -175,7 +176,7 @@ ResultVal<SharedPtr<Thread>> Thread::Create(KernelCore& kernel, std::string name
         return ResultCode(-1);
     }
 
-    auto& system = Core::System::GetInstance();
+    auto& system = kernel.System();
     SharedPtr<Thread> thread(new Thread(kernel));
 
     thread->thread_id = kernel.CreateNewThreadID();
@@ -257,7 +258,7 @@ void Thread::SetStatus(ThreadStatus new_status) {
     }
 
     if (status == ThreadStatus::Running) {
-        last_running_ticks = Core::System::GetInstance().CoreTiming().GetTicks();
+        last_running_ticks = kernel.System().CoreTiming().GetTicks();
     }
 
     status = new_status;
@@ -353,11 +354,9 @@ void Thread::SetActivity(ThreadActivity value) {
 
     if (value == ThreadActivity::Paused) {
         // Set status if not waiting
-        if (status == ThreadStatus::Ready) {
-            status = ThreadStatus::Paused;
-        } else if (status == ThreadStatus::Running) {
+        if (status == ThreadStatus::Ready || status == ThreadStatus::Running) {
             SetStatus(ThreadStatus::Paused);
-            Core::System::GetInstance().CpuCore(processor_id).PrepareReschedule();
+            kernel.System().CpuCore(processor_id).PrepareReschedule();
         }
     } else if (status == ThreadStatus::Paused) {
         // Ready to reschedule
@@ -373,19 +372,19 @@ void Thread::Sleep(s64 nanoseconds) {
     WakeAfterDelay(nanoseconds);
 }
 
-void Thread::YieldSimple() {
+bool Thread::YieldSimple() {
     auto& scheduler = kernel.GlobalScheduler();
-    scheduler.YieldThread(this);
+    return scheduler.YieldThread(this);
 }
 
-void Thread::YieldAndBalanceLoad() {
+bool Thread::YieldAndBalanceLoad() {
     auto& scheduler = kernel.GlobalScheduler();
-    scheduler.YieldThreadAndBalanceLoad(this);
+    return scheduler.YieldThreadAndBalanceLoad(this);
 }
 
-void Thread::YieldAndWaitForLoadBalancing() {
+bool Thread::YieldAndWaitForLoadBalancing() {
     auto& scheduler = kernel.GlobalScheduler();
-    scheduler.YieldThreadAndWaitForLoadBalancing(this);
+    return scheduler.YieldThreadAndWaitForLoadBalancing(this);
 }
 
 void Thread::SetSchedulingStatus(ThreadSchedStatus new_status) {
@@ -477,7 +476,7 @@ void Thread::AdjustSchedulingOnPriority(u32 old_priority) {
     if (GetSchedulingStatus() != ThreadSchedStatus::Runnable) {
         return;
     }
-    auto& scheduler = Core::System::GetInstance().GlobalScheduler();
+    auto& scheduler = kernel.System().GlobalScheduler();
     if (processor_id >= 0) {
         scheduler.Unschedule(old_priority, processor_id, this);
     }
@@ -509,7 +508,7 @@ void Thread::AdjustSchedulingOnPriority(u32 old_priority) {
 }
 
 void Thread::AdjustSchedulingOnAffinity(u64 old_affinity_mask, s32 old_core) {
-    auto& scheduler = Core::System::GetInstance().GlobalScheduler();
+    auto& scheduler = kernel.System().GlobalScheduler();
     if (GetSchedulingStatus() != ThreadSchedStatus::Runnable ||
         current_priority >= THREADPRIO_COUNT) {
         return;
