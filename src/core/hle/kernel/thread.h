@@ -82,14 +82,14 @@ enum class ThreadSchedStatus : u32 {
     Exited = 3,
 };
 
-enum ThreadSchedFlags : u32 {
+enum class ThreadSchedFlags : u32 {
     ProcessPauseFlag = 1 << 4,
     ThreadPauseFlag = 1 << 5,
     ProcessDebugPauseFlag = 1 << 6,
     KernelInitPauseFlag = 1 << 8,
 };
 
-enum ThreadSchedMasks : u32 {
+enum class ThreadSchedMasks : u32 {
     LowMask = 0x000f,
     HighMask = 0xfff0,
     ForcePauseMask = 0x0070,
@@ -428,7 +428,8 @@ public:
     }
 
     ThreadSchedStatus GetSchedulingStatus() const {
-        return static_cast<ThreadSchedStatus>(scheduling_state & ThreadSchedMasks::LowMask);
+        return static_cast<ThreadSchedStatus>(scheduling_state &
+                                              static_cast<u32>(ThreadSchedMasks::LowMask));
     }
 
     bool IsRunning() const {
@@ -471,7 +472,8 @@ private:
 
     u64 total_cpu_time_ticks = 0; ///< Total CPU running ticks.
     u64 last_running_ticks = 0;   ///< CPU tick when thread was last running
-    u64 yield_count = 0;          ///< Number of innecessaries yields occured.
+    u64 yield_count = 0;          ///< Number of redundant yields carried by this thread.
+                                  ///< a redundant yield is one where no scheduling is changed
 
     s32 processor_id = 0;
 
