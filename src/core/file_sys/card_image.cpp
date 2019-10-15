@@ -57,7 +57,7 @@ XCI::XCI(VirtualFile file_)
         const auto partition_idx = static_cast<std::size_t>(partition);
         auto raw = main_hfs.GetFile(partition_names[partition_idx]);
 
-        partitions_raw[static_cast<std::size_t>(partition)] = raw;
+        partitions_raw[static_cast<std::size_t>(partition)] = std::move(raw);
     }
 
     secure_partition = std::make_shared<NSP>(
