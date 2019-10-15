@@ -160,11 +160,6 @@ ResultCode Mutex::Release(VAddr address, Thread* holding_thread) {
     if (holding_thread->GetProcessorID() >= 0)
         system.CpuCore(holding_thread->GetProcessorID()).PrepareReschedule();
 
-    if (thread->GetProcessorID() >= 0)
-        system.CpuCore(thread->GetProcessorID()).PrepareReschedule();
-    if (holding_thread->GetProcessorID() >= 0)
-        system.CpuCore(holding_thread->GetProcessorID()).PrepareReschedule();
-
     return RESULT_SUCCESS;
 }
 } // namespace Kernel
