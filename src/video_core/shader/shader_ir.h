@@ -17,6 +17,7 @@
 #include "video_core/engines/shader_header.h"
 #include "video_core/shader/ast.h"
 #include "video_core/shader/compiler_settings.h"
+#include "video_core/shader/const_buffer_locker.h"
 #include "video_core/shader/node.h"
 
 namespace VideoCommon::Shader {
@@ -66,8 +67,8 @@ struct GlobalMemoryUsage {
 
 class ShaderIR final {
 public:
-    explicit ShaderIR(const ProgramCode& program_code, u32 main_offset, std::size_t size,
-                      CompilerSettings settings);
+    explicit ShaderIR(const ProgramCode& program_code, u32 main_offset, CompilerSettings settings,
+                      ConstBufferLocker& locker);
     ~ShaderIR();
 
     const std::map<u32, NodeBlock>& GetBasicBlocks() const {
@@ -172,6 +173,13 @@ public:
 
 private:
     friend class ASTDecoder;
+
+    struct SamplerInfo {
+        Tegra::Shader::TextureType type;
+        bool is_array;
+        bool is_shadow;
+    };
+
     void Decode();
 
     NodeBlock DecodeRange(u32 begin, u32 end);
@@ -295,13 +303,12 @@ private:
     OperationCode GetPredicateCombiner(Tegra::Shader::PredOperation operation);
 
     /// Accesses a texture sampler
-    const Sampler& GetSampler(Tegra::Shader::Sampler sampler, bool is_type_known,
-                              Tegra::Shader::TextureType type, bool is_array, bool is_shadow);
+    const Sampler& GetSampler(const Tegra::Shader::Sampler& sampler,
+                              std::optional<SamplerInfo> sampler_info);
 
     // Accesses a texture sampler for a bindless texture.
-    const Sampler& GetBindlessSampler(Tegra::Shader::Register reg, bool is_type_known,
-                                      Tegra::Shader::TextureType type, bool is_array,
-                                      bool is_shadow);
+    const Sampler& GetBindlessSampler(const Tegra::Shader::Register& reg,
+                                      std::optional<SamplerInfo> sampler_info);
 
     const Sampler* InspectExistingSampler(std::size_t offset, bool is_type_known,
                                           Tegra::Shader::TextureType type, bool is_array,
@@ -380,7 +387,9 @@ private:
 
     const ProgramCode& program_code;
     const u32 main_offset;
-    const std::size_t program_size;
+    const CompilerSettings settings;
+    ConstBufferLocker& locker;
+
     bool decompiled{};
     bool disable_flow_stack{};
 
@@ -389,8 +398,7 @@ private:
 
     std::map<u32, NodeBlock> basic_blocks;
     NodeBlock global_code;
-    ASTManager program_manager;
-    CompilerSettings settings{};
+    ASTManager program_manager{true, true};
 
     std::set<u32> used_registers;
     std::set<Tegra::Shader::Pred> used_predicates;
