@@ -202,13 +202,11 @@ void RegisterModule(std::string name, VAddr beg, VAddr end, bool add_elf_ext) {
 }
 
 static Kernel::Thread* FindThreadById(s64 id) {
-    for (u32 core = 0; core < Core::NUM_CPU_CORES; core++) {
-        const auto& threads = Core::System::GetInstance().Scheduler(core).GetThreadList();
-        for (auto& thread : threads) {
-            if (thread->GetThreadID() == static_cast<u64>(id)) {
-                current_core = core;
-                return thread.get();
-            }
+    const auto& threads = Core::System::GetInstance().GlobalScheduler().GetThreadList();
+    for (auto& thread : threads) {
+        if (thread->GetThreadID() == static_cast<u64>(id)) {
+            current_core = thread->GetProcessorID();
+            return thread.get();
         }
     }
     return nullptr;
@@ -641,16 +639,15 @@ static void HandleQuery() {
                        strlen("Xfer:features:read:target.xml:")) == 0) {
         SendReply(target_xml);
     } else if (strncmp(query, "Offsets", strlen("Offsets")) == 0) {
-        const VAddr base_address = Core::CurrentProcess()->VMManager().GetCodeRegionBaseAddress();
+        const VAddr base_address =
+            Core::System::GetInstance().CurrentProcess()->VMManager().GetCodeRegionBaseAddress();
         std::string buffer = fmt::format("TextSeg={:0x}", base_address);
         SendReply(buffer.c_str());
     } else if (strncmp(query, "fThreadInfo", strlen("fThreadInfo")) == 0) {
         std::string val = "m";
-        for (u32 core = 0; core < Core::NUM_CPU_CORES; core++) {
-            const auto& threads = Core::System::GetInstance().Scheduler(core).GetThreadList();
-            for (const auto& thread : threads) {
-                val += fmt::format("{:x},", thread->GetThreadID());
-            }
+        const auto& threads = Core::System::GetInstance().GlobalScheduler().GetThreadList();
+        for (const auto& thread : threads) {
+            val += fmt::format("{:x},", thread->GetThreadID());
         }
         val.pop_back();
         SendReply(val.c_str());
@@ -660,13 +657,11 @@ static void HandleQuery() {
         std::string buffer;
         buffer += "l<?xml version=\"1.0\"?>";
         buffer += "<threads>";
-        for (u32 core = 0; core < Core::NUM_CPU_CORES; core++) {
-            const auto& threads = Core::System::GetInstance().Scheduler(core).GetThreadList();
-            for (const auto& thread : threads) {
-                buffer +=
-                    fmt::format(R"*(<thread id="{:x}" core="{:d}" name="Thread {:x}"></thread>)*",
-                                thread->GetThreadID(), core, thread->GetThreadID());
-            }
+        const auto& threads = Core::System::GetInstance().GlobalScheduler().GetThreadList();
+        for (const auto& thread : threads) {
+            buffer +=
+                fmt::format(R"*(<thread id="{:x}" core="{:d}" name="Thread {:x}"></thread>)*",
+                            thread->GetThreadID(), thread->GetProcessorID(), thread->GetThreadID());
         }
         buffer += "</threads>";
         SendReply(buffer.c_str());

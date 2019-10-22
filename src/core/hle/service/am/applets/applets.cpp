@@ -27,9 +27,9 @@ AppletDataBroker::AppletDataBroker(Kernel::KernelCore& kernel) {
     state_changed_event = Kernel::WritableEvent::CreateEventPair(
         kernel, Kernel::ResetType::Manual, "ILibraryAppletAccessor:StateChangedEvent");
     pop_out_data_event = Kernel::WritableEvent::CreateEventPair(
-        kernel, Kernel::ResetType::Manual, "ILibraryAppletAccessor:PopDataOutEvent");
+        kernel, Kernel::ResetType::Automatic, "ILibraryAppletAccessor:PopDataOutEvent");
     pop_interactive_out_data_event = Kernel::WritableEvent::CreateEventPair(
-        kernel, Kernel::ResetType::Manual, "ILibraryAppletAccessor:PopInteractiveDataOutEvent");
+        kernel, Kernel::ResetType::Automatic, "ILibraryAppletAccessor:PopInteractiveDataOutEvent");
 }
 
 AppletDataBroker::~AppletDataBroker() = default;
@@ -156,6 +156,10 @@ AppletFrontendSet& AppletFrontendSet::operator=(AppletFrontendSet&&) noexcept = 
 AppletManager::AppletManager(Core::System& system_) : system{system_} {}
 
 AppletManager::~AppletManager() = default;
+
+const AppletFrontendSet& AppletManager::GetAppletFrontendSet() const {
+    return frontend;
+}
 
 void AppletManager::SetAppletFrontendSet(AppletFrontendSet set) {
     if (set.parental_controls != nullptr)

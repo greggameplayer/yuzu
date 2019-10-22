@@ -15,6 +15,9 @@
 #include "video_core/engines/maxwell_3d.h"
 #include "video_core/engines/shader_bytecode.h"
 #include "video_core/engines/shader_header.h"
+#include "video_core/shader/ast.h"
+#include "video_core/shader/compiler_settings.h"
+#include "video_core/shader/const_buffer_locker.h"
 #include "video_core/shader/node.h"
 
 namespace VideoCommon::Shader {
@@ -64,7 +67,8 @@ struct GlobalMemoryUsage {
 
 class ShaderIR final {
 public:
-    explicit ShaderIR(const ProgramCode& program_code, u32 main_offset, std::size_t size);
+    explicit ShaderIR(const ProgramCode& program_code, u32 main_offset, CompilerSettings settings,
+                      ConstBufferLocker& locker);
     ~ShaderIR();
 
     const std::map<u32, NodeBlock>& GetBasicBlocks() const {
@@ -124,6 +128,14 @@ public:
         return uses_point_size;
     }
 
+    bool UsesInstanceId() const {
+        return uses_instance_id;
+    }
+
+    bool UsesVertexId() const {
+        return uses_vertex_id;
+    }
+
     bool HasPhysicalAttributes() const {
         return uses_physical_attributes;
     }
@@ -136,11 +148,38 @@ public:
         return disable_flow_stack;
     }
 
+    bool IsDecompiled() const {
+        return decompiled;
+    }
+
+    const ASTManager& GetASTManager() const {
+        return program_manager;
+    }
+
+    ASTNode GetASTProgram() const {
+        return program_manager.GetProgram();
+    }
+
+    u32 GetASTNumVariables() const {
+        return program_manager.GetVariables();
+    }
+
     u32 ConvertAddressToNvidiaSpace(const u32 address) const {
         return (address - main_offset) * sizeof(Tegra::Shader::Instruction);
     }
 
+    /// Returns a condition code evaluated from internal flags
+    Node GetConditionCode(Tegra::Shader::ConditionCode cc) const;
+
 private:
+    friend class ASTDecoder;
+
+    struct SamplerInfo {
+        Tegra::Shader::TextureType type;
+        bool is_array;
+        bool is_shadow;
+    };
+
     void Decode();
 
     NodeBlock DecodeRange(u32 begin, u32 end);
@@ -205,7 +244,7 @@ private:
     /// Generates a node representing an output attribute. Keeps track of used attributes.
     Node GetOutputAttribute(Tegra::Shader::Attribute::Index index, u64 element, Node buffer);
     /// Generates a node representing an internal flag
-    Node GetInternalFlag(InternalFlag flag, bool negated = false);
+    Node GetInternalFlag(InternalFlag flag, bool negated = false) const;
     /// Generates a node representing a local memory address
     Node GetLocalMemory(Node address);
     /// Generates a node representing a shared memory address
@@ -263,29 +302,22 @@ private:
     /// Returns a predicate combiner operation
     OperationCode GetPredicateCombiner(Tegra::Shader::PredOperation operation);
 
-    /// Returns a condition code evaluated from internal flags
-    Node GetConditionCode(Tegra::Shader::ConditionCode cc);
-
     /// Accesses a texture sampler
     const Sampler& GetSampler(const Tegra::Shader::Sampler& sampler,
-                              Tegra::Shader::TextureType type, bool is_array, bool is_shadow);
+                              std::optional<SamplerInfo> sampler_info);
 
     // Accesses a texture sampler for a bindless texture.
     const Sampler& GetBindlessSampler(const Tegra::Shader::Register& reg,
-                                      Tegra::Shader::TextureType type, bool is_array,
-                                      bool is_shadow);
+                                      std::optional<SamplerInfo> sampler_info);
 
     /// Accesses an image.
-    Image& GetImage(Tegra::Shader::Image image, Tegra::Shader::ImageType type,
-                    std::optional<Tegra::Shader::ImageAtomicSize> size = {});
+    Image& GetImage(Tegra::Shader::Image image, Tegra::Shader::ImageType type);
 
     /// Access a bindless image sampler.
-    Image& GetBindlessImage(Tegra::Shader::Register reg, Tegra::Shader::ImageType type,
-                            std::optional<Tegra::Shader::ImageAtomicSize> size = {});
+    Image& GetBindlessImage(Tegra::Shader::Register reg, Tegra::Shader::ImageType type);
 
     /// Tries to access an existing image, updating it's state as needed
-    Image* TryUseExistingImage(u64 offset, Tegra::Shader::ImageType type,
-                               std::optional<Tegra::Shader::ImageAtomicSize> size);
+    Image* TryUseExistingImage(u64 offset, Tegra::Shader::ImageType type);
 
     /// Extracts a sequence of bits from a node
     Node BitfieldExtract(Node value, u32 offset, u32 bits);
@@ -346,12 +378,16 @@ private:
     std::pair<Node, s64> TrackRegister(const GprNode* tracked, const NodeBlock& code,
                                        s64 cursor) const;
 
-    std::tuple<Node, Node, GlobalMemoryBase> TrackAndGetGlobalMemory(
-        NodeBlock& bb, Tegra::Shader::Instruction instr, bool is_write);
+    std::tuple<Node, Node, GlobalMemoryBase> TrackGlobalMemory(NodeBlock& bb,
+                                                               Tegra::Shader::Instruction instr,
+                                                               bool is_write);
 
     const ProgramCode& program_code;
     const u32 main_offset;
-    const std::size_t program_size;
+    const CompilerSettings settings;
+    ConstBufferLocker& locker;
+
+    bool decompiled{};
     bool disable_flow_stack{};
 
     u32 coverage_begin{};
@@ -359,6 +395,7 @@ private:
 
     std::map<u32, NodeBlock> basic_blocks;
     NodeBlock global_code;
+    ASTManager program_manager{true, true};
 
     std::set<u32> used_registers;
     std::set<Tegra::Shader::Pred> used_predicates;
@@ -373,6 +410,8 @@ private:
     bool uses_viewport_index{};
     bool uses_point_size{};
     bool uses_physical_attributes{}; // Shader uses AL2P or physical attribute read/writes
+    bool uses_instance_id{};
+    bool uses_vertex_id{};
 
     Tegra::Shader::Header header;
 };

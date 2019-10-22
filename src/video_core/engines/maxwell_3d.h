@@ -15,6 +15,7 @@
 #include "common/common_funcs.h"
 #include "common/common_types.h"
 #include "common/math_util.h"
+#include "video_core/engines/const_buffer_engine_interface.h"
 #include "video_core/engines/const_buffer_info.h"
 #include "video_core/engines/engine_upload.h"
 #include "video_core/gpu.h"
@@ -44,7 +45,7 @@ namespace Tegra::Engines {
 #define MAXWELL3D_REG_INDEX(field_name)                                                            \
     (offsetof(Tegra::Engines::Maxwell3D::Regs, field_name) / sizeof(u32))
 
-class Maxwell3D final {
+class Maxwell3D final : public ConstBufferEngineInterface {
 public:
     explicit Maxwell3D(Core::System& system, VideoCore::RasterizerInterface& rasterizer,
                        MemoryManager& memory_manager);
@@ -687,7 +688,9 @@ public:
 
                 u32 rt_separate_frag_data;
 
-                INSERT_PADDING_WORDS(0xC);
+                f32 depth_bounds[2];
+
+                INSERT_PADDING_WORDS(0xA);
 
                 struct {
                     u32 address_high;
@@ -811,8 +814,9 @@ public:
                 INSERT_PADDING_WORDS(0x21);
 
                 u32 vb_element_base;
+                u32 vb_base_instance;
 
-                INSERT_PADDING_WORDS(0x36);
+                INSERT_PADDING_WORDS(0x35);
 
                 union {
                     BitField<0, 1, u32> c0;
@@ -1200,6 +1204,7 @@ public:
                 bool transform_feedback;
                 bool color_mask;
                 bool polygon_offset;
+                bool depth_bounds_values;
 
                 // Complementary
                 bool viewport_transform;
@@ -1238,6 +1243,11 @@ public:
     /// Write the value to the register identified by method.
     void CallMethod(const GPU::MethodCall& method_call);
 
+    /// Write the value to the register identified by method.
+    void CallMethodFromMME(const GPU::MethodCall& method_call);
+
+    void FlushMMEInlineDraw();
+
     /// Given a Texture Handle, returns the TSC and TIC entries.
     Texture::FullTextureInfo GetTextureInfo(const Texture::TextureHandle tex_handle,
                                             std::size_t offset) const;
@@ -1248,7 +1258,16 @@ public:
     /// Returns the texture information for a specific texture in a specific shader stage.
     Texture::FullTextureInfo GetStageTexture(Regs::ShaderStage stage, std::size_t offset) const;
 
-    u32 AccessConstBuffer32(Regs::ShaderStage stage, u64 const_buffer, u64 offset) const;
+    u32 AccessConstBuffer32(ShaderType stage, u64 const_buffer, u64 offset) const override;
+
+    SamplerDescriptor AccessBoundSampler(ShaderType stage, u64 offset) const override;
+
+    SamplerDescriptor AccessBindlessSampler(ShaderType stage, u64 const_buffer,
+                                            u64 offset) const override;
+
+    u32 GetBoundBuffer() const override {
+        return regs.tex_cb_index;
+    }
 
     /// Memory for macro code - it's undetermined how big this is, however 1MB is much larger than
     /// we've seen used.
@@ -1263,6 +1282,21 @@ public:
         return execute_on;
     }
 
+    enum class MMEDrawMode : u32 {
+        Undefined,
+        Array,
+        Indexed,
+    };
+
+    struct MMEDrawState {
+        MMEDrawMode current_mode{MMEDrawMode::Undefined};
+        u32 current_count{};
+        u32 instance_count{};
+        bool instance_mode{};
+        bool gl_begin_consume{};
+        u32 gl_end_count{};
+    } mme_draw;
+
 private:
     void InitializeRegisterDefaults();
 
@@ -1274,6 +1308,8 @@ private:
 
     /// Start offsets of each macro in macro_memory
     std::array<u32, 0x80> macro_positions = {};
+
+    std::array<bool, Regs::NUM_REGS> mme_inline{};
 
     /// Memory for macro code
     MacroMemory macro_memory;
@@ -1346,6 +1382,9 @@ private:
 
     /// Handles a write to the VERTEX_END_GL register, triggering a draw.
     void DrawArrays();
+
+    // Handles a instance drawcall from MME
+    void StepInstance(MMEDrawMode expected_mode, u32 count);
 };
 
 #define ASSERT_REG_POSITION(field_name, position)                                                  \
@@ -1374,6 +1413,7 @@ ASSERT_REG_POSITION(stencil_back_mask, 0x3D6);
 ASSERT_REG_POSITION(stencil_back_func_mask, 0x3D7);
 ASSERT_REG_POSITION(color_mask_common, 0x3E4);
 ASSERT_REG_POSITION(rt_separate_frag_data, 0x3EB);
+ASSERT_REG_POSITION(depth_bounds, 0x3EC);
 ASSERT_REG_POSITION(zeta, 0x3F8);
 ASSERT_REG_POSITION(clear_flags, 0x43E);
 ASSERT_REG_POSITION(vertex_attrib_format, 0x458);
@@ -1402,6 +1442,7 @@ ASSERT_REG_POSITION(stencil_front_mask, 0x4E7);
 ASSERT_REG_POSITION(frag_color_clamp, 0x4EA);
 ASSERT_REG_POSITION(screen_y_control, 0x4EB);
 ASSERT_REG_POSITION(vb_element_base, 0x50D);
+ASSERT_REG_POSITION(vb_base_instance, 0x50E);
 ASSERT_REG_POSITION(clip_distance_enabled, 0x544);
 ASSERT_REG_POSITION(point_size, 0x546);
 ASSERT_REG_POSITION(zeta_enable, 0x54E);

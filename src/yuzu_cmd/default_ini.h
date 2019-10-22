@@ -173,6 +173,20 @@ volume =
 # 1 (default): Yes, 0: No
 use_virtual_sd =
 
+# Whether or not to enable gamecard emulation
+# 1: Yes, 0 (default): No
+gamecard_inserted =
+
+# Whether or not the gamecard should be emulated as the current game
+# If 'gamecard_inserted' is 0 this setting is irrelevant
+# 1: Yes, 0 (default): No
+gamecard_current_game =
+
+# Path to an XCI file to use as the gamecard
+# If 'gamecard_inserted' is 0 this setting is irrelevant
+# If 'gamecard_current_game' is 1 this setting is irrelevant
+gamecard_path =
+
 [System]
 # Whether the system is docked
 # 1: Yes, 0 (default): No
@@ -213,6 +227,8 @@ region_value =
 log_filter = *:Trace
 
 [Debugging]
+# Record frame time data, can be found in the log directory. Boolean value
+record_frame_times =
 # Port for listening to GDB connections.
 use_gdbstub=false
 gdbstub_port=24689
@@ -234,6 +250,11 @@ web_api_url = https://api.yuzu-emu.org
 # See https://profile.yuzu-emu.org/ for more info
 yuzu_username =
 yuzu_token =
+
+[Services]
+# The name of the backend to use for BCAT
+# If this is set to 'boxcat' boxcat will be used, otherwise a null implementation will be used
+bcat_backend =
 
 [AddOns]
 # Used to disable add-ons

@@ -19,6 +19,7 @@
 #include "video_core/engines/shader_header.h"
 #include "video_core/renderer_vulkan/vk_device.h"
 #include "video_core/renderer_vulkan/vk_shader_decompiler.h"
+#include "video_core/shader/node.h"
 #include "video_core/shader/shader_ir.h"
 
 namespace Vulkan::VKShader {
@@ -87,6 +88,9 @@ bool IsPrecise(Operation operand) {
 
 } // namespace
 
+class ASTDecompiler;
+class ExprDecompiler;
+
 class SPIRVDecompiler : public Sirit::Module {
 public:
     explicit SPIRVDecompiler(const VKDevice& device, const ShaderIR& ir, ShaderStage stage)
@@ -96,27 +100,7 @@ public:
         AddExtension("SPV_KHR_variable_pointers");
     }
 
-    void Decompile() {
-        AllocateBindings();
-        AllocateLabels();
-
-        DeclareVertex();
-        DeclareGeometry();
-        DeclareFragment();
-        DeclareRegisters();
-        DeclarePredicates();
-        DeclareLocalMemory();
-        DeclareInternalFlags();
-        DeclareInputAttributes();
-        DeclareOutputAttributes();
-        DeclareConstantBuffers();
-        DeclareGlobalBuffers();
-        DeclareSamplers();
-
-        execute_function =
-            Emit(OpFunction(t_void, spv::FunctionControlMask::Inline, TypeFunction(t_void)));
-        Emit(OpLabel());
-
+    void DecompileBranchMode() {
         const u32 first_address = ir.GetBasicBlocks().begin()->first;
         const Id loop_label = OpLabel("loop");
         const Id merge_label = OpLabel("merge");
@@ -173,6 +157,43 @@ public:
         Emit(continue_label);
         Emit(OpBranch(loop_label));
         Emit(merge_label);
+    }
+
+    void DecompileAST();
+
+    void Decompile() {
+        const bool is_fully_decompiled = ir.IsDecompiled();
+        AllocateBindings();
+        if (!is_fully_decompiled) {
+            AllocateLabels();
+        }
+
+        DeclareVertex();
+        DeclareGeometry();
+        DeclareFragment();
+        DeclareRegisters();
+        DeclarePredicates();
+        if (is_fully_decompiled) {
+            DeclareFlowVariables();
+        }
+        DeclareLocalMemory();
+        DeclareInternalFlags();
+        DeclareInputAttributes();
+        DeclareOutputAttributes();
+        DeclareConstantBuffers();
+        DeclareGlobalBuffers();
+        DeclareSamplers();
+
+        execute_function =
+            Emit(OpFunction(t_void, spv::FunctionControlMask::Inline, TypeFunction(t_void)));
+        Emit(OpLabel());
+
+        if (is_fully_decompiled) {
+            DecompileAST();
+        } else {
+            DecompileBranchMode();
+        }
+
         Emit(OpReturn());
         Emit(OpFunctionEnd());
     }
@@ -205,6 +226,9 @@ public:
     }
 
 private:
+    friend class ASTDecompiler;
+    friend class ExprDecompiler;
+
     static constexpr auto INTERNAL_FLAGS_COUNT = static_cast<std::size_t>(InternalFlag::Amount);
 
     void AllocateBindings() {
@@ -290,6 +314,14 @@ private:
             const Id id = OpVariable(t_prv_bool, spv::StorageClass::Private, v_false);
             Name(id, fmt::format("pred_{}", static_cast<u32>(pred)));
             predicates.emplace(pred, AddGlobalVariable(id));
+        }
+    }
+
+    void DeclareFlowVariables() {
+        for (u32 i = 0; i < ir.GetASTNumVariables(); i++) {
+            const Id id = OpVariable(t_prv_bool, spv::StorageClass::Private, v_false);
+            Name(id, fmt::format("flow_var_{}", static_cast<u32>(i)));
+            flow_variables.emplace(i, AddGlobalVariable(id));
         }
     }
 
@@ -614,9 +646,15 @@ private:
             Emit(OpBranchConditional(condition, true_label, skip_label));
             Emit(true_label);
 
+            ++conditional_nest_count;
             VisitBasicBlock(conditional->GetCode());
+            --conditional_nest_count;
 
-            Emit(OpBranch(skip_label));
+            if (inside_branch == 0) {
+                Emit(OpBranch(skip_label));
+            } else {
+                inside_branch--;
+            }
             Emit(skip_label);
             return {};
 
@@ -939,22 +977,17 @@ private:
         return {};
     }
 
+    Id ImageLoad(Operation operation) {
+        UNIMPLEMENTED();
+        return {};
+    }
+
     Id ImageStore(Operation operation) {
         UNIMPLEMENTED();
         return {};
     }
 
     Id AtomicImageAdd(Operation operation) {
-        UNIMPLEMENTED();
-        return {};
-    }
-
-    Id AtomicImageMin(Operation operation) {
-        UNIMPLEMENTED();
-        return {};
-    }
-
-    Id AtomicImageMax(Operation operation) {
         UNIMPLEMENTED();
         return {};
     }
@@ -984,7 +1017,11 @@ private:
         UNIMPLEMENTED_IF(!target);
 
         Emit(OpStore(jmp_to, Constant(t_uint, target->GetValue())));
-        BranchingOp([&]() { Emit(OpBranch(continue_label)); });
+        Emit(OpBranch(continue_label));
+        inside_branch = conditional_nest_count;
+        if (conditional_nest_count == 0) {
+            Emit(OpLabel());
+        }
         return {};
     }
 
@@ -992,7 +1029,11 @@ private:
         const Id op_a = VisitOperand<Type::Uint>(operation, 0);
 
         Emit(OpStore(jmp_to, op_a));
-        BranchingOp([&]() { Emit(OpBranch(continue_label)); });
+        Emit(OpBranch(continue_label));
+        inside_branch = conditional_nest_count;
+        if (conditional_nest_count == 0) {
+            Emit(OpLabel());
+        }
         return {};
     }
 
@@ -1019,11 +1060,15 @@ private:
 
         Emit(OpStore(flow_stack_top, previous));
         Emit(OpStore(jmp_to, target));
-        BranchingOp([&]() { Emit(OpBranch(continue_label)); });
+        Emit(OpBranch(continue_label));
+        inside_branch = conditional_nest_count;
+        if (conditional_nest_count == 0) {
+            Emit(OpLabel());
+        }
         return {};
     }
 
-    Id Exit(Operation operation) {
+    Id PreExit() {
         switch (stage) {
         case ShaderStage::Vertex: {
             // TODO(Rodrigo): We should use VK_EXT_depth_range_unrestricted instead, but it doesn't
@@ -1071,12 +1116,35 @@ private:
         }
         }
 
-        BranchingOp([&]() { Emit(OpReturn()); });
+        return {};
+    }
+
+    Id Exit(Operation operation) {
+        PreExit();
+        inside_branch = conditional_nest_count;
+        if (conditional_nest_count > 0) {
+            Emit(OpReturn());
+        } else {
+            const Id dummy = OpLabel();
+            Emit(OpBranch(dummy));
+            Emit(dummy);
+            Emit(OpReturn());
+            Emit(OpLabel());
+        }
         return {};
     }
 
     Id Discard(Operation operation) {
-        BranchingOp([&]() { Emit(OpKill()); });
+        inside_branch = conditional_nest_count;
+        if (conditional_nest_count > 0) {
+            Emit(OpKill());
+        } else {
+            const Id dummy = OpLabel();
+            Emit(OpBranch(dummy));
+            Emit(dummy);
+            Emit(OpKill());
+            Emit(OpLabel());
+        }
         return {};
     }
 
@@ -1123,6 +1191,46 @@ private:
     }
 
     Id VoteEqual(Operation) {
+        UNIMPLEMENTED();
+        return {};
+    }
+
+    Id ShuffleIndexed(Operation) {
+        UNIMPLEMENTED();
+        return {};
+    }
+
+    Id ShuffleUp(Operation) {
+        UNIMPLEMENTED();
+        return {};
+    }
+
+    Id ShuffleDown(Operation) {
+        UNIMPLEMENTED();
+        return {};
+    }
+
+    Id ShuffleButterfly(Operation) {
+        UNIMPLEMENTED();
+        return {};
+    }
+
+    Id InRangeShuffleIndexed(Operation) {
+        UNIMPLEMENTED();
+        return {};
+    }
+
+    Id InRangeShuffleUp(Operation) {
+        UNIMPLEMENTED();
+        return {};
+    }
+
+    Id InRangeShuffleDown(Operation) {
+        UNIMPLEMENTED();
+        return {};
+    }
+
+    Id InRangeShuffleButterfly(Operation) {
         UNIMPLEMENTED();
         return {};
     }
@@ -1229,17 +1337,6 @@ private:
         }
         UNREACHABLE();
         return {};
-    }
-
-    void BranchingOp(std::function<void()> call) {
-        const Id true_label = OpLabel();
-        const Id skip_label = OpLabel();
-        Emit(OpSelectionMerge(skip_label, spv::SelectionControlMask::Flatten));
-        Emit(OpBranchConditional(v_true, true_label, skip_label, 1, 0));
-        Emit(true_label);
-        call();
-
-        Emit(skip_label);
     }
 
     std::tuple<Id, Id> CreateFlowStack() {
@@ -1400,10 +1497,9 @@ private:
         &SPIRVDecompiler::TextureQueryLod,
         &SPIRVDecompiler::TexelFetch,
 
+        &SPIRVDecompiler::ImageLoad,
         &SPIRVDecompiler::ImageStore,
         &SPIRVDecompiler::AtomicImageAdd,
-        &SPIRVDecompiler::AtomicImageMin,
-        &SPIRVDecompiler::AtomicImageMax,
         &SPIRVDecompiler::AtomicImageAnd,
         &SPIRVDecompiler::AtomicImageOr,
         &SPIRVDecompiler::AtomicImageXor,
@@ -1431,6 +1527,16 @@ private:
         &SPIRVDecompiler::VoteAll,
         &SPIRVDecompiler::VoteAny,
         &SPIRVDecompiler::VoteEqual,
+
+        &SPIRVDecompiler::ShuffleIndexed,
+        &SPIRVDecompiler::ShuffleUp,
+        &SPIRVDecompiler::ShuffleDown,
+        &SPIRVDecompiler::ShuffleButterfly,
+
+        &SPIRVDecompiler::InRangeShuffleIndexed,
+        &SPIRVDecompiler::InRangeShuffleUp,
+        &SPIRVDecompiler::InRangeShuffleDown,
+        &SPIRVDecompiler::InRangeShuffleButterfly,
     };
     static_assert(operation_decompilers.size() == static_cast<std::size_t>(OperationCode::Amount));
 
@@ -1438,6 +1544,8 @@ private:
     const ShaderIR& ir;
     const ShaderStage stage;
     const Tegra::Shader::Header header;
+    u64 conditional_nest_count{};
+    u64 inside_branch{};
 
     const Id t_void = Name(TypeVoid(), "void");
 
@@ -1500,6 +1608,7 @@ private:
     Id per_vertex{};
     std::map<u32, Id> registers;
     std::map<Tegra::Shader::Pred, Id> predicates;
+    std::map<u32, Id> flow_variables;
     Id local_memory{};
     std::array<Id, INTERNAL_FLAGS_COUNT> internal_flags{};
     std::map<Attribute::Index, Id> input_attributes;
@@ -1534,6 +1643,232 @@ private:
     Id continue_label{};
     std::map<u32, Id> labels;
 };
+
+class ExprDecompiler {
+public:
+    explicit ExprDecompiler(SPIRVDecompiler& decomp) : decomp{decomp} {}
+
+    Id operator()(const ExprAnd& expr) {
+        const Id type_def = decomp.GetTypeDefinition(Type::Bool);
+        const Id op1 = Visit(expr.operand1);
+        const Id op2 = Visit(expr.operand2);
+        return decomp.Emit(decomp.OpLogicalAnd(type_def, op1, op2));
+    }
+
+    Id operator()(const ExprOr& expr) {
+        const Id type_def = decomp.GetTypeDefinition(Type::Bool);
+        const Id op1 = Visit(expr.operand1);
+        const Id op2 = Visit(expr.operand2);
+        return decomp.Emit(decomp.OpLogicalOr(type_def, op1, op2));
+    }
+
+    Id operator()(const ExprNot& expr) {
+        const Id type_def = decomp.GetTypeDefinition(Type::Bool);
+        const Id op1 = Visit(expr.operand1);
+        return decomp.Emit(decomp.OpLogicalNot(type_def, op1));
+    }
+
+    Id operator()(const ExprPredicate& expr) {
+        const auto pred = static_cast<Tegra::Shader::Pred>(expr.predicate);
+        return decomp.Emit(decomp.OpLoad(decomp.t_bool, decomp.predicates.at(pred)));
+    }
+
+    Id operator()(const ExprCondCode& expr) {
+        const Node cc = decomp.ir.GetConditionCode(expr.cc);
+        Id target;
+
+        if (const auto pred = std::get_if<PredicateNode>(&*cc)) {
+            const auto index = pred->GetIndex();
+            switch (index) {
+            case Tegra::Shader::Pred::NeverExecute:
+                target = decomp.v_false;
+            case Tegra::Shader::Pred::UnusedIndex:
+                target = decomp.v_true;
+            default:
+                target = decomp.predicates.at(index);
+            }
+        } else if (const auto flag = std::get_if<InternalFlagNode>(&*cc)) {
+            target = decomp.internal_flags.at(static_cast<u32>(flag->GetFlag()));
+        }
+        return decomp.Emit(decomp.OpLoad(decomp.t_bool, target));
+    }
+
+    Id operator()(const ExprVar& expr) {
+        return decomp.Emit(decomp.OpLoad(decomp.t_bool, decomp.flow_variables.at(expr.var_index)));
+    }
+
+    Id operator()(const ExprBoolean& expr) {
+        return expr.value ? decomp.v_true : decomp.v_false;
+    }
+
+    Id operator()(const ExprGprEqual& expr) {
+        const Id target = decomp.Constant(decomp.t_uint, expr.value);
+        const Id gpr = decomp.BitcastTo<Type::Uint>(
+            decomp.Emit(decomp.OpLoad(decomp.t_float, decomp.registers.at(expr.gpr))));
+        return decomp.Emit(decomp.OpLogicalEqual(decomp.t_uint, gpr, target));
+    }
+
+    Id Visit(const Expr& node) {
+        return std::visit(*this, *node);
+    }
+
+private:
+    SPIRVDecompiler& decomp;
+};
+
+class ASTDecompiler {
+public:
+    explicit ASTDecompiler(SPIRVDecompiler& decomp) : decomp{decomp} {}
+
+    void operator()(const ASTProgram& ast) {
+        ASTNode current = ast.nodes.GetFirst();
+        while (current) {
+            Visit(current);
+            current = current->GetNext();
+        }
+    }
+
+    void operator()(const ASTIfThen& ast) {
+        ExprDecompiler expr_parser{decomp};
+        const Id condition = expr_parser.Visit(ast.condition);
+        const Id then_label = decomp.OpLabel();
+        const Id endif_label = decomp.OpLabel();
+        decomp.Emit(decomp.OpSelectionMerge(endif_label, spv::SelectionControlMask::MaskNone));
+        decomp.Emit(decomp.OpBranchConditional(condition, then_label, endif_label));
+        decomp.Emit(then_label);
+        ASTNode current = ast.nodes.GetFirst();
+        while (current) {
+            Visit(current);
+            current = current->GetNext();
+        }
+        decomp.Emit(decomp.OpBranch(endif_label));
+        decomp.Emit(endif_label);
+    }
+
+    void operator()([[maybe_unused]] const ASTIfElse& ast) {
+        UNREACHABLE();
+    }
+
+    void operator()([[maybe_unused]] const ASTBlockEncoded& ast) {
+        UNREACHABLE();
+    }
+
+    void operator()(const ASTBlockDecoded& ast) {
+        decomp.VisitBasicBlock(ast.nodes);
+    }
+
+    void operator()(const ASTVarSet& ast) {
+        ExprDecompiler expr_parser{decomp};
+        const Id condition = expr_parser.Visit(ast.condition);
+        decomp.Emit(decomp.OpStore(decomp.flow_variables.at(ast.index), condition));
+    }
+
+    void operator()([[maybe_unused]] const ASTLabel& ast) {
+        // Do nothing
+    }
+
+    void operator()([[maybe_unused]] const ASTGoto& ast) {
+        UNREACHABLE();
+    }
+
+    void operator()(const ASTDoWhile& ast) {
+        const Id loop_label = decomp.OpLabel();
+        const Id endloop_label = decomp.OpLabel();
+        const Id loop_start_block = decomp.OpLabel();
+        const Id loop_end_block = decomp.OpLabel();
+        current_loop_exit = endloop_label;
+        decomp.Emit(decomp.OpBranch(loop_label));
+        decomp.Emit(loop_label);
+        decomp.Emit(
+            decomp.OpLoopMerge(endloop_label, loop_end_block, spv::LoopControlMask::MaskNone));
+        decomp.Emit(decomp.OpBranch(loop_start_block));
+        decomp.Emit(loop_start_block);
+        ASTNode current = ast.nodes.GetFirst();
+        while (current) {
+            Visit(current);
+            current = current->GetNext();
+        }
+        ExprDecompiler expr_parser{decomp};
+        const Id condition = expr_parser.Visit(ast.condition);
+        decomp.Emit(decomp.OpBranchConditional(condition, loop_label, endloop_label));
+        decomp.Emit(endloop_label);
+    }
+
+    void operator()(const ASTReturn& ast) {
+        if (!VideoCommon::Shader::ExprIsTrue(ast.condition)) {
+            ExprDecompiler expr_parser{decomp};
+            const Id condition = expr_parser.Visit(ast.condition);
+            const Id then_label = decomp.OpLabel();
+            const Id endif_label = decomp.OpLabel();
+            decomp.Emit(decomp.OpSelectionMerge(endif_label, spv::SelectionControlMask::MaskNone));
+            decomp.Emit(decomp.OpBranchConditional(condition, then_label, endif_label));
+            decomp.Emit(then_label);
+            if (ast.kills) {
+                decomp.Emit(decomp.OpKill());
+            } else {
+                decomp.PreExit();
+                decomp.Emit(decomp.OpReturn());
+            }
+            decomp.Emit(endif_label);
+        } else {
+            const Id next_block = decomp.OpLabel();
+            decomp.Emit(decomp.OpBranch(next_block));
+            decomp.Emit(next_block);
+            if (ast.kills) {
+                decomp.Emit(decomp.OpKill());
+            } else {
+                decomp.PreExit();
+                decomp.Emit(decomp.OpReturn());
+            }
+            decomp.Emit(decomp.OpLabel());
+        }
+    }
+
+    void operator()(const ASTBreak& ast) {
+        if (!VideoCommon::Shader::ExprIsTrue(ast.condition)) {
+            ExprDecompiler expr_parser{decomp};
+            const Id condition = expr_parser.Visit(ast.condition);
+            const Id then_label = decomp.OpLabel();
+            const Id endif_label = decomp.OpLabel();
+            decomp.Emit(decomp.OpSelectionMerge(endif_label, spv::SelectionControlMask::MaskNone));
+            decomp.Emit(decomp.OpBranchConditional(condition, then_label, endif_label));
+            decomp.Emit(then_label);
+            decomp.Emit(decomp.OpBranch(current_loop_exit));
+            decomp.Emit(endif_label);
+        } else {
+            const Id next_block = decomp.OpLabel();
+            decomp.Emit(decomp.OpBranch(next_block));
+            decomp.Emit(next_block);
+            decomp.Emit(decomp.OpBranch(current_loop_exit));
+            decomp.Emit(decomp.OpLabel());
+        }
+    }
+
+    void Visit(const ASTNode& node) {
+        std::visit(*this, *node->GetInnerData());
+    }
+
+private:
+    SPIRVDecompiler& decomp;
+    Id current_loop_exit{};
+};
+
+void SPIRVDecompiler::DecompileAST() {
+    const u32 num_flow_variables = ir.GetASTNumVariables();
+    for (u32 i = 0; i < num_flow_variables; i++) {
+        const Id id = OpVariable(t_prv_bool, spv::StorageClass::Private, v_false);
+        Name(id, fmt::format("flow_var_{}", i));
+        flow_variables.emplace(i, AddGlobalVariable(id));
+    }
+
+    const ASTNode program = ir.GetASTProgram();
+    ASTDecompiler decompiler{*this};
+    decompiler.Visit(program);
+
+    const Id next_block = OpLabel();
+    Emit(OpBranch(next_block));
+    Emit(next_block);
+}
 
 DecompilerResult Decompile(const VKDevice& device, const VideoCommon::Shader::ShaderIR& ir,
                            Maxwell::ShaderStage stage) {

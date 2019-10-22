@@ -42,9 +42,6 @@ target_include_directories(mbedtls PUBLIC ./mbedtls/include)
 add_library(microprofile INTERFACE)
 target_include_directories(microprofile INTERFACE ./microprofile)
 
-# Open Source Archives
-add_subdirectory(open_source_archives EXCLUDE_FROM_ALL)
-
 # Unicorn
 add_library(unicorn-headers INTERFACE)
 target_include_directories(unicorn-headers INTERFACE ./unicorn/include)
@@ -76,6 +73,12 @@ endif()
 if (ENABLE_VULKAN)
     add_subdirectory(sirit)
 endif()
+
+# zlib
+add_subdirectory(zlib EXCLUDE_FROM_ALL)
+
+# libzip
+add_subdirectory(libzip EXCLUDE_FROM_ALL)
 
 if (ENABLE_WEB_SERVICE)
     # LibreSSL

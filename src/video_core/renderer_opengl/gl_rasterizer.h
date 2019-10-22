@@ -9,6 +9,7 @@
 #include <cstddef>
 #include <map>
 #include <memory>
+#include <mutex>
 #include <optional>
 #include <tuple>
 #include <utility>
@@ -57,7 +58,8 @@ public:
                               ScreenInfo& info);
     ~RasterizerOpenGL() override;
 
-    void DrawArrays() override;
+    bool DrawBatch(bool is_indexed) override;
+    bool DrawMultiBatch(bool is_indexed) override;
     void Clear() override;
     void DispatchCompute(GPUVAddr code_addr) override;
     void FlushAll() override;
@@ -71,45 +73,13 @@ public:
                                const Tegra::Engines::Fermi2D::Config& copy_config) override;
     bool AccelerateDisplay(const Tegra::FramebufferConfig& config, VAddr framebuffer_addr,
                            u32 pixel_stride) override;
-    bool AccelerateDrawBatch(bool is_indexed) override;
     void UpdatePagesCachedCount(VAddr addr, u64 size, int delta) override;
     void LoadDiskResources(const std::atomic_bool& stop_loading,
                            const VideoCore::DiskResourceLoadCallback& callback) override;
 
 private:
-    struct FramebufferConfigState {
-        bool using_color_fb{};
-        bool using_depth_fb{};
-        bool preserve_contents{};
-        std::optional<std::size_t> single_color_target;
-
-        bool operator==(const FramebufferConfigState& rhs) const {
-            return std::tie(using_color_fb, using_depth_fb, preserve_contents,
-                            single_color_target) == std::tie(rhs.using_color_fb, rhs.using_depth_fb,
-                                                             rhs.preserve_contents,
-                                                             rhs.single_color_target);
-        }
-        bool operator!=(const FramebufferConfigState& rhs) const {
-            return !operator==(rhs);
-        }
-    };
-
-    /**
-     * Configures the color and depth framebuffer states.
-     *
-     * @param current_state       The current OpenGL state.
-     * @param using_color_fb      If true, configure color framebuffers.
-     * @param using_depth_fb      If true, configure the depth/stencil framebuffer.
-     * @param preserve_contents   If true, tries to preserve data from a previously used
-     *                            framebuffer.
-     * @param single_color_target Specifies if a single color buffer target should be used.
-     *
-     * @returns If depth (first) or stencil (second) are being stored in the bound zeta texture
-     *          (requires using_depth_fb to be true)
-     */
-    std::pair<bool, bool> ConfigureFramebuffers(
-        OpenGLState& current_state, bool using_color_fb = true, bool using_depth_fb = true,
-        bool preserve_contents = true, std::optional<std::size_t> single_color_target = {});
+    /// Configures the color and depth framebuffer states.
+    void ConfigureFramebuffers();
 
     void ConfigureClearFramebuffer(OpenGLState& current_state, bool using_color_fb,
                                    bool using_depth_fb, bool using_stencil_fb);
@@ -135,6 +105,9 @@ private:
     /// Configures a constant buffer.
     void SetupGlobalMemory(const GLShader::GlobalMemoryEntry& entry, GPUVAddr gpu_addr,
                            std::size_t size);
+
+    /// Syncs all the state, shaders, render targets and textures setting before a draw call.
+    void DrawPrelude();
 
     /// Configures the current textures to use for the draw command. Returns shaders texture buffer
     /// usage.
@@ -228,9 +201,6 @@ private:
              OGLVertexArray>
         vertex_array_cache;
 
-    FramebufferConfigState current_framebuffer_config_state;
-    std::pair<bool, bool> current_depth_stencil_usage{};
-
     static constexpr std::size_t STREAM_BUFFER_SIZE = 128 * 1024 * 1024;
     OGLBufferCache buffer_cache;
 
@@ -250,7 +220,7 @@ private:
 
     GLintptr SetupIndexBuffer();
 
-    DrawParameters SetupDraw(GLintptr index_buffer_offset);
+    GLintptr index_buffer_offset;
 
     void SetupShaders(GLenum primitive_mode);
 
@@ -261,6 +231,8 @@ private:
 
     using CachedPageMap = boost::icl::interval_map<u64, int>;
     CachedPageMap cached_pages;
+
+    std::mutex pages_mutex;
 };
 
 } // namespace OpenGL

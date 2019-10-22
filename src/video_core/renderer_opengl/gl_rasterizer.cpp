@@ -49,40 +49,6 @@ MICROPROFILE_DEFINE(OpenGL_Blits, "OpenGL", "Blits", MP_RGB(128, 128, 192));
 MICROPROFILE_DEFINE(OpenGL_CacheManagement, "OpenGL", "Cache Mgmt", MP_RGB(100, 255, 100));
 MICROPROFILE_DEFINE(OpenGL_PrimitiveAssembly, "OpenGL", "Prim Asmbl", MP_RGB(255, 100, 100));
 
-struct DrawParameters {
-    GLenum primitive_mode;
-    GLsizei count;
-    GLint current_instance;
-    bool use_indexed;
-
-    GLint vertex_first;
-
-    GLenum index_format;
-    GLint base_vertex;
-    GLintptr index_buffer_offset;
-
-    void DispatchDraw() const {
-        if (use_indexed) {
-            const auto index_buffer_ptr = reinterpret_cast<const void*>(index_buffer_offset);
-            if (current_instance > 0) {
-                glDrawElementsInstancedBaseVertexBaseInstance(primitive_mode, count, index_format,
-                                                              index_buffer_ptr, 1, base_vertex,
-                                                              current_instance);
-            } else {
-                glDrawElementsBaseVertex(primitive_mode, count, index_format, index_buffer_ptr,
-                                         base_vertex);
-            }
-        } else {
-            if (current_instance > 0) {
-                glDrawArraysInstancedBaseInstance(primitive_mode, vertex_first, count, 1,
-                                                  current_instance);
-            } else {
-                glDrawArrays(primitive_mode, vertex_first, count);
-            }
-        }
-    }
-};
-
 static std::size_t GetConstBufferSize(const Tegra::Engines::ConstBufferInfo& buffer,
                                       const GLShader::ConstBufferEntry& entry) {
     if (!entry.IsIndirect()) {
@@ -270,29 +236,6 @@ GLintptr RasterizerOpenGL::SetupIndexBuffer() {
     return offset;
 }
 
-DrawParameters RasterizerOpenGL::SetupDraw(GLintptr index_buffer_offset) {
-    const auto& gpu = system.GPU().Maxwell3D();
-    const auto& regs = gpu.regs;
-    const bool is_indexed = accelerate_draw == AccelDraw::Indexed;
-
-    DrawParameters params{};
-    params.current_instance = gpu.state.current_instance;
-
-    params.use_indexed = is_indexed;
-    params.primitive_mode = MaxwellToGL::PrimitiveTopology(regs.draw.topology);
-
-    if (is_indexed) {
-        params.index_format = MaxwellToGL::IndexFormat(regs.index_array.format);
-        params.count = regs.index_array.count;
-        params.index_buffer_offset = index_buffer_offset;
-        params.base_vertex = static_cast<GLint>(regs.vb_element_base);
-    } else {
-        params.count = regs.vertex_buffer.count;
-        params.vertex_first = regs.vertex_buffer.first;
-    }
-    return params;
-}
-
 void RasterizerOpenGL::SetupShaders(GLenum primitive_mode) {
     MICROPROFILE_SCOPE(OpenGL_Shader);
     auto& gpu = system.GPU().Maxwell3D();
@@ -399,18 +342,13 @@ std::size_t RasterizerOpenGL::CalculateIndexBufferSize() const {
            static_cast<std::size_t>(regs.index_array.FormatSizeInBytes());
 }
 
-bool RasterizerOpenGL::AccelerateDrawBatch(bool is_indexed) {
-    accelerate_draw = is_indexed ? AccelDraw::Indexed : AccelDraw::Arrays;
-    DrawArrays();
-    return true;
-}
-
 template <typename Map, typename Interval>
 static constexpr auto RangeFromInterval(Map& map, const Interval& interval) {
     return boost::make_iterator_range(map.equal_range(interval));
 }
 
 void RasterizerOpenGL::UpdatePagesCachedCount(VAddr addr, u64 size, int delta) {
+    std::lock_guard lock{pages_mutex};
     const u64 page_start{addr >> Memory::PAGE_BITS};
     const u64 page_end{(addr + size + Memory::PAGE_SIZE - 1) >> Memory::PAGE_BITS};
 
@@ -445,99 +383,51 @@ void RasterizerOpenGL::LoadDiskResources(const std::atomic_bool& stop_loading,
     shader_cache.LoadDiskCache(stop_loading, callback);
 }
 
-std::pair<bool, bool> RasterizerOpenGL::ConfigureFramebuffers(
-    OpenGLState& current_state, bool using_color_fb, bool using_depth_fb, bool preserve_contents,
-    std::optional<std::size_t> single_color_target) {
+void RasterizerOpenGL::ConfigureFramebuffers() {
     MICROPROFILE_SCOPE(OpenGL_Framebuffer);
     auto& gpu = system.GPU().Maxwell3D();
-    const auto& regs = gpu.regs;
-
-    const FramebufferConfigState fb_config_state{using_color_fb, using_depth_fb, preserve_contents,
-                                                 single_color_target};
-    if (fb_config_state == current_framebuffer_config_state && !gpu.dirty.render_settings) {
-        // Only skip if the previous ConfigureFramebuffers call was from the same kind (multiple or
-        // single color targets). This is done because the guest registers may not change but the
-        // host framebuffer may contain different attachments
-        return current_depth_stencil_usage;
+    if (!gpu.dirty.render_settings) {
+        return;
     }
     gpu.dirty.render_settings = false;
-    current_framebuffer_config_state = fb_config_state;
 
     texture_cache.GuardRenderTargets(true);
 
-    View depth_surface{};
-    if (using_depth_fb) {
-        depth_surface = texture_cache.GetDepthBufferSurface(preserve_contents);
-    } else {
-        texture_cache.SetEmptyDepthBuffer();
-    }
+    View depth_surface = texture_cache.GetDepthBufferSurface(true);
 
+    const auto& regs = gpu.regs;
+    state.framebuffer_srgb.enabled = regs.framebuffer_srgb != 0;
     UNIMPLEMENTED_IF(regs.rt_separate_frag_data == 0);
 
     // Bind the framebuffer surfaces
-    current_state.framebuffer_srgb.enabled = regs.framebuffer_srgb != 0;
-
     FramebufferCacheKey fbkey;
+    for (std::size_t index = 0; index < Maxwell::NumRenderTargets; ++index) {
+        View color_surface{texture_cache.GetColorBufferSurface(index, true)};
 
-    if (using_color_fb) {
-        if (single_color_target) {
-            // Used when just a single color attachment is enabled, e.g. for clearing a color buffer
-            View color_surface{
-                texture_cache.GetColorBufferSurface(*single_color_target, preserve_contents)};
-
-            if (color_surface) {
-                // Assume that a surface will be written to if it is used as a framebuffer, even if
-                // the shader doesn't actually write to it.
-                texture_cache.MarkColorBufferInUse(*single_color_target);
-            }
-
-            fbkey.is_single_buffer = true;
-            fbkey.color_attachments[0] =
-                GL_COLOR_ATTACHMENT0 + static_cast<GLenum>(*single_color_target);
-            fbkey.colors[0] = color_surface;
-            for (std::size_t index = 0; index < Maxwell::NumRenderTargets; ++index) {
-                if (index != *single_color_target) {
-                    texture_cache.SetEmptyColorBuffer(index);
-                }
-            }
-        } else {
-            // Multiple color attachments are enabled
-            for (std::size_t index = 0; index < Maxwell::NumRenderTargets; ++index) {
-                View color_surface{texture_cache.GetColorBufferSurface(index, preserve_contents)};
-
-                if (color_surface) {
-                    // Assume that a surface will be written to if it is used as a framebuffer, even
-                    // if the shader doesn't actually write to it.
-                    texture_cache.MarkColorBufferInUse(index);
-                }
-
-                fbkey.color_attachments[index] =
-                    GL_COLOR_ATTACHMENT0 + regs.rt_control.GetMap(index);
-                fbkey.colors[index] = color_surface;
-            }
-            fbkey.is_single_buffer = false;
-            fbkey.colors_count = regs.rt_control.count;
+        if (color_surface) {
+            // Assume that a surface will be written to if it is used as a framebuffer, even
+            // if the shader doesn't actually write to it.
+            texture_cache.MarkColorBufferInUse(index);
         }
-    } else {
-        // No color attachments are enabled - leave them as zero
-        fbkey.is_single_buffer = true;
+
+        fbkey.color_attachments[index] = GL_COLOR_ATTACHMENT0 + regs.rt_control.GetMap(index);
+        fbkey.colors[index] = std::move(color_surface);
     }
+    fbkey.colors_count = regs.rt_control.count;
 
     if (depth_surface) {
         // Assume that a surface will be written to if it is used as a framebuffer, even if
         // the shader doesn't actually write to it.
         texture_cache.MarkDepthBufferInUse();
 
-        fbkey.zeta = depth_surface;
         fbkey.stencil_enable = depth_surface->GetSurfaceParams().type == SurfaceType::DepthStencil;
+        fbkey.zeta = std::move(depth_surface);
     }
 
     texture_cache.GuardRenderTargets(false);
 
-    current_state.draw.draw_framebuffer = framebuffer_cache.GetFramebuffer(fbkey);
-    SyncViewport(current_state);
-
-    return current_depth_stencil_usage = {static_cast<bool>(depth_surface), fbkey.stencil_enable};
+    state.draw.draw_framebuffer = framebuffer_cache.GetFramebuffer(fbkey);
+    SyncViewport(state);
 }
 
 void RasterizerOpenGL::ConfigureClearFramebuffer(OpenGLState& current_state, bool using_color_fb,
@@ -688,16 +578,8 @@ void RasterizerOpenGL::Clear() {
     }
 }
 
-void RasterizerOpenGL::DrawArrays() {
-    if (accelerate_draw == AccelDraw::Disabled)
-        return;
-
-    MICROPROFILE_SCOPE(OpenGL_Drawing);
+void RasterizerOpenGL::DrawPrelude() {
     auto& gpu = system.GPU().Maxwell3D();
-
-    if (!gpu.ShouldExecute()) {
-        return;
-    }
 
     SyncColorMask();
     SyncFragmentColorClampState();
@@ -743,10 +625,7 @@ void RasterizerOpenGL::DrawArrays() {
     // Upload vertex and index data.
     SetupVertexBuffer(vao);
     SetupVertexInstances(vao);
-    const GLintptr index_buffer_offset = SetupIndexBuffer();
-
-    // Setup draw parameters. It will automatically choose what glDraw* method to use.
-    const DrawParameters params = SetupDraw(index_buffer_offset);
+    index_buffer_offset = SetupIndexBuffer();
 
     // Prepare packed bindings.
     bind_ubo_pushbuffer.Setup(0);
@@ -754,10 +633,11 @@ void RasterizerOpenGL::DrawArrays() {
 
     // Setup shaders and their used resources.
     texture_cache.GuardSamplers(true);
-    SetupShaders(params.primitive_mode);
+    const auto primitive_mode = MaxwellToGL::PrimitiveTopology(gpu.regs.draw.topology);
+    SetupShaders(primitive_mode);
     texture_cache.GuardSamplers(false);
 
-    ConfigureFramebuffers(state);
+    ConfigureFramebuffers();
 
     // Signal the buffer cache that we are not going to upload more things.
     const bool invalidate = buffer_cache.Unmap();
@@ -778,11 +658,107 @@ void RasterizerOpenGL::DrawArrays() {
     if (texture_cache.TextureBarrier()) {
         glTextureBarrier();
     }
+}
 
-    params.DispatchDraw();
+struct DrawParams {
+    bool is_indexed{};
+    bool is_instanced{};
+    GLenum primitive_mode{};
+    GLint count{};
+    GLint base_vertex{};
 
+    // Indexed settings
+    GLenum index_format{};
+    GLintptr index_buffer_offset{};
+
+    // Instanced setting
+    GLint num_instances{};
+    GLint base_instance{};
+
+    void DispatchDraw() {
+        if (is_indexed) {
+            const auto index_buffer_ptr = reinterpret_cast<const void*>(index_buffer_offset);
+            if (is_instanced) {
+                glDrawElementsInstancedBaseVertexBaseInstance(primitive_mode, count, index_format,
+                                                              index_buffer_ptr, num_instances,
+                                                              base_vertex, base_instance);
+            } else {
+                glDrawElementsBaseVertex(primitive_mode, count, index_format, index_buffer_ptr,
+                                         base_vertex);
+            }
+        } else {
+            if (is_instanced) {
+                glDrawArraysInstancedBaseInstance(primitive_mode, base_vertex, count, num_instances,
+                                                  base_instance);
+            } else {
+                glDrawArrays(primitive_mode, base_vertex, count);
+            }
+        }
+    }
+};
+
+bool RasterizerOpenGL::DrawBatch(bool is_indexed) {
+    accelerate_draw = is_indexed ? AccelDraw::Indexed : AccelDraw::Arrays;
+
+    MICROPROFILE_SCOPE(OpenGL_Drawing);
+
+    DrawPrelude();
+
+    auto& maxwell3d = system.GPU().Maxwell3D();
+    const auto& regs = maxwell3d.regs;
+    const auto current_instance = maxwell3d.state.current_instance;
+    DrawParams draw_call{};
+    draw_call.is_indexed = is_indexed;
+    draw_call.num_instances = static_cast<GLint>(1);
+    draw_call.base_instance = static_cast<GLint>(current_instance);
+    draw_call.is_instanced = current_instance > 0;
+    draw_call.primitive_mode = MaxwellToGL::PrimitiveTopology(regs.draw.topology);
+    if (draw_call.is_indexed) {
+        draw_call.count = static_cast<GLint>(regs.index_array.count);
+        draw_call.base_vertex = static_cast<GLint>(regs.vb_element_base);
+        draw_call.index_format = MaxwellToGL::IndexFormat(regs.index_array.format);
+        draw_call.index_buffer_offset = index_buffer_offset;
+    } else {
+        draw_call.count = static_cast<GLint>(regs.vertex_buffer.count);
+        draw_call.base_vertex = static_cast<GLint>(regs.vertex_buffer.first);
+    }
+    draw_call.DispatchDraw();
+
+    maxwell3d.dirty.memory_general = false;
     accelerate_draw = AccelDraw::Disabled;
-    gpu.dirty.memory_general = false;
+    return true;
+}
+
+bool RasterizerOpenGL::DrawMultiBatch(bool is_indexed) {
+    accelerate_draw = is_indexed ? AccelDraw::Indexed : AccelDraw::Arrays;
+
+    MICROPROFILE_SCOPE(OpenGL_Drawing);
+
+    DrawPrelude();
+
+    auto& maxwell3d = system.GPU().Maxwell3D();
+    const auto& regs = maxwell3d.regs;
+    const auto& draw_setup = maxwell3d.mme_draw;
+    DrawParams draw_call{};
+    draw_call.is_indexed = is_indexed;
+    draw_call.num_instances = static_cast<GLint>(draw_setup.instance_count);
+    draw_call.base_instance = static_cast<GLint>(regs.vb_base_instance);
+    draw_call.is_instanced = draw_setup.instance_count > 1;
+    draw_call.primitive_mode = MaxwellToGL::PrimitiveTopology(regs.draw.topology);
+    if (draw_call.is_indexed) {
+        draw_call.count = static_cast<GLint>(regs.index_array.count);
+        draw_call.base_vertex = static_cast<GLint>(regs.vb_element_base);
+        draw_call.index_format = MaxwellToGL::IndexFormat(regs.index_array.format);
+        draw_call.index_buffer_offset = index_buffer_offset;
+    } else {
+        draw_call.count = static_cast<GLint>(regs.vertex_buffer.count);
+        draw_call.base_vertex = static_cast<GLint>(regs.vertex_buffer.first);
+    }
+    draw_call.DispatchDraw();
+
+    maxwell3d.dirty.memory_general = false;
+    accelerate_draw = AccelDraw::Disabled;
+    return true;
 }
 
 void RasterizerOpenGL::DispatchCompute(GPUVAddr code_addr) {
@@ -999,7 +975,8 @@ TextureBufferUsage RasterizerOpenGL::SetupDrawTextures(Maxwell::ShaderStage stag
             }
             const auto cbuf = entry.GetBindlessCBuf();
             Tegra::Texture::TextureHandle tex_handle;
-            tex_handle.raw = maxwell3d.AccessConstBuffer32(stage, cbuf.first, cbuf.second);
+            Tegra::Engines::ShaderType shader_type = static_cast<Tegra::Engines::ShaderType>(stage);
+            tex_handle.raw = maxwell3d.AccessConstBuffer32(shader_type, cbuf.first, cbuf.second);
             return maxwell3d.GetTextureInfo(tex_handle, entry.GetOffset());
         }();
 
@@ -1029,7 +1006,8 @@ TextureBufferUsage RasterizerOpenGL::SetupComputeTextures(const Shader& kernel) 
             }
             const auto cbuf = entry.GetBindlessCBuf();
             Tegra::Texture::TextureHandle tex_handle;
-            tex_handle.raw = compute.AccessConstBuffer32(cbuf.first, cbuf.second);
+            tex_handle.raw = compute.AccessConstBuffer32(Tegra::Engines::ShaderType::Compute,
+                                                         cbuf.first, cbuf.second);
             return compute.GetTextureInfo(tex_handle, entry.GetOffset());
         }();
 
@@ -1074,7 +1052,8 @@ void RasterizerOpenGL::SetupComputeImages(const Shader& shader) {
             }
             const auto cbuf = entry.GetBindlessCBuf();
             Tegra::Texture::TextureHandle tex_handle;
-            tex_handle.raw = compute.AccessConstBuffer32(cbuf.first, cbuf.second);
+            tex_handle.raw = compute.AccessConstBuffer32(Tegra::Engines::ShaderType::Compute,
+                                                         cbuf.first, cbuf.second);
             return compute.GetTextureInfo(tex_handle, entry.GetOffset()).tic;
         }();
         SetupImage(bindpoint, tic, entry);
@@ -1365,7 +1344,9 @@ void RasterizerOpenGL::SyncPolygonOffset() {
     state.polygon_offset.fill_enable = regs.polygon_offset_fill_enable != 0;
     state.polygon_offset.line_enable = regs.polygon_offset_line_enable != 0;
     state.polygon_offset.point_enable = regs.polygon_offset_point_enable != 0;
-    state.polygon_offset.units = regs.polygon_offset_units;
+
+    // Hardware divides polygon offset units by two
+    state.polygon_offset.units = regs.polygon_offset_units / 2.0f;
     state.polygon_offset.factor = regs.polygon_offset_factor;
     state.polygon_offset.clamp = regs.polygon_offset_clamp;
 

@@ -7,6 +7,7 @@
 
 #include <fmt/chrono.h>
 #include <fmt/format.h>
+#include <fmt/ostream.h>
 #include <json.hpp>
 
 #include "common/file_util.h"
@@ -17,6 +18,7 @@
 #include "core/hle/kernel/hle_ipc.h"
 #include "core/hle/kernel/process.h"
 #include "core/hle/result.h"
+#include "core/hle/service/lm/manager.h"
 #include "core/reporter.h"
 #include "core/settings.h"
 
@@ -304,8 +306,8 @@ void Reporter::SaveUnimplementedAppletReport(
     SaveToFile(std::move(out), GetPath("unimpl_applet_report", title_id, timestamp));
 }
 
-void Reporter::SavePlayReport(u64 title_id, u64 process_id, std::vector<std::vector<u8>> data,
-                              std::optional<u128> user_id) const {
+void Reporter::SavePlayReport(PlayReportType type, u64 title_id, std::vector<std::vector<u8>> data,
+                              std::optional<u64> process_id, std::optional<u128> user_id) const {
     if (!IsReportingEnabled()) {
         return;
     }
@@ -321,7 +323,11 @@ void Reporter::SavePlayReport(u64 title_id, u64 process_id, std::vector<std::vec
         data_out.push_back(Common::HexToString(d));
     }
 
-    out["play_report_process_id"] = fmt::format("{:016X}", process_id);
+    if (process_id.has_value()) {
+        out["play_report_process_id"] = fmt::format("{:016X}", *process_id);
+    }
+
+    out["play_report_type"] = fmt::format("{:02}", static_cast<u8>(type));
     out["play_report_data"] = std::move(data_out);
 
     SaveToFile(std::move(out), GetPath("play_report", title_id, timestamp));
@@ -348,6 +354,55 @@ void Reporter::SaveErrorReport(u64 title_id, ResultCode result,
     };
 
     SaveToFile(std::move(out), GetPath("error_report", title_id, timestamp));
+}
+
+void Reporter::SaveLogReport(u32 destination, std::vector<Service::LM::LogMessage> messages) const {
+    if (!IsReportingEnabled()) {
+        return;
+    }
+
+    const auto timestamp = GetTimestamp();
+    json out;
+
+    out["yuzu_version"] = GetYuzuVersionData();
+    out["report_common"] =
+        GetReportCommonData(system.CurrentProcess()->GetTitleID(), RESULT_SUCCESS, timestamp);
+
+    out["log_destination"] =
+        fmt::format("{}", static_cast<Service::LM::DestinationFlag>(destination));
+
+    auto json_messages = json::array();
+    std::transform(messages.begin(), messages.end(), std::back_inserter(json_messages),
+                   [](const Service::LM::LogMessage& message) {
+                       json out;
+                       out["is_head"] = fmt::format("{}", message.header.IsHeadLog());
+                       out["is_tail"] = fmt::format("{}", message.header.IsTailLog());
+                       out["pid"] = fmt::format("{:016X}", message.header.pid);
+                       out["thread_context"] =
+                           fmt::format("{:016X}", message.header.thread_context);
+                       out["payload_size"] = fmt::format("{:016X}", message.header.payload_size);
+                       out["flags"] = fmt::format("{:04X}", message.header.flags.Value());
+                       out["severity"] = fmt::format("{}", message.header.severity.Value());
+                       out["verbosity"] = fmt::format("{:02X}", message.header.verbosity);
+
+                       auto fields = json::array();
+                       std::transform(message.fields.begin(), message.fields.end(),
+                                      std::back_inserter(fields), [](const auto& kv) {
+                                          json out;
+                                          out["type"] = fmt::format("{}", kv.first);
+                                          out["data"] =
+                                              Service::LM::FormatField(kv.first, kv.second);
+                                          return out;
+                                      });
+
+                       out["fields"] = std::move(fields);
+                       return out;
+                   });
+
+    out["log_messages"] = std::move(json_messages);
+
+    SaveToFile(std::move(out),
+               GetPath("log_report", system.CurrentProcess()->GetTitleID(), timestamp));
 }
 
 void Reporter::SaveFilesystemAccessReport(Service::FileSystem::LogMode log_mode,

@@ -57,36 +57,48 @@ enum class PixelFormat {
     RG8U = 39,
     RG8S = 40,
     RG32UI = 41,
-    R32UI = 42,
-    ASTC_2D_8X8 = 43,
-    ASTC_2D_8X5 = 44,
-    ASTC_2D_5X4 = 45,
-    BGRA8_SRGB = 46,
-    DXT1_SRGB = 47,
-    DXT23_SRGB = 48,
-    DXT45_SRGB = 49,
-    BC7U_SRGB = 50,
-    ASTC_2D_4X4_SRGB = 51,
-    ASTC_2D_8X8_SRGB = 52,
-    ASTC_2D_8X5_SRGB = 53,
-    ASTC_2D_5X4_SRGB = 54,
-    ASTC_2D_5X5 = 55,
-    ASTC_2D_5X5_SRGB = 56,
-    ASTC_2D_10X8 = 57,
-    ASTC_2D_10X8_SRGB = 58,
+    RGBX16F = 42,
+    R32UI = 43,
+    ASTC_2D_8X8 = 44,
+    ASTC_2D_8X5 = 45,
+    ASTC_2D_5X4 = 46,
+    BGRA8_SRGB = 47,
+    DXT1_SRGB = 48,
+    DXT23_SRGB = 49,
+    DXT45_SRGB = 50,
+    BC7U_SRGB = 51,
+    R4G4B4A4U = 52,
+    ASTC_2D_4X4_SRGB = 53,
+    ASTC_2D_8X8_SRGB = 54,
+    ASTC_2D_8X5_SRGB = 55,
+    ASTC_2D_5X4_SRGB = 56,
+    ASTC_2D_5X5 = 57,
+    ASTC_2D_5X5_SRGB = 58,
+    ASTC_2D_10X8 = 59,
+    ASTC_2D_10X8_SRGB = 60,
+    ASTC_2D_6X6 = 61,
+    ASTC_2D_6X6_SRGB = 62,
+    ASTC_2D_10X10 = 63,
+    ASTC_2D_10X10_SRGB = 64,
+    ASTC_2D_12X12 = 65,
+    ASTC_2D_12X12_SRGB = 66,
+    ASTC_2D_8X6 = 67,
+    ASTC_2D_8X6_SRGB = 68,
+    ASTC_2D_6X5 = 69,
+    ASTC_2D_6X5_SRGB = 70,
 
     MaxColorFormat,
 
     // Depth formats
-    Z32F = 59,
-    Z16 = 60,
+    Z32F = 71,
+    Z16 = 72,
 
     MaxDepthFormat,
 
     // DepthStencil formats
-    Z24S8 = 61,
-    S8Z24 = 62,
-    Z32FS8 = 63,
+    Z24S8 = 73,
+    S8Z24 = 74,
+    Z32FS8 = 75,
 
     MaxDepthStencilFormat,
 
@@ -166,6 +178,7 @@ constexpr std::array<u32, MaxPixelFormat> compression_factor_shift_table = {{
     0, // RG8U
     0, // RG8S
     0, // RG32UI
+    0, // RGBX16F
     0, // R32UI
     2, // ASTC_2D_8X8
     2, // ASTC_2D_8X5
@@ -175,6 +188,7 @@ constexpr std::array<u32, MaxPixelFormat> compression_factor_shift_table = {{
     2, // DXT23_SRGB
     2, // DXT45_SRGB
     2, // BC7U_SRGB
+    0, // R4G4B4A4U
     2, // ASTC_2D_4X4_SRGB
     2, // ASTC_2D_8X8_SRGB
     2, // ASTC_2D_8X5_SRGB
@@ -183,6 +197,16 @@ constexpr std::array<u32, MaxPixelFormat> compression_factor_shift_table = {{
     2, // ASTC_2D_5X5_SRGB
     2, // ASTC_2D_10X8
     2, // ASTC_2D_10X8_SRGB
+    2, // ASTC_2D_6X6
+    2, // ASTC_2D_6X6_SRGB
+    2, // ASTC_2D_10X10
+    2, // ASTC_2D_10X10_SRGB
+    2, // ASTC_2D_12X12
+    2, // ASTC_2D_12X12_SRGB
+    2, // ASTC_2D_8X6
+    2, // ASTC_2D_8X6_SRGB
+    2, // ASTC_2D_6X5
+    2, // ASTC_2D_6X5_SRGB
     0, // Z32F
     0, // Z16
     0, // Z24S8
@@ -249,6 +273,7 @@ constexpr std::array<u32, MaxPixelFormat> block_width_table = {{
     1,  // RG8U
     1,  // RG8S
     1,  // RG32UI
+    1,  // RGBX16F
     1,  // R32UI
     8,  // ASTC_2D_8X8
     8,  // ASTC_2D_8X5
@@ -258,6 +283,7 @@ constexpr std::array<u32, MaxPixelFormat> block_width_table = {{
     4,  // DXT23_SRGB
     4,  // DXT45_SRGB
     4,  // BC7U_SRGB
+    1,  // R4G4B4A4U
     4,  // ASTC_2D_4X4_SRGB
     8,  // ASTC_2D_8X8_SRGB
     8,  // ASTC_2D_8X5_SRGB
@@ -266,6 +292,16 @@ constexpr std::array<u32, MaxPixelFormat> block_width_table = {{
     5,  // ASTC_2D_5X5_SRGB
     10, // ASTC_2D_10X8
     10, // ASTC_2D_10X8_SRGB
+    6,  // ASTC_2D_6X6
+    6,  // ASTC_2D_6X6_SRGB
+    10, // ASTC_2D_10X10
+    10, // ASTC_2D_10X10_SRGB
+    12, // ASTC_2D_12X12
+    12, // ASTC_2D_12X12_SRGB
+    8,  // ASTC_2D_8X6
+    8,  // ASTC_2D_8X6_SRGB
+    6,  // ASTC_2D_6X5
+    6,  // ASTC_2D_6X5_SRGB
     1,  // Z32F
     1,  // Z16
     1,  // Z24S8
@@ -282,70 +318,82 @@ static constexpr u32 GetDefaultBlockWidth(PixelFormat format) {
 }
 
 constexpr std::array<u32, MaxPixelFormat> block_height_table = {{
-    1, // ABGR8U
-    1, // ABGR8S
-    1, // ABGR8UI
-    1, // B5G6R5U
-    1, // A2B10G10R10U
-    1, // A1B5G5R5U
-    1, // R8U
-    1, // R8UI
-    1, // RGBA16F
-    1, // RGBA16U
-    1, // RGBA16UI
-    1, // R11FG11FB10F
-    1, // RGBA32UI
-    4, // DXT1
-    4, // DXT23
-    4, // DXT45
-    4, // DXN1
-    4, // DXN2UNORM
-    4, // DXN2SNORM
-    4, // BC7U
-    4, // BC6H_UF16
-    4, // BC6H_SF16
-    4, // ASTC_2D_4X4
-    1, // BGRA8
-    1, // RGBA32F
-    1, // RG32F
-    1, // R32F
-    1, // R16F
-    1, // R16U
-    1, // R16S
-    1, // R16UI
-    1, // R16I
-    1, // RG16
-    1, // RG16F
-    1, // RG16UI
-    1, // RG16I
-    1, // RG16S
-    1, // RGB32F
-    1, // RGBA8_SRGB
-    1, // RG8U
-    1, // RG8S
-    1, // RG32UI
-    1, // R32UI
-    8, // ASTC_2D_8X8
-    5, // ASTC_2D_8X5
-    4, // ASTC_2D_5X4
-    1, // BGRA8_SRGB
-    4, // DXT1_SRGB
-    4, // DXT23_SRGB
-    4, // DXT45_SRGB
-    4, // BC7U_SRGB
-    4, // ASTC_2D_4X4_SRGB
-    8, // ASTC_2D_8X8_SRGB
-    5, // ASTC_2D_8X5_SRGB
-    4, // ASTC_2D_5X4_SRGB
-    5, // ASTC_2D_5X5
-    5, // ASTC_2D_5X5_SRGB
-    8, // ASTC_2D_10X8
-    8, // ASTC_2D_10X8_SRGB
-    1, // Z32F
-    1, // Z16
-    1, // Z24S8
-    1, // S8Z24
-    1, // Z32FS8
+    1,  // ABGR8U
+    1,  // ABGR8S
+    1,  // ABGR8UI
+    1,  // B5G6R5U
+    1,  // A2B10G10R10U
+    1,  // A1B5G5R5U
+    1,  // R8U
+    1,  // R8UI
+    1,  // RGBA16F
+    1,  // RGBA16U
+    1,  // RGBA16UI
+    1,  // R11FG11FB10F
+    1,  // RGBA32UI
+    4,  // DXT1
+    4,  // DXT23
+    4,  // DXT45
+    4,  // DXN1
+    4,  // DXN2UNORM
+    4,  // DXN2SNORM
+    4,  // BC7U
+    4,  // BC6H_UF16
+    4,  // BC6H_SF16
+    4,  // ASTC_2D_4X4
+    1,  // BGRA8
+    1,  // RGBA32F
+    1,  // RG32F
+    1,  // R32F
+    1,  // R16F
+    1,  // R16U
+    1,  // R16S
+    1,  // R16UI
+    1,  // R16I
+    1,  // RG16
+    1,  // RG16F
+    1,  // RG16UI
+    1,  // RG16I
+    1,  // RG16S
+    1,  // RGB32F
+    1,  // RGBA8_SRGB
+    1,  // RG8U
+    1,  // RG8S
+    1,  // RG32UI
+    1,  // RGBX16F
+    1,  // R32UI
+    8,  // ASTC_2D_8X8
+    5,  // ASTC_2D_8X5
+    4,  // ASTC_2D_5X4
+    1,  // BGRA8_SRGB
+    4,  // DXT1_SRGB
+    4,  // DXT23_SRGB
+    4,  // DXT45_SRGB
+    4,  // BC7U_SRGB
+    1,  // R4G4B4A4U
+    4,  // ASTC_2D_4X4_SRGB
+    8,  // ASTC_2D_8X8_SRGB
+    5,  // ASTC_2D_8X5_SRGB
+    4,  // ASTC_2D_5X4_SRGB
+    5,  // ASTC_2D_5X5
+    5,  // ASTC_2D_5X5_SRGB
+    8,  // ASTC_2D_10X8
+    8,  // ASTC_2D_10X8_SRGB
+    6,  // ASTC_2D_6X6
+    6,  // ASTC_2D_6X6_SRGB
+    10, // ASTC_2D_10X10
+    10, // ASTC_2D_10X10_SRGB
+    12, // ASTC_2D_12X12
+    12, // ASTC_2D_12X12_SRGB
+    6,  // ASTC_2D_8X6
+    6,  // ASTC_2D_8X6_SRGB
+    5,  // ASTC_2D_6X5
+    5,  // ASTC_2D_6X5_SRGB
+    1,  // Z32F
+    1,  // Z16
+    1,  // Z24S8
+    1,  // S8Z24
+    1,  // Z32FS8
 }};
 
 static constexpr u32 GetDefaultBlockHeight(PixelFormat format) {
@@ -399,6 +447,7 @@ constexpr std::array<u32, MaxPixelFormat> bpp_table = {{
     16,  // RG8U
     16,  // RG8S
     64,  // RG32UI
+    64,  // RGBX16F
     32,  // R32UI
     128, // ASTC_2D_8X8
     128, // ASTC_2D_8X5
@@ -408,6 +457,7 @@ constexpr std::array<u32, MaxPixelFormat> bpp_table = {{
     128, // DXT23_SRGB
     128, // DXT45_SRGB
     128, // BC7U
+    16,  // R4G4B4A4U
     128, // ASTC_2D_4X4_SRGB
     128, // ASTC_2D_8X8_SRGB
     128, // ASTC_2D_8X5_SRGB
@@ -416,6 +466,16 @@ constexpr std::array<u32, MaxPixelFormat> bpp_table = {{
     128, // ASTC_2D_5X5_SRGB
     128, // ASTC_2D_10X8
     128, // ASTC_2D_10X8_SRGB
+    128, // ASTC_2D_6X6
+    128, // ASTC_2D_6X6_SRGB
+    128, // ASTC_2D_10X10
+    128, // ASTC_2D_10X10_SRGB
+    128, // ASTC_2D_12X12
+    128, // ASTC_2D_12X12_SRGB
+    128, // ASTC_2D_8X6
+    128, // ASTC_2D_8X6_SRGB
+    128, // ASTC_2D_6X5
+    128, // ASTC_2D_6X5_SRGB
     32,  // Z32F
     16,  // Z16
     32,  // Z24S8
@@ -489,6 +549,7 @@ constexpr std::array<SurfaceCompression, MaxPixelFormat> compression_type_table 
     SurfaceCompression::None,       // RG8U
     SurfaceCompression::None,       // RG8S
     SurfaceCompression::None,       // RG32UI
+    SurfaceCompression::None,       // RGBX16F
     SurfaceCompression::None,       // R32UI
     SurfaceCompression::Converted,  // ASTC_2D_8X8
     SurfaceCompression::Converted,  // ASTC_2D_8X5
@@ -498,6 +559,7 @@ constexpr std::array<SurfaceCompression, MaxPixelFormat> compression_type_table 
     SurfaceCompression::Compressed, // DXT23_SRGB
     SurfaceCompression::Compressed, // DXT45_SRGB
     SurfaceCompression::Compressed, // BC7U_SRGB
+    SurfaceCompression::None,       // R4G4B4A4U
     SurfaceCompression::Converted,  // ASTC_2D_4X4_SRGB
     SurfaceCompression::Converted,  // ASTC_2D_8X8_SRGB
     SurfaceCompression::Converted,  // ASTC_2D_8X5_SRGB
@@ -506,6 +568,16 @@ constexpr std::array<SurfaceCompression, MaxPixelFormat> compression_type_table 
     SurfaceCompression::Converted,  // ASTC_2D_5X5_SRGB
     SurfaceCompression::Converted,  // ASTC_2D_10X8
     SurfaceCompression::Converted,  // ASTC_2D_10X8_SRGB
+    SurfaceCompression::Converted,  // ASTC_2D_6X6
+    SurfaceCompression::Converted,  // ASTC_2D_6X6_SRGB
+    SurfaceCompression::Converted,  // ASTC_2D_10X10
+    SurfaceCompression::Converted,  // ASTC_2D_10X10_SRGB
+    SurfaceCompression::Converted,  // ASTC_2D_12X12
+    SurfaceCompression::Converted,  // ASTC_2D_12X12_SRGB
+    SurfaceCompression::Converted,  // ASTC_2D_8X6
+    SurfaceCompression::Converted,  // ASTC_2D_8X6_SRGB
+    SurfaceCompression::Converted,  // ASTC_2D_6X5
+    SurfaceCompression::Converted,  // ASTC_2D_6X5_SRGB
     SurfaceCompression::None,       // Z32F
     SurfaceCompression::None,       // Z16
     SurfaceCompression::None,       // Z24S8

@@ -45,6 +45,7 @@ class AppletMessageQueue {
 public:
     enum class AppletMessage : u32 {
         NoMessage = 0,
+        ExitRequested = 4,
         FocusStateChanged = 15,
         OperationModeChanged = 30,
         PerformanceModeChanged = 31,
@@ -59,6 +60,7 @@ public:
     AppletMessage PopMessage();
     std::size_t GetMessageCount() const;
     void OperationModeChanged();
+    void RequestExit();
 
 private:
     std::queue<AppletMessage> messages;
@@ -123,6 +125,7 @@ public:
     ~ISelfController() override;
 
 private:
+    void Exit(Kernel::HLERequestContext& ctx);
     void LockExit(Kernel::HLERequestContext& ctx);
     void UnlockExit(Kernel::HLERequestContext& ctx);
     void EnterFatalSection(Kernel::HLERequestContext& ctx);
@@ -144,6 +147,7 @@ private:
     void GetAccumulatedSuspendedTickValue(Kernel::HLERequestContext& ctx);
     void GetAccumulatedSuspendedTickChangedEvent(Kernel::HLERequestContext& ctx);
 
+    Core::System& system;
     std::shared_ptr<NVFlinger::NVFlinger> nvflinger;
     Kernel::EventPair launchable_event;
     Kernel::EventPair accumulated_suspended_tick_changed_event;
@@ -250,6 +254,8 @@ private:
     void EnableApplicationCrashReport(Kernel::HLERequestContext& ctx);
     void GetGpuErrorDetectedSystemEvent(Kernel::HLERequestContext& ctx);
 
+    bool launch_popped_application_specific = false;
+    bool launch_popped_account_preselect = false;
     Kernel::EventPair gpu_error_detected_event;
     Core::System& system;
 };

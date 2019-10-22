@@ -20,7 +20,7 @@
 
 namespace Service::HID {
 constexpr s32 HID_JOYSTICK_MAX = 0x7fff;
-constexpr s32 HID_JOYSTICK_MIN = -0x7fff;
+[[maybe_unused]] constexpr s32 HID_JOYSTICK_MIN = -0x7fff;
 constexpr std::size_t NPAD_OFFSET = 0x9A00;
 constexpr u32 BATTERY_FULL = 2;
 constexpr u32 MAX_NPAD_ID = 7;
@@ -93,7 +93,7 @@ u32 Controller_NPad::IndexToNPad(std::size_t index) {
     };
 }
 
-Controller_NPad::Controller_NPad() = default;
+Controller_NPad::Controller_NPad(Core::System& system) : ControllerBase(system), system(system) {}
 Controller_NPad::~Controller_NPad() = default;
 
 void Controller_NPad::InitNewlyAddedControler(std::size_t controller_idx) {
@@ -105,6 +105,8 @@ void Controller_NPad::InitNewlyAddedControler(std::size_t controller_idx) {
     controller.joy_styles.raw = 0; // Zero out
     controller.device_type.raw = 0;
     switch (controller_type) {
+    case NPadControllerType::None:
+        UNREACHABLE();
     case NPadControllerType::Handheld:
         controller.joy_styles.handheld.Assign(1);
         controller.device_type.handheld.Assign(1);
@@ -165,12 +167,15 @@ void Controller_NPad::InitNewlyAddedControler(std::size_t controller_idx) {
     controller.battery_level[0] = BATTERY_FULL;
     controller.battery_level[1] = BATTERY_FULL;
     controller.battery_level[2] = BATTERY_FULL;
+    styleset_changed_events[controller_idx].writable->Signal();
 }
 
 void Controller_NPad::OnInit() {
-    auto& kernel = Core::System::GetInstance().Kernel();
-    styleset_changed_event = Kernel::WritableEvent::CreateEventPair(
-        kernel, Kernel::ResetType::Automatic, "npad:NpadStyleSetChanged");
+    auto& kernel = system.Kernel();
+    for (std::size_t i = 0; i < styleset_changed_events.size(); i++) {
+        styleset_changed_events[i] = Kernel::WritableEvent::CreateEventPair(
+            kernel, Kernel::ResetType::Manual, fmt::format("npad:NpadStyleSetChanged_{}", i));
+    }
 
     if (!IsControllerActivated()) {
         return;
@@ -236,7 +241,7 @@ void Controller_NPad::OnRelease() {}
 
 void Controller_NPad::RequestPadStateUpdate(u32 npad_id) {
     const auto controller_idx = NPadIdToIndex(npad_id);
-    const auto controller_type = connected_controllers[controller_idx].type;
+    [[maybe_unused]] const auto controller_type = connected_controllers[controller_idx].type;
     if (!connected_controllers[controller_idx].is_connected) {
         return;
     }
@@ -343,6 +348,8 @@ void Controller_NPad::OnUpdate(const Core::Timing::CoreTiming& core_timing, u8* 
         libnx_entry.connection_status.raw = 0;
 
         switch (controller_type) {
+        case NPadControllerType::None:
+            UNREACHABLE();
         case NPadControllerType::Handheld:
             handheld_entry.connection_status.raw = 0;
             handheld_entry.connection_status.IsWired.Assign(1);
@@ -431,7 +438,6 @@ void Controller_NPad::SetSupportedNPadIdTypes(u8* data, std::size_t length) {
     supported_npad_id_types.clear();
     supported_npad_id_types.resize(length / sizeof(u32));
     std::memcpy(supported_npad_id_types.data(), data, length);
-    bool had_controller_update = false;
     for (std::size_t i = 0; i < connected_controllers.size(); i++) {
         auto& controller = connected_controllers[i];
         if (!controller.is_connected) {
@@ -450,10 +456,6 @@ void Controller_NPad::SetSupportedNPadIdTypes(u8* data, std::size_t length) {
                 controller.type = requested_controller;
                 InitNewlyAddedControler(i);
             }
-            had_controller_update = true;
-        }
-        if (had_controller_update) {
-            styleset_changed_event.writable->Signal();
         }
     }
 }
@@ -468,7 +470,6 @@ std::size_t Controller_NPad::GetSupportedNPadIdTypesSize() const {
 }
 
 void Controller_NPad::SetHoldType(NpadHoldType joy_hold_type) {
-    styleset_changed_event.writable->Signal();
     hold_type = joy_hold_type;
 }
 
@@ -479,7 +480,9 @@ Controller_NPad::NpadHoldType Controller_NPad::GetHoldType() const {
 void Controller_NPad::SetNpadMode(u32 npad_id, NPadAssignments assignment_mode) {
     const std::size_t npad_index = NPadIdToIndex(npad_id);
     ASSERT(npad_index < shared_memory_entries.size());
-    shared_memory_entries[npad_index].pad_assignment = assignment_mode;
+    if (shared_memory_entries[npad_index].pad_assignment != assignment_mode) {
+        shared_memory_entries[npad_index].pad_assignment = assignment_mode;
+    }
 }
 
 void Controller_NPad::VibrateController(const std::vector<u32>& controller_ids,
@@ -498,11 +501,12 @@ void Controller_NPad::VibrateController(const std::vector<u32>& controller_ids,
     last_processed_vibration = vibrations.back();
 }
 
-Kernel::SharedPtr<Kernel::ReadableEvent> Controller_NPad::GetStyleSetChangedEvent() const {
+Kernel::SharedPtr<Kernel::ReadableEvent> Controller_NPad::GetStyleSetChangedEvent(
+    u32 npad_id) const {
     // TODO(ogniK): Figure out the best time to signal this event. This event seems that it should
     // be signalled at least once, and signaled after a new controller is connected?
-    styleset_changed_event.writable->Signal();
-    return styleset_changed_event.readable;
+    const auto& styleset_event = styleset_changed_events[NPadIdToIndex(npad_id)];
+    return styleset_event.readable;
 }
 
 Controller_NPad::Vibration Controller_NPad::GetLastVibration() const {

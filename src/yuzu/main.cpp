@@ -22,6 +22,8 @@
 #include "core/frontend/applets/general_frontend.h"
 #include "core/frontend/scope_acquire_window_context.h"
 #include "core/hle/service/acc/profile_manager.h"
+#include "core/hle/service/am/applet_ae.h"
+#include "core/hle/service/am/applet_oe.h"
 #include "core/hle/service/am/applets/applets.h"
 #include "core/hle/service/hid/controllers/npad.h"
 #include "core/hle/service/hid/hid.h"
@@ -54,6 +56,7 @@ static FileSys::VirtualFile VfsDirectoryCreateFileWrapper(const FileSys::Virtual
 #include <QProgressDialog>
 #include <QShortcut>
 #include <QStatusBar>
+#include <QSysInfo>
 #include <QtConcurrent/QtConcurrent>
 
 #include <fmt/format.h>
@@ -66,6 +69,9 @@ static FileSys::VirtualFile VfsDirectoryCreateFileWrapper(const FileSys::Virtual
 #include "common/microprofile.h"
 #include "common/scm_rev.h"
 #include "common/scope_exit.h"
+#ifdef ARCHITECTURE_x86_64
+#include "common/x64/cpu_detect.h"
+#endif
 #include "common/telemetry.h"
 #include "core/core.h"
 #include "core/crypto/key_manager.h"
@@ -79,6 +85,7 @@ static FileSys::VirtualFile VfsDirectoryCreateFileWrapper(const FileSys::Virtual
 #include "core/file_sys/submission_package.h"
 #include "core/frontend/applets/software_keyboard.h"
 #include "core/hle/kernel/process.h"
+#include "core/hle/service/am/am.h"
 #include "core/hle/service/filesystem/filesystem.h"
 #include "core/hle/service/nfp/nfp.h"
 #include "core/hle/service/sm/sm.h"
@@ -205,6 +212,10 @@ GMainWindow::GMainWindow()
 
     LOG_INFO(Frontend, "yuzu Version: {} | {}-{}", Common::g_build_fullname, Common::g_scm_branch,
              Common::g_scm_desc);
+#ifdef ARCHITECTURE_x86_64
+    LOG_INFO(Frontend, "Host CPU: {}", Common::GetCPUCaps().cpu_string);
+#endif
+    LOG_INFO(Frontend, "Host OS: {}", QSysInfo::prettyProductName().toStdString());
     UpdateWindowTitle();
 
     show();
@@ -213,7 +224,7 @@ GMainWindow::GMainWindow()
         std::make_unique<FileSys::ContentProviderUnion>());
     Core::System::GetInstance().RegisterContentProvider(
         FileSys::ContentProviderUnionSlot::FrontendManual, provider.get());
-    Service::FileSystem::CreateFactories(*vfs);
+    Core::System::GetInstance().GetFileSystemController().CreateFactories(*vfs);
 
     // Gen keys if necessary
     OnReinitializeKeys(ReinitializeKeyBehavior::NoWarning);
@@ -664,6 +675,24 @@ void GMainWindow::RestoreUIState() {
     Debugger::ToggleConsole();
 }
 
+void GMainWindow::OnAppFocusStateChanged(Qt::ApplicationState state) {
+    if (!UISettings::values.pause_when_in_background) {
+        return;
+    }
+    if (state != Qt::ApplicationHidden && state != Qt::ApplicationInactive &&
+        state != Qt::ApplicationActive) {
+        LOG_DEBUG(Frontend, "ApplicationState unusual flag: {} ", state);
+    }
+    if (ui.action_Pause->isEnabled() &&
+        (state & (Qt::ApplicationHidden | Qt::ApplicationInactive))) {
+        auto_paused = true;
+        OnPauseGame();
+    } else if (ui.action_Start->isEnabled() && auto_paused && state == Qt::ApplicationActive) {
+        auto_paused = false;
+        OnStartGame();
+    }
+}
+
 void GMainWindow::ConnectWidgetEvents() {
     connect(game_list, &GameList::GameChosen, this, &GMainWindow::OnGameListLoadFile);
     connect(game_list, &GameList::OpenDirectory, this, &GMainWindow::OnGameListOpenDirectory);
@@ -964,11 +993,11 @@ void GMainWindow::BootGame(const QString& filename) {
     }
     status_bar_update_timer.start(2000);
 
+    const u64 title_id = Core::System::GetInstance().CurrentProcess()->GetTitleID();
+
     std::string title_name;
     const auto res = Core::System::GetInstance().GetGameName(title_name);
     if (res != Loader::ResultStatus::Success) {
-        const u64 title_id = Core::System::GetInstance().CurrentProcess()->GetTitleID();
-
         const auto [nacp, icon_file] = FileSys::PatchManager(title_id).GetControlMetadata();
         if (nacp != nullptr)
             title_name = nacp->GetApplicationName();
@@ -976,7 +1005,7 @@ void GMainWindow::BootGame(const QString& filename) {
         if (title_name.empty())
             title_name = FileUtil::GetFilename(filename.toStdString());
     }
-
+    LOG_INFO(Frontend, "Booting game: {:016X} | {}", title_id, title_name);
     UpdateWindowTitle(QString::fromStdString(title_name));
 
     loading_screen->Prepare(Core::System::GetInstance().GetAppLoader());
@@ -1499,15 +1528,19 @@ void GMainWindow::OnMenuInstallToNAND() {
             failed();
             return;
         }
-        const auto res =
-            Service::FileSystem::GetUserNANDContents()->InstallEntry(*nsp, false, qt_raw_copy);
+        const auto res = Core::System::GetInstance()
+                             .GetFileSystemController()
+                             .GetUserNANDContents()
+                             ->InstallEntry(*nsp, false, qt_raw_copy);
         if (res == FileSys::InstallResult::Success) {
             success();
         } else {
             if (res == FileSys::InstallResult::ErrorAlreadyExists) {
                 if (overwrite()) {
-                    const auto res2 = Service::FileSystem::GetUserNANDContents()->InstallEntry(
-                        *nsp, true, qt_raw_copy);
+                    const auto res2 = Core::System::GetInstance()
+                                          .GetFileSystemController()
+                                          .GetUserNANDContents()
+                                          ->InstallEntry(*nsp, true, qt_raw_copy);
                     if (res2 == FileSys::InstallResult::Success) {
                         success();
                     } else {
@@ -1561,19 +1594,28 @@ void GMainWindow::OnMenuInstallToNAND() {
 
         FileSys::InstallResult res;
         if (index >= static_cast<size_t>(FileSys::TitleType::Application)) {
-            res = Service::FileSystem::GetUserNANDContents()->InstallEntry(
-                *nca, static_cast<FileSys::TitleType>(index), false, qt_raw_copy);
+            res = Core::System::GetInstance()
+                      .GetFileSystemController()
+                      .GetUserNANDContents()
+                      ->InstallEntry(*nca, static_cast<FileSys::TitleType>(index), false,
+                                     qt_raw_copy);
         } else {
-            res = Service::FileSystem::GetSystemNANDContents()->InstallEntry(
-                *nca, static_cast<FileSys::TitleType>(index), false, qt_raw_copy);
+            res = Core::System::GetInstance()
+                      .GetFileSystemController()
+                      .GetSystemNANDContents()
+                      ->InstallEntry(*nca, static_cast<FileSys::TitleType>(index), false,
+                                     qt_raw_copy);
         }
 
         if (res == FileSys::InstallResult::Success) {
             success();
         } else if (res == FileSys::InstallResult::ErrorAlreadyExists) {
             if (overwrite()) {
-                const auto res2 = Service::FileSystem::GetUserNANDContents()->InstallEntry(
-                    *nca, static_cast<FileSys::TitleType>(index), true, qt_raw_copy);
+                const auto res2 = Core::System::GetInstance()
+                                      .GetFileSystemController()
+                                      .GetUserNANDContents()
+                                      ->InstallEntry(*nca, static_cast<FileSys::TitleType>(index),
+                                                     true, qt_raw_copy);
                 if (res2 == FileSys::InstallResult::Success) {
                     success();
                 } else {
@@ -1603,7 +1645,7 @@ void GMainWindow::OnMenuSelectEmulatedDirectory(EmulatedDirectoryTarget target) 
         FileUtil::GetUserPath(target == EmulatedDirectoryTarget::SDMC ? FileUtil::UserPath::SDMCDir
                                                                       : FileUtil::UserPath::NANDDir,
                               dir_path.toStdString());
-        Service::FileSystem::CreateFactories(*vfs);
+        Core::System::GetInstance().GetFileSystemController().CreateFactories(*vfs);
         game_list->PopulateAsync(UISettings::values.game_dirs);
     }
 }
@@ -1653,6 +1695,11 @@ void GMainWindow::OnStartGame() {
 }
 
 void GMainWindow::OnPauseGame() {
+    Core::System& system{Core::System::GetInstance()};
+    if (system.GetExitLock() && !ConfirmForceLockedExit()) {
+        return;
+    }
+
     emu_thread->SetRunning(false);
 
     ui.action_Start->setEnabled(true);
@@ -1664,6 +1711,11 @@ void GMainWindow::OnPauseGame() {
 }
 
 void GMainWindow::OnStopGame() {
+    Core::System& system{Core::System::GetInstance()};
+    if (system.GetExitLock() && !ConfirmForceLockedExit()) {
+        return;
+    }
+
     ShutdownGame();
 }
 
@@ -1855,15 +1907,24 @@ void GMainWindow::OnCaptureScreenshot() {
 }
 
 void GMainWindow::UpdateWindowTitle(const QString& title_name) {
-    const QString full_name = QString::fromUtf8(Common::g_build_fullname);
-    const QString branch_name = QString::fromUtf8(Common::g_scm_branch);
-    const QString description = QString::fromUtf8(Common::g_scm_desc);
+    const auto full_name = std::string(Common::g_build_fullname);
+    const auto branch_name = std::string(Common::g_scm_branch);
+    const auto description = std::string(Common::g_scm_desc);
+    const auto build_id = std::string(Common::g_build_id);
+
+    const auto date =
+        QDateTime::currentDateTime().toString(QStringLiteral("yyyy-MM-dd")).toStdString();
 
     if (title_name.isEmpty()) {
-        setWindowTitle(QStringLiteral("yuzu %1| %2-%3").arg(full_name, branch_name, description));
+        const auto fmt = std::string(Common::g_title_bar_format_idle);
+        setWindowTitle(QString::fromStdString(fmt::format(fmt.empty() ? "yuzu {0}| {1}-{2}" : fmt,
+                                                          full_name, branch_name, description,
+                                                          std::string{}, date, build_id)));
     } else {
-        setWindowTitle(QStringLiteral("yuzu %1| %4 | %2-%3")
-                           .arg(full_name, branch_name, description, title_name));
+        const auto fmt = std::string(Common::g_title_bar_format_running);
+        setWindowTitle(QString::fromStdString(
+            fmt::format(fmt.empty() ? "yuzu {0}| {3} | {1}-{2}" : fmt, full_name, branch_name,
+                        description, title_name.toStdString(), date, build_id)));
     }
 }
 
@@ -1988,7 +2049,7 @@ void GMainWindow::OnReinitializeKeys(ReinitializeKeyBehavior behavior) {
 
         const auto function = [this, &keys, &pdm] {
             keys.PopulateFromPartitionData(pdm);
-            Service::FileSystem::CreateFactories(*vfs);
+            Core::System::GetInstance().GetFileSystemController().CreateFactories(*vfs);
             keys.DeriveETicket(pdm);
         };
 
@@ -2033,7 +2094,7 @@ void GMainWindow::OnReinitializeKeys(ReinitializeKeyBehavior behavior) {
         prog.close();
     }
 
-    Service::FileSystem::CreateFactories(*vfs);
+    Core::System::GetInstance().GetFileSystemController().CreateFactories(*vfs);
 
     if (behavior == ReinitializeKeyBehavior::Warning) {
         game_list->PopulateAsync(UISettings::values.game_dirs);
@@ -2161,11 +2222,39 @@ bool GMainWindow::ConfirmChangeGame() {
     if (emu_thread == nullptr)
         return true;
 
-    auto answer = QMessageBox::question(
+    const auto answer = QMessageBox::question(
         this, tr("yuzu"),
         tr("Are you sure you want to stop the emulation? Any unsaved progress will be lost."),
         QMessageBox::Yes | QMessageBox::No, QMessageBox::No);
     return answer != QMessageBox::No;
+}
+
+bool GMainWindow::ConfirmForceLockedExit() {
+    if (emu_thread == nullptr)
+        return true;
+
+    const auto answer =
+        QMessageBox::question(this, tr("yuzu"),
+                              tr("The currently running application has requested yuzu to not "
+                                 "exit.\n\nWould you like to bypass this and exit anyway?"),
+                              QMessageBox::Yes | QMessageBox::No, QMessageBox::No);
+    return answer != QMessageBox::No;
+}
+
+void GMainWindow::RequestGameExit() {
+    auto& sm{Core::System::GetInstance().ServiceManager()};
+    auto applet_oe = sm.GetService<Service::AM::AppletOE>("appletOE");
+    auto applet_ae = sm.GetService<Service::AM::AppletAE>("appletAE");
+    bool has_signalled = false;
+
+    if (applet_oe != nullptr) {
+        applet_oe->GetMessageQueue()->RequestExit();
+        has_signalled = true;
+    }
+
+    if (applet_ae != nullptr && !has_signalled) {
+        applet_ae->GetMessageQueue()->RequestExit();
+    }
 }
 
 void GMainWindow::filterBarSetChecked(bool state) {
@@ -2248,6 +2337,9 @@ int main(int argc, char* argv[]) {
     GMainWindow main_window;
     // After settings have been loaded by GMainWindow, apply the filter
     main_window.show();
+
+    QObject::connect(&app, &QGuiApplication::applicationStateChanged, &main_window,
+                     &GMainWindow::OnAppFocusStateChanged);
 
     Settings::LogSettings();
 

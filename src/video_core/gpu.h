@@ -42,6 +42,7 @@ enum class RenderTargetFormat : u32 {
     RGBA16_FLOAT = 0xCA,
     RG32_FLOAT = 0xCB,
     RG32_UINT = 0xCD,
+    RGBX16_FLOAT = 0xCE,
     BGRA8_UNORM = 0xCF,
     BGRA8_SRGB = 0xD0,
     RGB10_A2_UNORM = 0xD1,
@@ -175,6 +176,12 @@ public:
 
     /// Returns a reference to the GPU DMA pusher.
     Tegra::DmaPusher& DmaPusher();
+
+    // Waits for the GPU to finish working
+    virtual void WaitIdle() const = 0;
+
+    /// Allows the CPU/NvFlinger to wait on the GPU before presenting a frame.
+    void WaitFence(u32 syncpoint_id, u32 value) const;
 
     void IncrementSyncPoint(u32 syncpoint_id);
 

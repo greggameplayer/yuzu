@@ -8,8 +8,12 @@ namespace Service::SM {
 class ServiceManager;
 }
 
+namespace Core {
+class System;
+}
+
 namespace Service::PlayReport {
 
-void InstallInterfaces(SM::ServiceManager& service_manager);
+void InstallInterfaces(SM::ServiceManager& service_manager, Core::System& system);
 
 } // namespace Service::PlayReport

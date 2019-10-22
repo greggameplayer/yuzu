@@ -1,3 +1,9 @@
+if (YUZU_ENABLE_BOXCAT)
+    set(BCAT_BOXCAT_ADDITIONAL_SOURCES hle/service/bcat/backend/boxcat.cpp hle/service/bcat/backend/boxcat.h)
+else()
+    set(BCAT_BOXCAT_ADDITIONAL_SOURCES)
+endif()
+
 add_library(core STATIC
     arm/arm_interface.h
     arm/arm_interface.cpp
@@ -33,8 +39,6 @@ add_library(core STATIC
     file_sys/bis_factory.h
     file_sys/card_image.cpp
     file_sys/card_image.h
-    file_sys/cheat_engine.cpp
-    file_sys/cheat_engine.h
     file_sys/content_archive.cpp
     file_sys/content_archive.h
     file_sys/control_metadata.cpp
@@ -70,10 +74,24 @@ add_library(core STATIC
     file_sys/sdmc_factory.h
     file_sys/submission_package.cpp
     file_sys/submission_package.h
+    file_sys/system_archive/data/font_chinese_simplified.cpp
+    file_sys/system_archive/data/font_chinese_simplified.h
+    file_sys/system_archive/data/font_chinese_traditional.cpp
+    file_sys/system_archive/data/font_chinese_traditional.h
+    file_sys/system_archive/data/font_extended_chinese_simplified.cpp
+    file_sys/system_archive/data/font_extended_chinese_simplified.h
+    file_sys/system_archive/data/font_korean.cpp
+    file_sys/system_archive/data/font_korean.h
+    file_sys/system_archive/data/font_nintendo_extended.cpp
+    file_sys/system_archive/data/font_nintendo_extended.h
+    file_sys/system_archive/data/font_standard.cpp
+    file_sys/system_archive/data/font_standard.h
     file_sys/system_archive/mii_model.cpp
     file_sys/system_archive/mii_model.h
     file_sys/system_archive/ng_word.cpp
     file_sys/system_archive/ng_word.h
+    file_sys/system_archive/shared_font.cpp
+    file_sys/system_archive/shared_font.h
     file_sys/system_archive/system_archive.cpp
     file_sys/system_archive/system_archive.h
     file_sys/system_archive/system_version.cpp
@@ -84,10 +102,14 @@ add_library(core STATIC
     file_sys/vfs_concat.h
     file_sys/vfs_layered.cpp
     file_sys/vfs_layered.h
+    file_sys/vfs_libzip.cpp
+    file_sys/vfs_libzip.h
     file_sys/vfs_offset.cpp
     file_sys/vfs_offset.h
     file_sys/vfs_real.cpp
     file_sys/vfs_real.h
+    file_sys/vfs_ro_layer.cpp
+    file_sys/vfs_ro_layer.h
     file_sys/vfs_static.h
     file_sys/vfs_types.h
     file_sys/vfs_vector.cpp
@@ -243,6 +265,9 @@ add_library(core STATIC
     hle/service/audio/errors.h
     hle/service/audio/hwopus.cpp
     hle/service/audio/hwopus.h
+    hle/service/bcat/backend/backend.cpp
+    hle/service/bcat/backend/backend.h
+    ${BCAT_BOXCAT_ADDITIONAL_SOURCES}
     hle/service/bcat/bcat.cpp
     hle/service/bcat/bcat.h
     hle/service/bcat/module.cpp
@@ -326,6 +351,8 @@ add_library(core STATIC
     hle/service/ldr/ldr.h
     hle/service/lm/lm.cpp
     hle/service/lm/lm.h
+    hle/service/lm/manager.cpp
+    hle/service/lm/manager.h
     hle/service/mig/mig.cpp
     hle/service/mig/mig.h
     hle/service/mii/mii.cpp
@@ -477,6 +504,11 @@ add_library(core STATIC
     loader/nsp.h
     loader/xci.cpp
     loader/xci.h
+    memory/cheat_engine.cpp
+    memory/cheat_engine.h
+    memory/dmnt_cheat_types.h
+    memory/dmnt_cheat_vm.cpp
+    memory/dmnt_cheat_vm.h
     memory.cpp
     memory.h
     memory_setup.h
@@ -495,7 +527,16 @@ add_library(core STATIC
 create_target_directory_groups(core)
 
 target_link_libraries(core PUBLIC common PRIVATE audio_core video_core)
-target_link_libraries(core PUBLIC Boost::boost PRIVATE fmt json-headers mbedtls opus unicorn open_source_archives)
+target_link_libraries(core PUBLIC Boost::boost PRIVATE fmt json-headers mbedtls opus unicorn)
+
+if (YUZU_ENABLE_BOXCAT)
+    get_directory_property(OPENSSL_LIBS
+        DIRECTORY ${PROJECT_SOURCE_DIR}/externals/libressl
+        DEFINITION OPENSSL_LIBS)
+    target_compile_definitions(core PRIVATE -DCPPHTTPLIB_OPENSSL_SUPPORT -DYUZU_ENABLE_BOXCAT)
+    target_link_libraries(core PRIVATE httplib json-headers ${OPENSSL_LIBS} zip)
+endif()
+
 if (ENABLE_WEB_SERVICE)
     target_compile_definitions(core PRIVATE -DENABLE_WEB_SERVICE)
     target_link_libraries(core PRIVATE web_service)

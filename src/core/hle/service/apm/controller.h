@@ -50,21 +50,21 @@ enum class PerformanceMode : u8 {
 // system during times of high load -- this simply maps to different PerformanceConfigs to use.
 class Controller {
 public:
-    Controller(Core::Timing::CoreTiming& core_timing);
+    explicit Controller(Core::Timing::CoreTiming& core_timing);
     ~Controller();
 
     void SetPerformanceConfiguration(PerformanceMode mode, PerformanceConfiguration config);
     void SetFromCpuBoostMode(CpuBoostMode mode);
 
-    PerformanceMode GetCurrentPerformanceMode();
+    PerformanceMode GetCurrentPerformanceMode() const;
     PerformanceConfiguration GetCurrentPerformanceConfiguration(PerformanceMode mode);
 
 private:
     void SetClockSpeed(u32 mhz);
 
-    std::map<PerformanceMode, PerformanceConfiguration> configs;
+    [[maybe_unused]] Core::Timing::CoreTiming& core_timing;
 
-    Core::Timing::CoreTiming& core_timing;
+    std::map<PerformanceMode, PerformanceConfiguration> configs;
 };
 
 } // namespace Service::APM

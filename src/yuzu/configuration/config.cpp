@@ -459,6 +459,49 @@ void Config::ReadDataStorageValues() {
                     QString::fromStdString(FileUtil::GetUserPath(FileUtil::UserPath::SDMCDir)))
             .toString()
             .toStdString());
+    FileUtil::GetUserPath(
+        FileUtil::UserPath::LoadDir,
+        qt_config
+            ->value(QStringLiteral("load_directory"),
+                    QString::fromStdString(FileUtil::GetUserPath(FileUtil::UserPath::LoadDir)))
+            .toString()
+            .toStdString());
+    FileUtil::GetUserPath(
+        FileUtil::UserPath::DumpDir,
+        qt_config
+            ->value(QStringLiteral("dump_directory"),
+                    QString::fromStdString(FileUtil::GetUserPath(FileUtil::UserPath::DumpDir)))
+            .toString()
+            .toStdString());
+    FileUtil::GetUserPath(
+        FileUtil::UserPath::CacheDir,
+        qt_config
+            ->value(QStringLiteral("cache_directory"),
+                    QString::fromStdString(FileUtil::GetUserPath(FileUtil::UserPath::CacheDir)))
+            .toString()
+            .toStdString());
+    Settings::values.gamecard_inserted =
+        ReadSetting(QStringLiteral("gamecard_inserted"), false).toBool();
+    Settings::values.gamecard_current_game =
+        ReadSetting(QStringLiteral("gamecard_current_game"), false).toBool();
+    Settings::values.gamecard_path =
+        ReadSetting(QStringLiteral("gamecard_path"), QStringLiteral("")).toString().toStdString();
+    Settings::values.nand_total_size = static_cast<Settings::NANDTotalSize>(
+        ReadSetting(QStringLiteral("nand_total_size"),
+                    QVariant::fromValue<u64>(static_cast<u64>(Settings::NANDTotalSize::S29_1GB)))
+            .toULongLong());
+    Settings::values.nand_user_size = static_cast<Settings::NANDUserSize>(
+        ReadSetting(QStringLiteral("nand_user_size"),
+                    QVariant::fromValue<u64>(static_cast<u64>(Settings::NANDUserSize::S26GB)))
+            .toULongLong());
+    Settings::values.nand_system_size = static_cast<Settings::NANDSystemSize>(
+        ReadSetting(QStringLiteral("nand_system_size"),
+                    QVariant::fromValue<u64>(static_cast<u64>(Settings::NANDSystemSize::S2_5GB)))
+            .toULongLong());
+    Settings::values.sdmc_size = static_cast<Settings::SDMCSize>(
+        ReadSetting(QStringLiteral("sdmc_size"),
+                    QVariant::fromValue<u64>(static_cast<u64>(Settings::SDMCSize::S16GB)))
+            .toULongLong());
 
     qt_config->endGroup();
 }
@@ -466,6 +509,9 @@ void Config::ReadDataStorageValues() {
 void Config::ReadDebuggingValues() {
     qt_config->beginGroup(QStringLiteral("Debugging"));
 
+    // Intentionally not using the QT default setting as this is intended to be changed in the ini
+    Settings::values.record_frame_times =
+        qt_config->value(QStringLiteral("record_frame_times"), false).toBool();
     Settings::values.use_gdbstub = ReadSetting(QStringLiteral("use_gdbstub"), false).toBool();
     Settings::values.gdbstub_port = ReadSetting(QStringLiteral("gdbstub_port"), 24689).toInt();
     Settings::values.program_args =
@@ -476,6 +522,17 @@ void Config::ReadDebuggingValues() {
         ReadSetting(QStringLiteral("reporting_services"), false).toBool();
     Settings::values.quest_flag = ReadSetting(QStringLiteral("quest_flag"), false).toBool();
 
+    qt_config->endGroup();
+}
+
+void Config::ReadServiceValues() {
+    qt_config->beginGroup(QStringLiteral("Services"));
+    Settings::values.bcat_backend =
+        ReadSetting(QStringLiteral("bcat_backend"), QStringLiteral("boxcat"))
+            .toString()
+            .toStdString();
+    Settings::values.bcat_boxcat_local =
+        ReadSetting(QStringLiteral("bcat_boxcat_local"), false).toBool();
     qt_config->endGroup();
 }
 
@@ -659,6 +716,8 @@ void Config::ReadUIValues() {
     UISettings::values.callout_flags = ReadSetting(QStringLiteral("calloutFlags"), 0).toUInt();
     UISettings::values.show_console = ReadSetting(QStringLiteral("showConsole"), false).toBool();
     UISettings::values.profile_index = ReadSetting(QStringLiteral("profileIndex"), 0).toUInt();
+    UISettings::values.pause_when_in_background =
+        ReadSetting(QStringLiteral("pauseWhenInBackground"), false).toBool();
 
     ApplyDefaultProfileIfInputInvalid();
 
@@ -723,6 +782,7 @@ void Config::ReadValues() {
     ReadMiscellaneousValues();
     ReadDebuggingValues();
     ReadWebServiceValues();
+    ReadServiceValues();
     ReadDisabledAddOnValues();
     ReadUIValues();
 }
@@ -820,6 +880,7 @@ void Config::SaveValues() {
     SaveMiscellaneousValues();
     SaveDebuggingValues();
     SaveWebServiceValues();
+    SaveServiceValues();
     SaveDisabledAddOnValues();
     SaveUIValues();
 }
@@ -872,13 +933,40 @@ void Config::SaveDataStorageValues() {
     WriteSetting(QStringLiteral("sdmc_directory"),
                  QString::fromStdString(FileUtil::GetUserPath(FileUtil::UserPath::SDMCDir)),
                  QString::fromStdString(FileUtil::GetUserPath(FileUtil::UserPath::SDMCDir)));
-
+    WriteSetting(QStringLiteral("load_directory"),
+                 QString::fromStdString(FileUtil::GetUserPath(FileUtil::UserPath::LoadDir)),
+                 QString::fromStdString(FileUtil::GetUserPath(FileUtil::UserPath::LoadDir)));
+    WriteSetting(QStringLiteral("dump_directory"),
+                 QString::fromStdString(FileUtil::GetUserPath(FileUtil::UserPath::DumpDir)),
+                 QString::fromStdString(FileUtil::GetUserPath(FileUtil::UserPath::DumpDir)));
+    WriteSetting(QStringLiteral("cache_directory"),
+                 QString::fromStdString(FileUtil::GetUserPath(FileUtil::UserPath::CacheDir)),
+                 QString::fromStdString(FileUtil::GetUserPath(FileUtil::UserPath::CacheDir)));
+    WriteSetting(QStringLiteral("gamecard_inserted"), Settings::values.gamecard_inserted, false);
+    WriteSetting(QStringLiteral("gamecard_current_game"), Settings::values.gamecard_current_game,
+                 false);
+    WriteSetting(QStringLiteral("gamecard_path"),
+                 QString::fromStdString(Settings::values.gamecard_path), QStringLiteral(""));
+    WriteSetting(QStringLiteral("nand_total_size"),
+                 QVariant::fromValue<u64>(static_cast<u64>(Settings::values.nand_total_size)),
+                 QVariant::fromValue<u64>(static_cast<u64>(Settings::NANDTotalSize::S29_1GB)));
+    WriteSetting(QStringLiteral("nand_user_size"),
+                 QVariant::fromValue<u64>(static_cast<u64>(Settings::values.nand_user_size)),
+                 QVariant::fromValue<u64>(static_cast<u64>(Settings::NANDUserSize::S26GB)));
+    WriteSetting(QStringLiteral("nand_system_size"),
+                 QVariant::fromValue<u64>(static_cast<u64>(Settings::values.nand_system_size)),
+                 QVariant::fromValue<u64>(static_cast<u64>(Settings::NANDSystemSize::S2_5GB)));
+    WriteSetting(QStringLiteral("sdmc_size"),
+                 QVariant::fromValue<u64>(static_cast<u64>(Settings::values.sdmc_size)),
+                 QVariant::fromValue<u64>(static_cast<u64>(Settings::SDMCSize::S16GB)));
     qt_config->endGroup();
 }
 
 void Config::SaveDebuggingValues() {
     qt_config->beginGroup(QStringLiteral("Debugging"));
 
+    // Intentionally not using the QT default setting as this is intended to be changed in the ini
+    qt_config->setValue(QStringLiteral("record_frame_times"), Settings::values.record_frame_times);
     WriteSetting(QStringLiteral("use_gdbstub"), Settings::values.use_gdbstub, false);
     WriteSetting(QStringLiteral("gdbstub_port"), Settings::values.gdbstub_port, 24689);
     WriteSetting(QStringLiteral("program_args"),
@@ -887,6 +975,14 @@ void Config::SaveDebuggingValues() {
     WriteSetting(QStringLiteral("dump_nso"), Settings::values.dump_nso, false);
     WriteSetting(QStringLiteral("quest_flag"), Settings::values.quest_flag, false);
 
+    qt_config->endGroup();
+}
+
+void Config::SaveServiceValues() {
+    qt_config->beginGroup(QStringLiteral("Services"));
+    WriteSetting(QStringLiteral("bcat_backend"),
+                 QString::fromStdString(Settings::values.bcat_backend), QStringLiteral("null"));
+    WriteSetting(QStringLiteral("bcat_boxcat_local"), Settings::values.bcat_boxcat_local, false);
     qt_config->endGroup();
 }
 
@@ -1030,6 +1126,8 @@ void Config::SaveUIValues() {
     WriteSetting(QStringLiteral("calloutFlags"), UISettings::values.callout_flags, 0);
     WriteSetting(QStringLiteral("showConsole"), UISettings::values.show_console, false);
     WriteSetting(QStringLiteral("profileIndex"), UISettings::values.profile_index, 0);
+    WriteSetting(QStringLiteral("pauseWhenInBackground"),
+                 UISettings::values.pause_when_in_background, false);
 
     qt_config->endGroup();
 }

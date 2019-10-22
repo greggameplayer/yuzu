@@ -544,7 +544,7 @@ enum class VoteOperation : u64 {
     Eq = 2,  // allThreadsEqualNV
 };
 
-enum class ImageAtomicSize : u64 {
+enum class ImageAtomicOperationType : u64 {
     U32 = 0,
     S32 = 1,
     U64 = 2,
@@ -564,6 +564,13 @@ enum class ImageAtomicOperation : u64 {
     Or = 6,
     Xor = 7,
     Exch = 8,
+};
+
+enum class ShuffleOperation : u64 {
+    Idx = 0,  // shuffleNV
+    Up = 1,   // shuffleUpNV
+    Down = 2, // shuffleDownNV
+    Bfly = 3, // shuffleXorNV
 };
 
 union Instruction {
@@ -598,6 +605,15 @@ union Instruction {
         BitField<39, 3, u64> value;
         BitField<42, 1, u64> negate_value;
     } vote;
+
+    union {
+        BitField<30, 2, ShuffleOperation> operation;
+        BitField<48, 3, u64> pred48;
+        BitField<28, 1, u64> is_index_imm;
+        BitField<29, 1, u64> is_mask_imm;
+        BitField<20, 5, u64> index_imm;
+        BitField<34, 13, u64> mask_imm;
+    } shfl;
 
     union {
         BitField<8, 8, Register> gpr;
@@ -932,6 +948,11 @@ union Instruction {
         BitField<48, 1, u64> is_signed;
         BitField<49, 3, PredCondition> cond;
     } isetp;
+
+    union {
+        BitField<48, 1, u64> is_signed;
+        BitField<49, 3, PredCondition> cond;
+    } icmp;
 
     union {
         BitField<0, 3, u64> pred0;
@@ -1411,11 +1432,11 @@ union Instruction {
             ASSERT(mode == SurfaceDataMode::D_BA);
             return store_data_layout;
         }
-    } sust;
+    } suldst;
 
     union {
         BitField<28, 1, u64> is_ba;
-        BitField<51, 3, ImageAtomicSize> size;
+        BitField<51, 3, ImageAtomicOperationType> operation_type;
         BitField<33, 3, ImageType> image_type;
         BitField<29, 4, ImageAtomicOperation> operation;
         BitField<49, 2, OutOfBoundsStore> out_of_bounds_store;
@@ -1542,6 +1563,7 @@ public:
         BRK,
         DEPBAR,
         VOTE,
+        SHFL,
         BFE_C,
         BFE_R,
         BFE_IMM,
@@ -1573,6 +1595,7 @@ public:
         TMML_B, // Texture Mip Map Level
         TMML,   // Texture Mip Map Level
         SUST,   // Surface Store
+        SULD,   // Surface Load
         SUATOM, // Surface Atomic Operation
         EXIT,
         NOP,
@@ -1628,6 +1651,10 @@ public:
         SEL_C,
         SEL_R,
         SEL_IMM,
+        ICMP_RC,
+        ICMP_R,
+        ICMP_CR,
+        ICMP_IMM,
         MUFU,  // Multi-Function Operator
         RRO_C, // Range Reduction Operator
         RRO_R,
@@ -1833,6 +1860,7 @@ private:
             INST("111000110000----", Id::EXIT, Type::Flow, "EXIT"),
             INST("1111000011110---", Id::DEPBAR, Type::Synch, "DEPBAR"),
             INST("0101000011011---", Id::VOTE, Type::Warp, "VOTE"),
+            INST("1110111100010---", Id::SHFL, Type::Warp, "SHFL"),
             INST("1110111111011---", Id::LD_A, Type::Memory, "LD_A"),
             INST("1110111101001---", Id::LD_S, Type::Memory, "LD_S"),
             INST("1110111101000---", Id::LD_L, Type::Memory, "LD_L"),
@@ -1857,6 +1885,7 @@ private:
             INST("110111110110----", Id::TMML_B, Type::Texture, "TMML_B"),
             INST("1101111101011---", Id::TMML, Type::Texture, "TMML"),
             INST("11101011001-----", Id::SUST, Type::Image, "SUST"),
+            INST("11101011000-----", Id::SULD, Type::Image, "SULD"),
             INST("1110101000------", Id::SUATOM, Type::Image, "SUATOM_D"),
             INST("0101000010110---", Id::NOP, Type::Trivial, "NOP"),
             INST("11100000--------", Id::IPA, Type::Trivial, "IPA"),
@@ -1892,6 +1921,10 @@ private:
             INST("0100110010100---", Id::SEL_C, Type::ArithmeticInteger, "SEL_C"),
             INST("0101110010100---", Id::SEL_R, Type::ArithmeticInteger, "SEL_R"),
             INST("0011100-10100---", Id::SEL_IMM, Type::ArithmeticInteger, "SEL_IMM"),
+            INST("010100110100----", Id::ICMP_RC, Type::ArithmeticInteger, "ICMP_RC"),
+            INST("010110110100----", Id::ICMP_R, Type::ArithmeticInteger, "ICMP_R"),
+            INST("010010110100----", Id::ICMP_CR, Type::ArithmeticInteger, "ICMP_CR"),
+            INST("0011011-0100----", Id::ICMP_IMM, Type::ArithmeticInteger, "ICMP_IMM"),
             INST("0101101111011---", Id::LEA_R2, Type::ArithmeticInteger, "LEA_R2"),
             INST("0101101111010---", Id::LEA_R1, Type::ArithmeticInteger, "LEA_R1"),
             INST("001101101101----", Id::LEA_IMM, Type::ArithmeticInteger, "LEA_IMM"),

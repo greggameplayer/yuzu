@@ -16,7 +16,7 @@
 namespace Service::HID {
 class Controller_DebugPad final : public ControllerBase {
 public:
-    Controller_DebugPad();
+    explicit Controller_DebugPad(Core::System& system);
     ~Controller_DebugPad() override;
 
     // Called when the controller is initialized

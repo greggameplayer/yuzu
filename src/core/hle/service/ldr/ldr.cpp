@@ -78,7 +78,7 @@ public:
 
 class RelocatableObject final : public ServiceFramework<RelocatableObject> {
 public:
-    explicit RelocatableObject() : ServiceFramework{"ldr:ro"} {
+    explicit RelocatableObject(Core::System& system) : ServiceFramework{"ldr:ro"}, system(system) {
         // clang-format off
         static const FunctionInfo functions[] = {
             {0, &RelocatableObject::LoadNro, "LoadNro"},
@@ -163,7 +163,7 @@ public:
             return;
         }
 
-        if (Core::CurrentProcess()->GetTitleID() != header.title_id) {
+        if (system.CurrentProcess()->GetTitleID() != header.title_id) {
             LOG_ERROR(Service_LDR,
                       "Attempting to load NRR with title ID other than current process. (actual "
                       "{:016X})!",
@@ -327,7 +327,7 @@ public:
         }
 
         // Load NRO as new executable module
-        auto* process = Core::CurrentProcess();
+        auto* process = system.CurrentProcess();
         auto& vm_manager = process->VMManager();
         auto map_address = vm_manager.FindFreeRegion(nro_size + bss_size);
 
@@ -364,7 +364,7 @@ public:
         vm_manager.ReprotectRange(*map_address + header.rw_offset, header.rw_size,
                                   Kernel::VMAPermission::ReadWrite);
 
-        Core::System::GetInstance().InvalidateCpuInstructionCaches();
+        system.InvalidateCpuInstructionCaches();
 
         nro.insert_or_assign(*map_address,
                              NROInfo{hash, nro_address, nro_size, bss_address, bss_size});
@@ -411,7 +411,7 @@ public:
             return;
         }
 
-        auto& vm_manager = Core::CurrentProcess()->VMManager();
+        auto& vm_manager = system.CurrentProcess()->VMManager();
         const auto& nro_info = iter->second;
 
         // Unmap the mirrored memory
@@ -430,7 +430,7 @@ public:
                        .IsSuccess());
         }
 
-        Core::System::GetInstance().InvalidateCpuInstructionCaches();
+        system.InvalidateCpuInstructionCaches();
 
         nro.erase(iter);
         IPC::ResponseBuilder rb{ctx, 2};
@@ -516,13 +516,14 @@ private:
                Common::Is4KBAligned(header.text_size) && Common::Is4KBAligned(header.ro_size) &&
                Common::Is4KBAligned(header.rw_size);
     }
+    Core::System& system;
 };
 
-void InstallInterfaces(SM::ServiceManager& sm) {
+void InstallInterfaces(SM::ServiceManager& sm, Core::System& system) {
     std::make_shared<DebugMonitor>()->InstallAsService(sm);
     std::make_shared<ProcessManager>()->InstallAsService(sm);
     std::make_shared<Shell>()->InstallAsService(sm);
-    std::make_shared<RelocatableObject>()->InstallAsService(sm);
+    std::make_shared<RelocatableObject>(system)->InstallAsService(sm);
 }
 
 } // namespace Service::LDR

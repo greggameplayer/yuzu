@@ -34,10 +34,7 @@ enum class ProgramType : u32 {
 
 namespace OpenGL::GLShader {
 
-struct ShaderEntries;
-
 using Maxwell = Tegra::Engines::Maxwell3D::Regs;
-using ProgramResult = std::pair<std::string, ShaderEntries>;
 using SamplerEntry = VideoCommon::Shader::Sampler;
 using ImageEntry = VideoCommon::Shader::Image;
 
@@ -90,13 +87,14 @@ struct ShaderEntries {
     std::vector<ImageEntry> images;
     std::vector<GlobalMemoryEntry> global_memory_entries;
     std::array<bool, Maxwell::NumClipDistances> clip_distances{};
-    bool shader_viewport_layer_array{};
     std::size_t shader_length{};
 };
 
+ShaderEntries GetEntries(const VideoCommon::Shader::ShaderIR& ir);
+
 std::string GetCommonDeclarations();
 
-ProgramResult Decompile(const Device& device, const VideoCommon::Shader::ShaderIR& ir,
-                        ProgramType stage, const std::string& suffix);
+std::string Decompile(const Device& device, const VideoCommon::Shader::ShaderIR& ir,
+                      ProgramType stage, const std::string& suffix);
 
 } // namespace OpenGL::GLShader

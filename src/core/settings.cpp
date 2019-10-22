@@ -2,9 +2,12 @@
 // Licensed under GPLv2 or any later version
 // Refer to the license.txt file included.
 
+#include "common/file_util.h"
 #include "core/core.h"
 #include "core/gdbstub/gdbstub.h"
 #include "core/hle/service/hid/hid.h"
+#include "core/hle/service/lbl/lbl.h"
+#include "core/hle/service/sm/sm.h"
 #include "core/settings.h"
 #include "video_core/renderer_base.h"
 
@@ -69,6 +72,7 @@ void Apply() {
     auto& system_instance = Core::System::GetInstance();
     if (system_instance.IsPoweredOn()) {
         system_instance.Renderer().RefreshBaseSettings();
+        Service::LBL::RequestLoadCurrentSetting(system_instance.ServiceManager());
     }
 
     Service::HID::ReloadInputDevices();
@@ -97,11 +101,13 @@ void LogSettings() {
     LogSetting("Audio_EnableAudioStretching", Settings::values.enable_audio_stretching);
     LogSetting("Audio_OutputDevice", Settings::values.audio_device_id);
     LogSetting("DataStorage_UseVirtualSd", Settings::values.use_virtual_sd);
-    LogSetting("DataStorage_NandDir", Settings::values.nand_dir);
-    LogSetting("DataStorage_SdmcDir", Settings::values.sdmc_dir);
+    LogSetting("DataStorage_NandDir", FileUtil::GetUserPath(FileUtil::UserPath::NANDDir));
+    LogSetting("DataStorage_SdmcDir", FileUtil::GetUserPath(FileUtil::UserPath::SDMCDir));
     LogSetting("Debugging_UseGdbstub", Settings::values.use_gdbstub);
     LogSetting("Debugging_GdbstubPort", Settings::values.gdbstub_port);
     LogSetting("Debugging_ProgramArgs", Settings::values.program_args);
+    LogSetting("Services_BCATBackend", Settings::values.bcat_backend);
+    LogSetting("Services_BCATBoxcatLocal", Settings::values.bcat_boxcat_local);
 }
 
 } // namespace Settings

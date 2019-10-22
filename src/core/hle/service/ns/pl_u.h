@@ -5,13 +5,22 @@
 #pragma once
 
 #include <memory>
+#include <vector>
 #include "core/hle/service/service.h"
 
-namespace Service::NS {
+namespace Service {
+
+namespace FileSystem {
+class FileSystemController;
+} // namespace FileSystem
+
+namespace NS {
+
+void EncryptSharedFont(const std::vector<u32>& input, std::vector<u8>& output, std::size_t& offset);
 
 class PL_U final : public ServiceFramework<PL_U> {
 public:
-    PL_U();
+    explicit PL_U(Core::System& system);
     ~PL_U() override;
 
 private:
@@ -24,6 +33,9 @@ private:
 
     struct Impl;
     std::unique_ptr<Impl> impl;
+    Core::System& system;
 };
 
-} // namespace Service::NS
+} // namespace NS
+
+} // namespace Service

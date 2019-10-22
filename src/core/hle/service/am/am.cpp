@@ -31,6 +31,7 @@
 #include "core/hle/service/am/tcap.h"
 #include "core/hle/service/apm/controller.h"
 #include "core/hle/service/apm/interface.h"
+#include "core/hle/service/bcat/backend/backend.h"
 #include "core/hle/service/filesystem/filesystem.h"
 #include "core/hle/service/ns/ns.h"
 #include "core/hle/service/nvflinger/nvflinger.h"
@@ -46,15 +47,20 @@ constexpr ResultCode ERR_NO_DATA_IN_CHANNEL{ErrorModule::AM, 0x2};
 constexpr ResultCode ERR_NO_MESSAGES{ErrorModule::AM, 0x3};
 constexpr ResultCode ERR_SIZE_OUT_OF_BOUNDS{ErrorModule::AM, 0x1F7};
 
-constexpr u32 POP_LAUNCH_PARAMETER_MAGIC = 0xC79497CA;
+enum class LaunchParameterKind : u32 {
+    ApplicationSpecific = 1,
+    AccountPreselectedUser = 2,
+};
 
-struct LaunchParameters {
+constexpr u32 LAUNCH_PARAMETER_ACCOUNT_PRESELECTED_USER_MAGIC = 0xC79497CA;
+
+struct LaunchParameterAccountPreselectedUser {
     u32_le magic;
     u32_le is_account_selected;
     u128 current_user;
     INSERT_PADDING_BYTES(0x70);
 };
-static_assert(sizeof(LaunchParameters) == 0x88);
+static_assert(sizeof(LaunchParameterAccountPreselectedUser) == 0x88);
 
 IWindowController::IWindowController(Core::System& system_)
     : ServiceFramework("IWindowController"), system{system_} {
@@ -232,12 +238,12 @@ IDebugFunctions::IDebugFunctions() : ServiceFramework{"IDebugFunctions"} {
 
 IDebugFunctions::~IDebugFunctions() = default;
 
-ISelfController::ISelfController(Core::System& system_,
-                                 std::shared_ptr<NVFlinger::NVFlinger> nvflinger_)
-    : ServiceFramework("ISelfController"), nvflinger(std::move(nvflinger_)) {
+ISelfController::ISelfController(Core::System& system,
+                                 std::shared_ptr<NVFlinger::NVFlinger> nvflinger)
+    : ServiceFramework("ISelfController"), system(system), nvflinger(std::move(nvflinger)) {
     // clang-format off
     static const FunctionInfo functions[] = {
-        {0, nullptr, "Exit"},
+        {0, &ISelfController::Exit, "Exit"},
         {1, &ISelfController::LockExit, "LockExit"},
         {2, &ISelfController::UnlockExit, "UnlockExit"},
         {3, &ISelfController::EnterFatalSection, "EnterFatalSection"},
@@ -282,7 +288,7 @@ ISelfController::ISelfController(Core::System& system_,
 
     RegisterHandlers(functions);
 
-    auto& kernel = system_.Kernel();
+    auto& kernel = system.Kernel();
     launchable_event = Kernel::WritableEvent::CreateEventPair(kernel, Kernel::ResetType::Manual,
                                                               "ISelfController:LaunchableEvent");
 
@@ -298,15 +304,28 @@ ISelfController::ISelfController(Core::System& system_,
 
 ISelfController::~ISelfController() = default;
 
+void ISelfController::Exit(Kernel::HLERequestContext& ctx) {
+    LOG_DEBUG(Service_AM, "called");
+
+    system.Shutdown();
+
+    IPC::ResponseBuilder rb{ctx, 2};
+    rb.Push(RESULT_SUCCESS);
+}
+
 void ISelfController::LockExit(Kernel::HLERequestContext& ctx) {
-    LOG_WARNING(Service_AM, "(STUBBED) called");
+    LOG_DEBUG(Service_AM, "called");
+
+    system.SetExitLock(true);
 
     IPC::ResponseBuilder rb{ctx, 2};
     rb.Push(RESULT_SUCCESS);
 }
 
 void ISelfController::UnlockExit(Kernel::HLERequestContext& ctx) {
-    LOG_WARNING(Service_AM, "(STUBBED) called");
+    LOG_DEBUG(Service_AM, "called");
+
+    system.SetExitLock(false);
 
     IPC::ResponseBuilder rb{ctx, 2};
     rb.Push(RESULT_SUCCESS);
@@ -548,6 +567,10 @@ void AppletMessageQueue::OperationModeChanged() {
     PushMessage(AppletMessage::OperationModeChanged);
     PushMessage(AppletMessage::PerformanceModeChanged);
     on_operation_mode_changed.writable->Signal();
+}
+
+void AppletMessageQueue::RequestExit() {
+    PushMessage(AppletMessage::ExitRequested);
 }
 
 ICommonStateGetter::ICommonStateGetter(Core::System& system,
@@ -824,17 +847,16 @@ private:
     void PopInteractiveOutData(Kernel::HLERequestContext& ctx) {
         LOG_DEBUG(Service_AM, "called");
 
-        IPC::ResponseBuilder rb{ctx, 2, 0, 1};
-
         const auto storage = applet->GetBroker().PopInteractiveDataToGame();
         if (storage == nullptr) {
             LOG_ERROR(Service_AM,
                       "storage is a nullptr. There is no data in the current interactive channel");
-
+            IPC::ResponseBuilder rb{ctx, 2};
             rb.Push(ERR_NO_DATA_IN_CHANNEL);
             return;
         }
 
+        IPC::ResponseBuilder rb{ctx, 2, 0, 1};
         rb.Push(RESULT_SUCCESS);
         rb.PushIpcInterface<IStorage>(std::move(*storage));
     }
@@ -1066,7 +1088,7 @@ IApplicationFunctions::IApplicationFunctions(Core::System& system_)
 
     RegisterHandlers(functions);
 
-    auto& kernel = Core::System::GetInstance().Kernel();
+    auto& kernel = system.Kernel();
     gpu_error_detected_event = Kernel::WritableEvent::CreateEventPair(
         kernel, Kernel::ResetType::Manual, "IApplicationFunctions:GpuErrorDetectedSystemEvent");
 }
@@ -1111,26 +1133,56 @@ void IApplicationFunctions::EndBlockingHomeButton(Kernel::HLERequestContext& ctx
 }
 
 void IApplicationFunctions::PopLaunchParameter(Kernel::HLERequestContext& ctx) {
-    LOG_DEBUG(Service_AM, "called");
+    IPC::RequestParser rp{ctx};
+    const auto kind = rp.PopEnum<LaunchParameterKind>();
 
-    LaunchParameters params{};
+    LOG_DEBUG(Service_AM, "called, kind={:08X}", static_cast<u8>(kind));
 
-    params.magic = POP_LAUNCH_PARAMETER_MAGIC;
-    params.is_account_selected = 1;
+    if (kind == LaunchParameterKind::ApplicationSpecific && !launch_popped_application_specific) {
+        const auto backend = BCAT::CreateBackendFromSettings(system, [this](u64 tid) {
+            return system.GetFileSystemController().GetBCATDirectory(tid);
+        });
+        const auto build_id_full = system.GetCurrentProcessBuildID();
+        u64 build_id{};
+        std::memcpy(&build_id, build_id_full.data(), sizeof(u64));
 
-    Account::ProfileManager profile_manager{};
-    const auto uuid = profile_manager.GetUser(Settings::values.current_user);
-    ASSERT(uuid);
-    params.current_user = uuid->uuid;
+        const auto data =
+            backend->GetLaunchParameter({system.CurrentProcess()->GetTitleID(), build_id});
 
-    IPC::ResponseBuilder rb{ctx, 2, 0, 1};
+        if (data.has_value()) {
+            IPC::ResponseBuilder rb{ctx, 2, 0, 1};
+            rb.Push(RESULT_SUCCESS);
+            rb.PushIpcInterface<AM::IStorage>(*data);
+            launch_popped_application_specific = true;
+            return;
+        }
+    } else if (kind == LaunchParameterKind::AccountPreselectedUser &&
+               !launch_popped_account_preselect) {
+        LaunchParameterAccountPreselectedUser params{};
 
-    rb.Push(RESULT_SUCCESS);
+        params.magic = LAUNCH_PARAMETER_ACCOUNT_PRESELECTED_USER_MAGIC;
+        params.is_account_selected = 1;
 
-    std::vector<u8> buffer(sizeof(LaunchParameters));
-    std::memcpy(buffer.data(), &params, buffer.size());
+        Account::ProfileManager profile_manager{};
+        const auto uuid = profile_manager.GetUser(Settings::values.current_user);
+        ASSERT(uuid);
+        params.current_user = uuid->uuid;
 
-    rb.PushIpcInterface<AM::IStorage>(buffer);
+        IPC::ResponseBuilder rb{ctx, 2, 0, 1};
+
+        rb.Push(RESULT_SUCCESS);
+
+        std::vector<u8> buffer(sizeof(LaunchParameterAccountPreselectedUser));
+        std::memcpy(buffer.data(), &params, buffer.size());
+
+        rb.PushIpcInterface<AM::IStorage>(buffer);
+        launch_popped_account_preselect = true;
+        return;
+    }
+
+    LOG_ERROR(Service_AM, "Attempted to load launch parameter but none was found!");
+    IPC::ResponseBuilder rb{ctx, 2};
+    rb.Push(ERR_NO_DATA_IN_CHANNEL);
 }
 
 void IApplicationFunctions::CreateApplicationAndRequestToStartForQuest(
@@ -1143,13 +1195,21 @@ void IApplicationFunctions::CreateApplicationAndRequestToStartForQuest(
 
 void IApplicationFunctions::EnsureSaveData(Kernel::HLERequestContext& ctx) {
     IPC::RequestParser rp{ctx};
-    u128 uid = rp.PopRaw<u128>(); // What does this do?
-    LOG_WARNING(Service, "(STUBBED) called uid = {:016X}{:016X}", uid[1], uid[0]);
+    u128 user_id = rp.PopRaw<u128>();
+
+    LOG_DEBUG(Service_AM, "called, uid={:016X}{:016X}", user_id[1], user_id[0]);
+
+    FileSys::SaveDataDescriptor descriptor{};
+    descriptor.title_id = system.CurrentProcess()->GetTitleID();
+    descriptor.user_id = user_id;
+    descriptor.type = FileSys::SaveDataType::SaveData;
+    const auto res = system.GetFileSystemController().CreateSaveData(
+        FileSys::SaveDataSpaceId::NandUser, descriptor);
 
     IPC::ResponseBuilder rb{ctx, 4};
-    rb.Push(RESULT_SUCCESS);
+    rb.Push(res.Code());
     rb.Push<u64>(0);
-} // namespace Service::AM
+}
 
 void IApplicationFunctions::SetTerminateResult(Kernel::HLERequestContext& ctx) {
     // Takes an input u32 Result, no output.
@@ -1261,8 +1321,8 @@ void IApplicationFunctions::ExtendSaveData(Kernel::HLERequestContext& ctx) {
               "new_journal={:016X}",
               static_cast<u8>(type), user_id[1], user_id[0], new_normal_size, new_journal_size);
 
-    const auto title_id = system.CurrentProcess()->GetTitleID();
-    FileSystem::WriteSaveDataSize(type, title_id, user_id, {new_normal_size, new_journal_size});
+    system.GetFileSystemController().WriteSaveDataSize(
+        type, system.CurrentProcess()->GetTitleID(), user_id, {new_normal_size, new_journal_size});
 
     IPC::ResponseBuilder rb{ctx, 4};
     rb.Push(RESULT_SUCCESS);
@@ -1281,8 +1341,8 @@ void IApplicationFunctions::GetSaveDataSize(Kernel::HLERequestContext& ctx) {
     LOG_DEBUG(Service_AM, "called with type={:02X}, user_id={:016X}{:016X}", static_cast<u8>(type),
               user_id[1], user_id[0]);
 
-    const auto title_id = system.CurrentProcess()->GetTitleID();
-    const auto size = FileSystem::ReadSaveDataSize(type, title_id, user_id);
+    const auto size = system.GetFileSystemController().ReadSaveDataSize(
+        type, system.CurrentProcess()->GetTitleID(), user_id);
 
     IPC::ResponseBuilder rb{ctx, 6};
     rb.Push(RESULT_SUCCESS);

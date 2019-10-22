@@ -92,12 +92,17 @@ void Maxwell3D::InitializeRegisterDefaults() {
 
     // Some games (like Super Mario Odyssey) assume that SRGB is enabled.
     regs.framebuffer_srgb = 1;
+    mme_inline[MAXWELL3D_REG_INDEX(draw.vertex_end_gl)] = true;
+    mme_inline[MAXWELL3D_REG_INDEX(draw.vertex_begin_gl)] = true;
+    mme_inline[MAXWELL3D_REG_INDEX(vertex_buffer.count)] = true;
+    mme_inline[MAXWELL3D_REG_INDEX(index_array.count)] = true;
 }
 
 #define DIRTY_REGS_POS(field_name) (offsetof(Maxwell3D::DirtyRegs, field_name))
 
 void Maxwell3D::InitDirtySettings() {
-    const auto set_block = [this](const u32 start, const u32 range, const u8 position) {
+    const auto set_block = [this](const std::size_t start, const std::size_t range,
+                                  const u8 position) {
         const auto start_itr = dirty_pointers.begin() + start;
         const auto end_itr = start_itr + range;
         std::fill(start_itr, end_itr, position);
@@ -245,6 +250,11 @@ void Maxwell3D::InitDirtySettings() {
     dirty_pointers[MAXWELL3D_REG_INDEX(polygon_offset_units)] = polygon_offset_dirty_reg;
     dirty_pointers[MAXWELL3D_REG_INDEX(polygon_offset_factor)] = polygon_offset_dirty_reg;
     dirty_pointers[MAXWELL3D_REG_INDEX(polygon_offset_clamp)] = polygon_offset_dirty_reg;
+
+    // Depth bounds
+    constexpr u32 depth_bounds_values_dirty_reg = DIRTY_REGS_POS(depth_bounds_values);
+    dirty_pointers[MAXWELL3D_REG_INDEX(depth_bounds[0])] = depth_bounds_values_dirty_reg;
+    dirty_pointers[MAXWELL3D_REG_INDEX(depth_bounds[1])] = depth_bounds_values_dirty_reg;
 }
 
 void Maxwell3D::CallMacroMethod(u32 method, std::size_t num_parameters, const u32* parameters) {
@@ -256,6 +266,9 @@ void Maxwell3D::CallMacroMethod(u32 method, std::size_t num_parameters, const u3
 
     // Execute the current macro.
     macro_interpreter.Execute(macro_positions[entry], num_parameters, parameters);
+    if (mme_draw.current_mode != MMEDrawMode::Undefined) {
+        FlushMMEInlineDraw();
+    }
 }
 
 void Maxwell3D::CallMethod(const GPU::MethodCall& method_call) {
@@ -416,6 +429,97 @@ void Maxwell3D::CallMethod(const GPU::MethodCall& method_call) {
     }
 }
 
+void Maxwell3D::StepInstance(const MMEDrawMode expected_mode, const u32 count) {
+    if (mme_draw.current_mode == MMEDrawMode::Undefined) {
+        if (mme_draw.gl_begin_consume) {
+            mme_draw.current_mode = expected_mode;
+            mme_draw.current_count = count;
+            mme_draw.instance_count = 1;
+            mme_draw.gl_begin_consume = false;
+            mme_draw.gl_end_count = 0;
+        }
+        return;
+    } else {
+        if (mme_draw.current_mode == expected_mode && count == mme_draw.current_count &&
+            mme_draw.instance_mode && mme_draw.gl_begin_consume) {
+            mme_draw.instance_count++;
+            mme_draw.gl_begin_consume = false;
+            return;
+        } else {
+            FlushMMEInlineDraw();
+        }
+    }
+    // Tail call in case it needs to retry.
+    StepInstance(expected_mode, count);
+}
+
+void Maxwell3D::CallMethodFromMME(const GPU::MethodCall& method_call) {
+    const u32 method = method_call.method;
+    if (mme_inline[method]) {
+        regs.reg_array[method] = method_call.argument;
+        if (method == MAXWELL3D_REG_INDEX(vertex_buffer.count) ||
+            method == MAXWELL3D_REG_INDEX(index_array.count)) {
+            const MMEDrawMode expected_mode = method == MAXWELL3D_REG_INDEX(vertex_buffer.count)
+                                                  ? MMEDrawMode::Array
+                                                  : MMEDrawMode::Indexed;
+            StepInstance(expected_mode, method_call.argument);
+        } else if (method == MAXWELL3D_REG_INDEX(draw.vertex_begin_gl)) {
+            mme_draw.instance_mode =
+                (regs.draw.instance_next != 0) || (regs.draw.instance_cont != 0);
+            mme_draw.gl_begin_consume = true;
+        } else {
+            mme_draw.gl_end_count++;
+        }
+    } else {
+        if (mme_draw.current_mode != MMEDrawMode::Undefined) {
+            FlushMMEInlineDraw();
+        }
+        CallMethod(method_call);
+    }
+}
+
+void Maxwell3D::FlushMMEInlineDraw() {
+    LOG_TRACE(HW_GPU, "called, topology={}, count={}", static_cast<u32>(regs.draw.topology.Value()),
+              regs.vertex_buffer.count);
+    ASSERT_MSG(!(regs.index_array.count && regs.vertex_buffer.count), "Both indexed and direct?");
+    ASSERT(mme_draw.instance_count == mme_draw.gl_end_count);
+
+    auto debug_context = system.GetGPUDebugContext();
+
+    if (debug_context) {
+        debug_context->OnEvent(Tegra::DebugContext::Event::IncomingPrimitiveBatch, nullptr);
+    }
+
+    // Both instance configuration registers can not be set at the same time.
+    ASSERT_MSG(!regs.draw.instance_next || !regs.draw.instance_cont,
+               "Illegal combination of instancing parameters");
+
+    const bool is_indexed = mme_draw.current_mode == MMEDrawMode::Indexed;
+    if (ShouldExecute()) {
+        rasterizer.DrawMultiBatch(is_indexed);
+    }
+
+    if (debug_context) {
+        debug_context->OnEvent(Tegra::DebugContext::Event::FinishedPrimitiveBatch, nullptr);
+    }
+
+    // TODO(bunnei): Below, we reset vertex count so that we can use these registers to determine if
+    // the game is trying to draw indexed or direct mode. This needs to be verified on HW still -
+    // it's possible that it is incorrect and that there is some other register used to specify the
+    // drawing mode.
+    if (is_indexed) {
+        regs.index_array.count = 0;
+    } else {
+        regs.vertex_buffer.count = 0;
+    }
+    mme_draw.current_mode = MMEDrawMode::Undefined;
+    mme_draw.current_count = 0;
+    mme_draw.instance_count = 0;
+    mme_draw.instance_mode = false;
+    mme_draw.gl_begin_consume = false;
+    mme_draw.gl_end_count = 0;
+}
+
 void Maxwell3D::ProcessMacroUpload(u32 data) {
     ASSERT_MSG(regs.macros.upload_address < macro_memory.size(),
                "upload_address exceeded macro_memory size!");
@@ -541,7 +645,7 @@ void Maxwell3D::ProcessSyncPoint() {
 }
 
 void Maxwell3D::DrawArrays() {
-    LOG_DEBUG(HW_GPU, "called, topology={}, count={}", static_cast<u32>(regs.draw.topology.Value()),
+    LOG_TRACE(HW_GPU, "called, topology={}, count={}", static_cast<u32>(regs.draw.topology.Value()),
               regs.vertex_buffer.count);
     ASSERT_MSG(!(regs.index_array.count && regs.vertex_buffer.count), "Both indexed and direct?");
 
@@ -564,7 +668,9 @@ void Maxwell3D::DrawArrays() {
     }
 
     const bool is_indexed{regs.index_array.count && !regs.vertex_buffer.count};
-    rasterizer.AccelerateDrawBatch(is_indexed);
+    if (ShouldExecute()) {
+        rasterizer.DrawBatch(is_indexed);
+    }
 
     if (debug_context) {
         debug_context->OnEvent(Tegra::DebugContext::Event::FinishedPrimitiveBatch, nullptr);
@@ -741,11 +847,30 @@ void Maxwell3D::ProcessClearBuffers() {
     rasterizer.Clear();
 }
 
-u32 Maxwell3D::AccessConstBuffer32(Regs::ShaderStage stage, u64 const_buffer, u64 offset) const {
+u32 Maxwell3D::AccessConstBuffer32(ShaderType stage, u64 const_buffer, u64 offset) const {
+    ASSERT(stage != ShaderType::Compute);
     const auto& shader_stage = state.shader_stages[static_cast<std::size_t>(stage)];
     const auto& buffer = shader_stage.const_buffers[const_buffer];
     u32 result;
     std::memcpy(&result, memory_manager.GetPointer(buffer.address + offset), sizeof(u32));
+    return result;
+}
+
+SamplerDescriptor Maxwell3D::AccessBoundSampler(ShaderType stage, u64 offset) const {
+    return AccessBindlessSampler(stage, regs.tex_cb_index, offset * sizeof(Texture::TextureHandle));
+}
+
+SamplerDescriptor Maxwell3D::AccessBindlessSampler(ShaderType stage, u64 const_buffer,
+                                                   u64 offset) const {
+    ASSERT(stage != ShaderType::Compute);
+    const auto& shader = state.shader_stages[static_cast<std::size_t>(stage)];
+    const auto& tex_info_buffer = shader.const_buffers[const_buffer];
+    const GPUVAddr tex_info_address = tex_info_buffer.address + offset;
+
+    const Texture::TextureHandle tex_handle{memory_manager.Read<u32>(tex_info_address)};
+    const Texture::FullTextureInfo tex_info = GetTextureInfo(tex_handle, offset);
+    SamplerDescriptor result = SamplerDescriptor::FromTicTexture(tex_info.tic.texture_type.Value());
+    result.is_shadow.Assign(tex_info.tsc.depth_compare_enabled.Value());
     return result;
 }
 

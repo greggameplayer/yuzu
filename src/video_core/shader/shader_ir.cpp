@@ -22,8 +22,9 @@ using Tegra::Shader::PredCondition;
 using Tegra::Shader::PredOperation;
 using Tegra::Shader::Register;
 
-ShaderIR::ShaderIR(const ProgramCode& program_code, u32 main_offset, const std::size_t size)
-    : program_code{program_code}, main_offset{main_offset}, program_size{size} {
+ShaderIR::ShaderIR(const ProgramCode& program_code, u32 main_offset, CompilerSettings settings,
+                   ConstBufferLocker& locker)
+    : program_code{program_code}, main_offset{main_offset}, settings{settings}, locker{locker} {
     Decode();
 }
 
@@ -114,6 +115,18 @@ Node ShaderIR::GetOutputAttribute(Attribute::Index index, u64 element, Node buff
             break;
         }
     }
+    if (index == Attribute::Index::TessCoordInstanceIDVertexID) {
+        switch (element) {
+        case 2:
+            uses_instance_id = true;
+            break;
+        case 3:
+            uses_vertex_id = true;
+            break;
+        default:
+            break;
+        }
+    }
     if (index == Attribute::Index::ClipDistances0123 ||
         index == Attribute::Index::ClipDistances4567) {
         const auto clip_index =
@@ -125,7 +138,7 @@ Node ShaderIR::GetOutputAttribute(Attribute::Index index, u64 element, Node buff
     return MakeNode<AbufNode>(index, static_cast<u32>(element), std::move(buffer));
 }
 
-Node ShaderIR::GetInternalFlag(InternalFlag flag, bool negated) {
+Node ShaderIR::GetInternalFlag(InternalFlag flag, bool negated) const {
     const Node node = MakeNode<InternalFlagNode>(flag);
     if (negated) {
         return Operation(OperationCode::LogicalNegate, node);
@@ -355,13 +368,13 @@ OperationCode ShaderIR::GetPredicateCombiner(PredOperation operation) {
     return op->second;
 }
 
-Node ShaderIR::GetConditionCode(Tegra::Shader::ConditionCode cc) {
+Node ShaderIR::GetConditionCode(Tegra::Shader::ConditionCode cc) const {
     switch (cc) {
     case Tegra::Shader::ConditionCode::NEU:
         return GetInternalFlag(InternalFlag::Zero, true);
     default:
         UNIMPLEMENTED_MSG("Unimplemented condition code: {}", static_cast<u32>(cc));
-        return GetPredicate(static_cast<u64>(Pred::NeverExecute));
+        return MakeNode<PredicateNode>(Pred::NeverExecute, false);
     }
 }
 

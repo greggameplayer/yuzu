@@ -184,9 +184,7 @@ int main(int argc, char** argv) {
     Core::System& system{Core::System::GetInstance()};
     system.SetContentProvider(std::make_unique<FileSys::ContentProviderUnion>());
     system.SetFilesystem(std::make_shared<FileSys::RealVfsFilesystem>());
-    Service::FileSystem::CreateFactories(*system.GetFilesystem());
-
-    SCOPE_EXIT({ system.Shutdown(); });
+    system.GetFileSystemController().CreateFactories(*system.GetFilesystem());
 
     const Core::System::ResultStatus load_result{system.Load(*emu_window, filepath)};
 
@@ -226,6 +224,8 @@ int main(int argc, char** argv) {
     while (emu_window->IsOpen()) {
         system.RunLoop();
     }
+
+    system.Shutdown();
 
     detached_tasks.WaitForAllTasks();
     return 0;

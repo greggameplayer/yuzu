@@ -316,6 +316,29 @@ void Config::ReadValues() {
     FileUtil::GetUserPath(FileUtil::UserPath::SDMCDir,
                           sdl2_config->Get("Data Storage", "sdmc_directory",
                                            FileUtil::GetUserPath(FileUtil::UserPath::SDMCDir)));
+    FileUtil::GetUserPath(FileUtil::UserPath::LoadDir,
+                          sdl2_config->Get("Data Storage", "load_directory",
+                                           FileUtil::GetUserPath(FileUtil::UserPath::LoadDir)));
+    FileUtil::GetUserPath(FileUtil::UserPath::DumpDir,
+                          sdl2_config->Get("Data Storage", "dump_directory",
+                                           FileUtil::GetUserPath(FileUtil::UserPath::DumpDir)));
+    FileUtil::GetUserPath(FileUtil::UserPath::CacheDir,
+                          sdl2_config->Get("Data Storage", "cache_directory",
+                                           FileUtil::GetUserPath(FileUtil::UserPath::CacheDir)));
+    Settings::values.gamecard_inserted =
+        sdl2_config->GetBoolean("Data Storage", "gamecard_inserted", false);
+    Settings::values.gamecard_current_game =
+        sdl2_config->GetBoolean("Data Storage", "gamecard_current_game", false);
+    Settings::values.gamecard_path = sdl2_config->Get("Data Storage", "gamecard_path", "");
+    Settings::values.nand_total_size = static_cast<Settings::NANDTotalSize>(sdl2_config->GetInteger(
+        "Data Storage", "nand_total_size", static_cast<long>(Settings::NANDTotalSize::S29_1GB)));
+    Settings::values.nand_user_size = static_cast<Settings::NANDUserSize>(sdl2_config->GetInteger(
+        "Data Storage", "nand_user_size", static_cast<long>(Settings::NANDUserSize::S26GB)));
+    Settings::values.nand_system_size = static_cast<Settings::NANDSystemSize>(
+        sdl2_config->GetInteger("Data Storage", "nand_system_size",
+                                static_cast<long>(Settings::NANDSystemSize::S2_5GB)));
+    Settings::values.sdmc_size = static_cast<Settings::SDMCSize>(sdl2_config->GetInteger(
+        "Data Storage", "sdmc_size", static_cast<long>(Settings::SDMCSize::S16GB)));
 
     // System
     Settings::values.use_docked_mode = sdl2_config->GetBoolean("System", "use_docked_mode", false);
@@ -374,6 +397,8 @@ void Config::ReadValues() {
     Settings::values.use_dev_keys = sdl2_config->GetBoolean("Miscellaneous", "use_dev_keys", false);
 
     // Debugging
+    Settings::values.record_frame_times =
+        sdl2_config->GetBoolean("Debugging", "record_frame_times", false);
     Settings::values.use_gdbstub = sdl2_config->GetBoolean("Debugging", "use_gdbstub", false);
     Settings::values.gdbstub_port =
         static_cast<u16>(sdl2_config->GetInteger("Debugging", "gdbstub_port", 24689));
@@ -408,6 +433,11 @@ void Config::ReadValues() {
         sdl2_config->Get("WebService", "web_api_url", "https://api.yuzu-emu.org");
     Settings::values.yuzu_username = sdl2_config->Get("WebService", "yuzu_username", "");
     Settings::values.yuzu_token = sdl2_config->Get("WebService", "yuzu_token", "");
+
+    // Services
+    Settings::values.bcat_backend = sdl2_config->Get("Services", "bcat_backend", "boxcat");
+    Settings::values.bcat_boxcat_local =
+        sdl2_config->GetBoolean("Services", "bcat_boxcat_local", false);
 }
 
 void Config::Reload() {

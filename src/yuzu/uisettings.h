@@ -24,7 +24,7 @@ struct Shortcut {
     ContextualShortcut shortcut;
 };
 
-using Themes = std::array<std::pair<const char*, const char*>, 2>;
+using Themes = std::array<std::pair<const char*, const char*>, 4>;
 extern const Themes themes;
 
 struct GameDir {
@@ -58,6 +58,7 @@ struct Values {
 
     bool confirm_before_closing;
     bool first_start;
+    bool pause_when_in_background;
 
     bool select_user_on_boot;
 

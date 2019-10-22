@@ -9,11 +9,17 @@
 #include "core/hle/service/service.h"
 
 namespace Service {
+namespace FileSystem {
+class FileSystemController;
+}
+
 namespace NVFlinger {
 class NVFlinger;
 }
 
 namespace AM {
+
+class AppletMessageQueue;
 
 class AppletAE final : public ServiceFramework<AppletAE> {
 public:

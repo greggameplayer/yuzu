@@ -19,6 +19,8 @@
 #include "video_core/renderer_opengl/gl_device.h"
 #include "video_core/renderer_opengl/gl_rasterizer.h"
 #include "video_core/renderer_opengl/gl_shader_decompiler.h"
+#include "video_core/shader/ast.h"
+#include "video_core/shader/node.h"
 #include "video_core/shader/shader_ir.h"
 
 namespace OpenGL::GLShader {
@@ -241,6 +243,26 @@ constexpr const char* GetTypeString(Type type) {
     }
 }
 
+constexpr const char* GetImageTypeDeclaration(Tegra::Shader::ImageType image_type) {
+    switch (image_type) {
+    case Tegra::Shader::ImageType::Texture1D:
+        return "1D";
+    case Tegra::Shader::ImageType::TextureBuffer:
+        return "Buffer";
+    case Tegra::Shader::ImageType::Texture1DArray:
+        return "1DArray";
+    case Tegra::Shader::ImageType::Texture2D:
+        return "2D";
+    case Tegra::Shader::ImageType::Texture2DArray:
+        return "2DArray";
+    case Tegra::Shader::ImageType::Texture3D:
+        return "3D";
+    default:
+        UNREACHABLE();
+        return "1D";
+    }
+}
+
 /// Generates code to use for a swizzle operation.
 constexpr const char* GetSwizzle(u32 element) {
     constexpr std::array swizzle = {".x", ".y", ".z", ".w"};
@@ -313,39 +335,24 @@ constexpr bool IsVertexShader(ProgramType stage) {
     return stage == ProgramType::VertexA || stage == ProgramType::VertexB;
 }
 
+class ASTDecompiler;
+class ExprDecompiler;
+
 class GLSLDecompiler final {
 public:
     explicit GLSLDecompiler(const Device& device, const ShaderIR& ir, ProgramType stage,
                             std::string suffix)
         : device{device}, ir{ir}, stage{stage}, suffix{suffix}, header{ir.GetHeader()} {}
 
-    void Decompile() {
-        DeclareVertex();
-        DeclareGeometry();
-        DeclareRegisters();
-        DeclarePredicates();
-        DeclareLocalMemory();
-        DeclareSharedMemory();
-        DeclareInternalFlags();
-        DeclareInputAttributes();
-        DeclareOutputAttributes();
-        DeclareConstantBuffers();
-        DeclareGlobalMemory();
-        DeclareSamplers();
-        DeclarePhysicalAttributeReader();
-        DeclareImages();
-
-        code.AddLine("void execute_{}() {{", suffix);
-        ++code.scope;
-
+    void DecompileBranchMode() {
         // VM's program counter
         const auto first_address = ir.GetBasicBlocks().begin()->first;
         code.AddLine("uint jmp_to = {}U;", first_address);
 
         // TODO(Subv): Figure out the actual depth of the flow stack, for now it seems
         // unlikely that shaders will use 20 nested SSYs and PBKs.
+        constexpr u32 FLOW_STACK_SIZE = 20;
         if (!ir.IsFlowStackDisabled()) {
-            constexpr u32 FLOW_STACK_SIZE = 20;
             for (const auto stack : std::array{MetaStackClass::Ssy, MetaStackClass::Pbk}) {
                 code.AddLine("uint {}[{}];", FlowStackName(stack), FLOW_STACK_SIZE);
                 code.AddLine("uint {} = 0U;", FlowStackTopName(stack));
@@ -371,40 +378,47 @@ public:
         code.AddLine("default: return;");
         code.AddLine("}}");
 
-        for (std::size_t i = 0; i < 2; ++i) {
-            --code.scope;
-            code.AddLine("}}");
+        --code.scope;
+        code.AddLine("}}");
+    }
+
+    void DecompileAST();
+
+    void Decompile() {
+        DeclareVertex();
+        DeclareGeometry();
+        DeclareRegisters();
+        DeclarePredicates();
+        DeclareLocalMemory();
+        DeclareInternalFlags();
+        DeclareInputAttributes();
+        DeclareOutputAttributes();
+        DeclareConstantBuffers();
+        DeclareGlobalMemory();
+        DeclareSamplers();
+        DeclarePhysicalAttributeReader();
+
+        code.AddLine("void execute_{}() {{", suffix);
+        ++code.scope;
+
+        if (ir.IsDecompiled()) {
+            DecompileAST();
+        } else {
+            DecompileBranchMode();
         }
+
+        --code.scope;
+        code.AddLine("}}");
     }
 
     std::string GetResult() {
         return code.GetResult();
     }
 
-    ShaderEntries GetShaderEntries() const {
-        ShaderEntries entries;
-        for (const auto& cbuf : ir.GetConstantBuffers()) {
-            entries.const_buffers.emplace_back(cbuf.second.GetMaxOffset(), cbuf.second.IsIndirect(),
-                                               cbuf.first);
-        }
-        for (const auto& sampler : ir.GetSamplers()) {
-            entries.samplers.emplace_back(sampler);
-        }
-        for (const auto& [offset, image] : ir.GetImages()) {
-            entries.images.emplace_back(image);
-        }
-        for (const auto& [base, usage] : ir.GetGlobalMemory()) {
-            entries.global_memory_entries.emplace_back(base.cbuf_index, base.cbuf_offset,
-                                                       usage.is_read, usage.is_written);
-        }
-        entries.clip_distances = ir.GetClipDistances();
-        entries.shader_viewport_layer_array =
-            IsVertexShader(stage) && (ir.UsesLayer() || ir.UsesViewportIndex());
-        entries.shader_length = ir.GetLength();
-        return entries;
-    }
-
 private:
+    friend class ASTDecompiler;
+    friend class ExprDecompiler;
+
     void DeclareVertex() {
         if (!IsVertexShader(stage))
             return;
@@ -460,6 +474,14 @@ private:
 
         if (ir.UsesPointSize()) {
             code.AddLine("float gl_PointSize;");
+        }
+
+        if (ir.UsesInstanceId()) {
+            code.AddLine("int gl_InstanceID;");
+        }
+
+        if (ir.UsesVertexId()) {
+            code.AddLine("int gl_VertexID;");
         }
 
         --code.scope;
@@ -714,42 +736,6 @@ private:
     void DeclareImages() {
         const auto& images{ir.GetImages()};
         for (const auto& [offset, image] : images) {
-            const char* image_type = [&] {
-                switch (image.GetType()) {
-                case Tegra::Shader::ImageType::Texture1D:
-                    return "image1D";
-                case Tegra::Shader::ImageType::TextureBuffer:
-                    return "imageBuffer";
-                case Tegra::Shader::ImageType::Texture1DArray:
-                    return "image1DArray";
-                case Tegra::Shader::ImageType::Texture2D:
-                    return "image2D";
-                case Tegra::Shader::ImageType::Texture2DArray:
-                    return "image2DArray";
-                case Tegra::Shader::ImageType::Texture3D:
-                    return "image3D";
-                default:
-                    UNREACHABLE();
-                    return "image1D";
-                }
-            }();
-
-            const auto [type_prefix, format] = [&]() -> std::pair<const char*, const char*> {
-                if (!image.IsSizeKnown()) {
-                    return {"", ""};
-                }
-                switch (image.GetSize()) {
-                case Tegra::Shader::ImageAtomicSize::U32:
-                    return {"u", "r32ui, "};
-                case Tegra::Shader::ImageAtomicSize::S32:
-                    return {"i", "r32i, "};
-                default:
-                    UNIMPLEMENTED_MSG("Unimplemented atomic size={}",
-                                      static_cast<u32>(image.GetSize()));
-                    return {"", ""};
-                }
-            }();
-
             std::string qualifier = "coherent volatile";
             if (image.IsRead() && !image.IsWritten()) {
                 qualifier += " readonly";
@@ -757,9 +743,10 @@ private:
                 qualifier += " writeonly";
             }
 
-            code.AddLine("layout (binding = IMAGE_BINDING_{}) {} uniform "
-                         "{} {};",
-                         image.GetIndex(), qualifier, image_type, GetImage(image));
+            const char* format = image.IsAtomic() ? "r32ui, " : "";
+            const char* type_declaration = GetImageTypeDeclaration(image.GetType());
+            code.AddLine("layout ({}binding = IMAGE_BINDING_{}) {} uniform uimage{} {};", format,
+                         image.GetIndex(), qualifier, type_declaration, GetImage(image));
         }
         if (!images.empty()) {
             code.AddNewLine();
@@ -964,7 +951,7 @@ private:
             switch (element) {
             case 2:
                 // Config pack's first value is instance_id.
-                return {"config_pack[0]", Type::Uint};
+                return {"gl_InstanceID", Type::Int};
             case 3:
                 return {"gl_VertexID", Type::Int};
             }
@@ -1021,10 +1008,10 @@ private:
         return {std::move(temporary), value.GetType()};
     }
 
-    Expression GetOutputAttribute(const AbufNode* abuf) {
+    std::optional<Expression> GetOutputAttribute(const AbufNode* abuf) {
         switch (const auto attribute = abuf->GetIndex()) {
         case Attribute::Index::Position:
-            return {"gl_Position"s + GetSwizzle(abuf->GetElement()), Type::Float};
+            return {{"gl_Position"s + GetSwizzle(abuf->GetElement()), Type::Float}};
         case Attribute::Index::LayerViewportPointSize:
             switch (abuf->GetElement()) {
             case 0:
@@ -1034,25 +1021,25 @@ private:
                 if (IsVertexShader(stage) && !device.HasVertexViewportLayer()) {
                     return {};
                 }
-                return {"gl_Layer", Type::Int};
+                return {{"gl_Layer", Type::Int}};
             case 2:
                 if (IsVertexShader(stage) && !device.HasVertexViewportLayer()) {
                     return {};
                 }
-                return {"gl_ViewportIndex", Type::Int};
+                return {{"gl_ViewportIndex", Type::Int}};
             case 3:
                 UNIMPLEMENTED_MSG("Requires some state changes for gl_PointSize to work in shader");
-                return {"gl_PointSize", Type::Float};
+                return {{"gl_PointSize", Type::Float}};
             }
             return {};
         case Attribute::Index::ClipDistances0123:
-            return {fmt::format("gl_ClipDistance[{}]", abuf->GetElement()), Type::Float};
+            return {{fmt::format("gl_ClipDistance[{}]", abuf->GetElement()), Type::Float}};
         case Attribute::Index::ClipDistances4567:
-            return {fmt::format("gl_ClipDistance[{}]", abuf->GetElement() + 4), Type::Float};
+            return {{fmt::format("gl_ClipDistance[{}]", abuf->GetElement() + 4), Type::Float}};
         default:
             if (IsGenericAttribute(attribute)) {
-                return {GetOutputAttribute(attribute) + GetSwizzle(abuf->GetElement()),
-                        Type::Float};
+                return {
+                    {GetOutputAttribute(attribute) + GetSwizzle(abuf->GetElement()), Type::Float}};
             }
             UNIMPLEMENTED_MSG("Unhandled output attribute: {}", static_cast<u32>(attribute));
             return {};
@@ -1140,7 +1127,7 @@ private:
         for (const auto& variant : extras) {
             if (const auto argument = std::get_if<TextureArgument>(&variant)) {
                 expr += GenerateTextureArgument(*argument);
-            } else if (std::get_if<TextureAoffi>(&variant)) {
+            } else if (std::holds_alternative<TextureAoffi>(variant)) {
                 expr += GenerateTextureAoffi(meta->aoffi);
             } else {
                 UNREACHABLE();
@@ -1150,8 +1137,8 @@ private:
         return expr + ')';
     }
 
-    std::string GenerateTextureArgument(TextureArgument argument) {
-        const auto [type, operand] = argument;
+    std::string GenerateTextureArgument(const TextureArgument& argument) {
+        const auto& [type, operand] = argument;
         if (operand == nullptr) {
             return {};
         }
@@ -1226,57 +1213,19 @@ private:
     }
 
     std::string BuildImageValues(Operation operation) {
-        const auto meta{std::get<MetaImage>(operation.GetMeta())};
-        const auto [constructors, type] = [&]() -> std::pair<std::array<const char*, 4>, Type> {
-            constexpr std::array float_constructors{"float", "vec2", "vec3", "vec4"};
-            if (!meta.image.IsSizeKnown()) {
-                return {float_constructors, Type::Float};
-            }
-            switch (meta.image.GetSize()) {
-            case Tegra::Shader::ImageAtomicSize::U32:
-                return {{"uint", "uvec2", "uvec3", "uvec4"}, Type::Uint};
-            case Tegra::Shader::ImageAtomicSize::S32:
-                return {{"int", "ivec2", "ivec3", "ivec4"}, Type::Uint};
-            default:
-                UNIMPLEMENTED_MSG("Unimplemented image size={}",
-                                  static_cast<u32>(meta.image.GetSize()));
-                return {float_constructors, Type::Float};
-            }
-        }();
+        constexpr std::array constructors{"uint", "uvec2", "uvec3", "uvec4"};
+        const auto& meta{std::get<MetaImage>(operation.GetMeta())};
 
         const std::size_t values_count{meta.values.size()};
         std::string expr = fmt::format("{}(", constructors.at(values_count - 1));
         for (std::size_t i = 0; i < values_count; ++i) {
-            expr += Visit(meta.values.at(i)).As(type);
+            expr += Visit(meta.values.at(i)).AsUint();
             if (i + 1 < values_count) {
                 expr += ", ";
             }
         }
         expr += ')';
         return expr;
-    }
-
-    Expression AtomicImage(Operation operation, const char* opname) {
-        constexpr std::array constructors{"int(", "ivec2(", "ivec3(", "ivec4("};
-        const auto meta{std::get<MetaImage>(operation.GetMeta())};
-        ASSERT(meta.values.size() == 1);
-        ASSERT(meta.image.IsSizeKnown());
-
-        const auto type = [&]() {
-            switch (const auto size = meta.image.GetSize()) {
-            case Tegra::Shader::ImageAtomicSize::U32:
-                return Type::Uint;
-            case Tegra::Shader::ImageAtomicSize::S32:
-                return Type::Int;
-            default:
-                UNIMPLEMENTED_MSG("Unimplemented image size={}", static_cast<u32>(size));
-                return Type::Uint;
-            }
-        }();
-
-        return {fmt::format("{}({}, {}, {})", opname, GetImage(meta.image),
-                            BuildIntegerCoordinates(operation), Visit(meta.values[0]).As(type)),
-                type};
     }
 
     Expression Assign(Operation operation) {
@@ -1292,7 +1241,11 @@ private:
             target = {GetRegister(gpr->GetIndex()), Type::Float};
         } else if (const auto abuf = std::get_if<AbufNode>(&*dest)) {
             UNIMPLEMENTED_IF(abuf->IsPhysicalBuffer());
-            target = GetOutputAttribute(abuf);
+            auto output = GetOutputAttribute(abuf);
+            if (!output) {
+                return {};
+            }
+            target = std::move(*output);
         } else if (const auto lmem = std::get_if<LmemNode>(&*dest)) {
             if (stage == ProgramType::Compute) {
                 LOG_WARNING(Render_OpenGL, "Local memory is stubbed on compute shaders");
@@ -1533,6 +1486,8 @@ private:
         case Tegra::Shader::HalfType::H1_H1:
             return {fmt::format("vec2({}[1])", operand.AsHalfFloat()), Type::HalfFloat};
         }
+        UNREACHABLE();
+        return {"0", Type::Int};
     }
 
     Expression HMergeF32(Operation operation) {
@@ -1797,38 +1752,34 @@ private:
         return {tmp, Type::Float};
     }
 
+    Expression ImageLoad(Operation operation) {
+        if (!device.HasImageLoadFormatted()) {
+            LOG_ERROR(Render_OpenGL,
+                      "Device lacks GL_EXT_shader_image_load_formatted, stubbing image load");
+            return {"0", Type::Int};
+        }
+
+        const auto& meta{std::get<MetaImage>(operation.GetMeta())};
+        return {fmt::format("imageLoad({}, {}){}", GetImage(meta.image),
+                            BuildIntegerCoordinates(operation), GetSwizzle(meta.element)),
+                Type::Uint};
+    }
+
     Expression ImageStore(Operation operation) {
-        const auto meta{std::get<MetaImage>(operation.GetMeta())};
+        const auto& meta{std::get<MetaImage>(operation.GetMeta())};
         code.AddLine("imageStore({}, {}, {});", GetImage(meta.image),
                      BuildIntegerCoordinates(operation), BuildImageValues(operation));
         return {};
     }
 
-    Expression AtomicImageAdd(Operation operation) {
-        return AtomicImage(operation, "imageAtomicAdd");
-    }
+    template <const std::string_view& opname>
+    Expression AtomicImage(Operation operation) {
+        const auto& meta{std::get<MetaImage>(operation.GetMeta())};
+        ASSERT(meta.values.size() == 1);
 
-    Expression AtomicImageMin(Operation operation) {
-        return AtomicImage(operation, "imageAtomicMin");
-    }
-
-    Expression AtomicImageMax(Operation operation) {
-        return AtomicImage(operation, "imageAtomicMax");
-    }
-    Expression AtomicImageAnd(Operation operation) {
-        return AtomicImage(operation, "imageAtomicAnd");
-    }
-
-    Expression AtomicImageOr(Operation operation) {
-        return AtomicImage(operation, "imageAtomicOr");
-    }
-
-    Expression AtomicImageXor(Operation operation) {
-        return AtomicImage(operation, "imageAtomicXor");
-    }
-
-    Expression AtomicImageExchange(Operation operation) {
-        return AtomicImage(operation, "imageAtomicExchange");
+        return {fmt::format("imageAtomic{}({}, {}, {})", opname, GetImage(meta.image),
+                            BuildIntegerCoordinates(operation), Visit(meta.values[0]).AsUint()),
+                Type::Uint};
     }
 
     Expression Branch(Operation operation) {
@@ -1865,10 +1816,9 @@ private:
         return {};
     }
 
-    Expression Exit(Operation operation) {
+    void PreExit() {
         if (stage != ProgramType::Fragment) {
-            code.AddLine("return;");
-            return {};
+            return;
         }
         const auto& used_registers = ir.GetRegisters();
         const auto SafeGetRegister = [&](u32 reg) -> Expression {
@@ -1900,7 +1850,10 @@ private:
             // already contains one past the last color register.
             code.AddLine("gl_FragDepth = {};", SafeGetRegister(current_reg + 1).AsFloat());
         }
+    }
 
+    Expression Exit(Operation operation) {
+        PreExit();
         code.AddLine("return;");
         return {};
     }
@@ -1953,8 +1906,7 @@ private:
     Expression BallotThread(Operation operation) {
         const std::string value = VisitOperand(operation, 0).AsBool();
         if (!device.HasWarpIntrinsics()) {
-            LOG_ERROR(Render_OpenGL,
-                      "Nvidia warp intrinsics are not available and its required by a shader");
+            LOG_ERROR(Render_OpenGL, "Nvidia vote intrinsics are required by this shader");
             // Stub on non-Nvidia devices by simulating all threads voting the same as the active
             // one.
             return {fmt::format("({} ? 0xFFFFFFFFU : 0U)", value), Type::Uint};
@@ -1965,8 +1917,7 @@ private:
     Expression Vote(Operation operation, const char* func) {
         const std::string value = VisitOperand(operation, 0).AsBool();
         if (!device.HasWarpIntrinsics()) {
-            LOG_ERROR(Render_OpenGL,
-                      "Nvidia vote intrinsics are not available and its required by a shader");
+            LOG_ERROR(Render_OpenGL, "Nvidia vote intrinsics are required by this shader");
             // Stub with a warp size of one.
             return {value, Type::Bool};
         }
@@ -1983,14 +1934,59 @@ private:
 
     Expression VoteEqual(Operation operation) {
         if (!device.HasWarpIntrinsics()) {
-            LOG_ERROR(Render_OpenGL,
-                      "Nvidia vote intrinsics are not available and its required by a shader");
-            // We must return true here since a stub for a theoretical warp size of 1 will always
-            // return an equal result for all its votes.
+            LOG_ERROR(Render_OpenGL, "Nvidia vote intrinsics are required by this shader");
+            // We must return true here since a stub for a theoretical warp size of 1.
+            // This will always return an equal result across all votes.
             return {"true", Type::Bool};
         }
         return Vote(operation, "allThreadsEqualNV");
     }
+
+    template <const std::string_view& func>
+    Expression Shuffle(Operation operation) {
+        const std::string value = VisitOperand(operation, 0).AsFloat();
+        if (!device.HasWarpIntrinsics()) {
+            LOG_ERROR(Render_OpenGL, "Nvidia shuffle intrinsics are required by this shader");
+            // On a "single-thread" device we are either on the same thread or out of bounds. Both
+            // cases return the passed value.
+            return {value, Type::Float};
+        }
+
+        const std::string index = VisitOperand(operation, 1).AsUint();
+        const std::string width = VisitOperand(operation, 2).AsUint();
+        return {fmt::format("{}({}, {}, {})", func, value, index, width), Type::Float};
+    }
+
+    template <const std::string_view& func>
+    Expression InRangeShuffle(Operation operation) {
+        const std::string index = VisitOperand(operation, 0).AsUint();
+        const std::string width = VisitOperand(operation, 1).AsUint();
+        if (!device.HasWarpIntrinsics()) {
+            // On a "single-thread" device we are only in bounds when the requested index is 0.
+            return {fmt::format("({} == 0U)", index), Type::Bool};
+        }
+
+        const std::string in_range = code.GenerateTemporary();
+        code.AddLine("bool {};", in_range);
+        code.AddLine("{}(0U, {}, {}, {});", func, index, width, in_range);
+        return {in_range, Type::Bool};
+    }
+
+    struct Func final {
+        Func() = delete;
+        ~Func() = delete;
+
+        static constexpr std::string_view Add = "Add";
+        static constexpr std::string_view And = "And";
+        static constexpr std::string_view Or = "Or";
+        static constexpr std::string_view Xor = "Xor";
+        static constexpr std::string_view Exchange = "Exchange";
+
+        static constexpr std::string_view ShuffleIndexed = "shuffleNV";
+        static constexpr std::string_view ShuffleUp = "shuffleUpNV";
+        static constexpr std::string_view ShuffleDown = "shuffleDownNV";
+        static constexpr std::string_view ShuffleButterfly = "shuffleXorNV";
+    };
 
     static constexpr std::array operation_decompilers = {
         &GLSLDecompiler::Assign,
@@ -2123,14 +2119,14 @@ private:
         &GLSLDecompiler::TextureQueryLod,
         &GLSLDecompiler::TexelFetch,
 
+        &GLSLDecompiler::ImageLoad,
         &GLSLDecompiler::ImageStore,
-        &GLSLDecompiler::AtomicImageAdd,
-        &GLSLDecompiler::AtomicImageMin,
-        &GLSLDecompiler::AtomicImageMax,
-        &GLSLDecompiler::AtomicImageAnd,
-        &GLSLDecompiler::AtomicImageOr,
-        &GLSLDecompiler::AtomicImageXor,
-        &GLSLDecompiler::AtomicImageExchange,
+
+        &GLSLDecompiler::AtomicImage<Func::Add>,
+        &GLSLDecompiler::AtomicImage<Func::And>,
+        &GLSLDecompiler::AtomicImage<Func::Or>,
+        &GLSLDecompiler::AtomicImage<Func::Xor>,
+        &GLSLDecompiler::AtomicImage<Func::Exchange>,
 
         &GLSLDecompiler::Branch,
         &GLSLDecompiler::BranchIndirect,
@@ -2154,6 +2150,16 @@ private:
         &GLSLDecompiler::VoteAll,
         &GLSLDecompiler::VoteAny,
         &GLSLDecompiler::VoteEqual,
+
+        &GLSLDecompiler::Shuffle<Func::ShuffleIndexed>,
+        &GLSLDecompiler::Shuffle<Func::ShuffleUp>,
+        &GLSLDecompiler::Shuffle<Func::ShuffleDown>,
+        &GLSLDecompiler::Shuffle<Func::ShuffleButterfly>,
+
+        &GLSLDecompiler::InRangeShuffle<Func::ShuffleIndexed>,
+        &GLSLDecompiler::InRangeShuffle<Func::ShuffleUp>,
+        &GLSLDecompiler::InRangeShuffle<Func::ShuffleDown>,
+        &GLSLDecompiler::InRangeShuffle<Func::ShuffleButterfly>,
     };
     static_assert(operation_decompilers.size() == static_cast<std::size_t>(OperationCode::Amount));
 
@@ -2219,7 +2225,7 @@ private:
         code.AddLine("#ifdef SAMPLER_{}_IS_BUFFER", sampler.GetIndex());
     }
 
-    std::string GetDeclarationWithSuffix(u32 index, const std::string& name) const {
+    std::string GetDeclarationWithSuffix(u32 index, std::string_view name) const {
         return fmt::format("{}_{}_{}", name, index, suffix);
     }
 
@@ -2244,27 +2250,253 @@ private:
     ShaderWriter code;
 };
 
-} // Anonymous namespace
-
-std::string GetCommonDeclarations() {
-    return fmt::format(
-        "#define ftoi floatBitsToInt\n"
-        "#define ftou floatBitsToUint\n"
-        "#define itof intBitsToFloat\n"
-        "#define utof uintBitsToFloat\n\n"
-        "bvec2 HalfFloatNanComparison(bvec2 comparison, vec2 pair1, vec2 pair2) {{\n"
-        "    bvec2 is_nan1 = isnan(pair1);\n"
-        "    bvec2 is_nan2 = isnan(pair2);\n"
-        "    return bvec2(comparison.x || is_nan1.x || is_nan2.x, comparison.y || is_nan1.y || "
-        "is_nan2.y);\n"
-        "}}\n\n");
+std::string GetFlowVariable(u32 i) {
+    return fmt::format("flow_var_{}", i);
 }
 
-ProgramResult Decompile(const Device& device, const ShaderIR& ir, ProgramType stage,
-                        const std::string& suffix) {
+class ExprDecompiler {
+public:
+    explicit ExprDecompiler(GLSLDecompiler& decomp) : decomp{decomp} {}
+
+    void operator()(const ExprAnd& expr) {
+        inner += "( ";
+        std::visit(*this, *expr.operand1);
+        inner += " && ";
+        std::visit(*this, *expr.operand2);
+        inner += ')';
+    }
+
+    void operator()(const ExprOr& expr) {
+        inner += "( ";
+        std::visit(*this, *expr.operand1);
+        inner += " || ";
+        std::visit(*this, *expr.operand2);
+        inner += ')';
+    }
+
+    void operator()(const ExprNot& expr) {
+        inner += '!';
+        std::visit(*this, *expr.operand1);
+    }
+
+    void operator()(const ExprPredicate& expr) {
+        const auto pred = static_cast<Tegra::Shader::Pred>(expr.predicate);
+        inner += decomp.GetPredicate(pred);
+    }
+
+    void operator()(const ExprCondCode& expr) {
+        const Node cc = decomp.ir.GetConditionCode(expr.cc);
+        std::string target;
+
+        if (const auto pred = std::get_if<PredicateNode>(&*cc)) {
+            const auto index = pred->GetIndex();
+            switch (index) {
+            case Tegra::Shader::Pred::NeverExecute:
+                target = "false";
+            case Tegra::Shader::Pred::UnusedIndex:
+                target = "true";
+            default:
+                target = decomp.GetPredicate(index);
+            }
+        } else if (const auto flag = std::get_if<InternalFlagNode>(&*cc)) {
+            target = decomp.GetInternalFlag(flag->GetFlag());
+        } else {
+            UNREACHABLE();
+        }
+        inner += target;
+    }
+
+    void operator()(const ExprVar& expr) {
+        inner += GetFlowVariable(expr.var_index);
+    }
+
+    void operator()(const ExprBoolean& expr) {
+        inner += expr.value ? "true" : "false";
+    }
+
+    void operator()(VideoCommon::Shader::ExprGprEqual& expr) {
+        inner +=
+            "( ftou(" + decomp.GetRegister(expr.gpr) + ") == " + std::to_string(expr.value) + ')';
+    }
+
+    const std::string& GetResult() const {
+        return inner;
+    }
+
+private:
+    std::string inner;
+    GLSLDecompiler& decomp;
+};
+
+class ASTDecompiler {
+public:
+    explicit ASTDecompiler(GLSLDecompiler& decomp) : decomp{decomp} {}
+
+    void operator()(const ASTProgram& ast) {
+        ASTNode current = ast.nodes.GetFirst();
+        while (current) {
+            Visit(current);
+            current = current->GetNext();
+        }
+    }
+
+    void operator()(const ASTIfThen& ast) {
+        ExprDecompiler expr_parser{decomp};
+        std::visit(expr_parser, *ast.condition);
+        decomp.code.AddLine("if ({}) {{", expr_parser.GetResult());
+        decomp.code.scope++;
+        ASTNode current = ast.nodes.GetFirst();
+        while (current) {
+            Visit(current);
+            current = current->GetNext();
+        }
+        decomp.code.scope--;
+        decomp.code.AddLine("}}");
+    }
+
+    void operator()(const ASTIfElse& ast) {
+        decomp.code.AddLine("else {{");
+        decomp.code.scope++;
+        ASTNode current = ast.nodes.GetFirst();
+        while (current) {
+            Visit(current);
+            current = current->GetNext();
+        }
+        decomp.code.scope--;
+        decomp.code.AddLine("}}");
+    }
+
+    void operator()([[maybe_unused]] const ASTBlockEncoded& ast) {
+        UNREACHABLE();
+    }
+
+    void operator()(const ASTBlockDecoded& ast) {
+        decomp.VisitBlock(ast.nodes);
+    }
+
+    void operator()(const ASTVarSet& ast) {
+        ExprDecompiler expr_parser{decomp};
+        std::visit(expr_parser, *ast.condition);
+        decomp.code.AddLine("{} = {};", GetFlowVariable(ast.index), expr_parser.GetResult());
+    }
+
+    void operator()(const ASTLabel& ast) {
+        decomp.code.AddLine("// Label_{}:", ast.index);
+    }
+
+    void operator()([[maybe_unused]] const ASTGoto& ast) {
+        UNREACHABLE();
+    }
+
+    void operator()(const ASTDoWhile& ast) {
+        ExprDecompiler expr_parser{decomp};
+        std::visit(expr_parser, *ast.condition);
+        decomp.code.AddLine("do {{");
+        decomp.code.scope++;
+        ASTNode current = ast.nodes.GetFirst();
+        while (current) {
+            Visit(current);
+            current = current->GetNext();
+        }
+        decomp.code.scope--;
+        decomp.code.AddLine("}} while({});", expr_parser.GetResult());
+    }
+
+    void operator()(const ASTReturn& ast) {
+        const bool is_true = VideoCommon::Shader::ExprIsTrue(ast.condition);
+        if (!is_true) {
+            ExprDecompiler expr_parser{decomp};
+            std::visit(expr_parser, *ast.condition);
+            decomp.code.AddLine("if ({}) {{", expr_parser.GetResult());
+            decomp.code.scope++;
+        }
+        if (ast.kills) {
+            decomp.code.AddLine("discard;");
+        } else {
+            decomp.PreExit();
+            decomp.code.AddLine("return;");
+        }
+        if (!is_true) {
+            decomp.code.scope--;
+            decomp.code.AddLine("}}");
+        }
+    }
+
+    void operator()(const ASTBreak& ast) {
+        const bool is_true = VideoCommon::Shader::ExprIsTrue(ast.condition);
+        if (!is_true) {
+            ExprDecompiler expr_parser{decomp};
+            std::visit(expr_parser, *ast.condition);
+            decomp.code.AddLine("if ({}) {{", expr_parser.GetResult());
+            decomp.code.scope++;
+        }
+        decomp.code.AddLine("break;");
+        if (!is_true) {
+            decomp.code.scope--;
+            decomp.code.AddLine("}}");
+        }
+    }
+
+    void Visit(const ASTNode& node) {
+        std::visit(*this, *node->GetInnerData());
+    }
+
+private:
+    GLSLDecompiler& decomp;
+};
+
+void GLSLDecompiler::DecompileAST() {
+    const u32 num_flow_variables = ir.GetASTNumVariables();
+    for (u32 i = 0; i < num_flow_variables; i++) {
+        code.AddLine("bool {} = false;", GetFlowVariable(i));
+    }
+
+    ASTDecompiler decompiler{*this};
+    decompiler.Visit(ir.GetASTProgram());
+}
+
+} // Anonymous namespace
+
+ShaderEntries GetEntries(const VideoCommon::Shader::ShaderIR& ir) {
+    ShaderEntries entries;
+    for (const auto& cbuf : ir.GetConstantBuffers()) {
+        entries.const_buffers.emplace_back(cbuf.second.GetMaxOffset(), cbuf.second.IsIndirect(),
+                                           cbuf.first);
+    }
+    for (const auto& sampler : ir.GetSamplers()) {
+        entries.samplers.emplace_back(sampler);
+    }
+    for (const auto& [offset, image] : ir.GetImages()) {
+        entries.images.emplace_back(image);
+    }
+    for (const auto& [base, usage] : ir.GetGlobalMemory()) {
+        entries.global_memory_entries.emplace_back(base.cbuf_index, base.cbuf_offset, usage.is_read,
+                                                   usage.is_written);
+    }
+    entries.clip_distances = ir.GetClipDistances();
+    entries.shader_length = ir.GetLength();
+    return entries;
+}
+
+std::string GetCommonDeclarations() {
+    return R"(#define ftoi floatBitsToInt
+#define ftou floatBitsToUint
+#define itof intBitsToFloat
+#define utof uintBitsToFloat
+
+bvec2 HalfFloatNanComparison(bvec2 comparison, vec2 pair1, vec2 pair2) {
+    bvec2 is_nan1 = isnan(pair1);
+    bvec2 is_nan2 = isnan(pair2);
+    return bvec2(comparison.x || is_nan1.x || is_nan2.x, comparison.y || is_nan1.y || is_nan2.y);
+}
+)";
+}
+
+std::string Decompile(const Device& device, const ShaderIR& ir, ProgramType stage,
+                      const std::string& suffix) {
     GLSLDecompiler decompiler(device, ir, stage, suffix);
     decompiler.Decompile();
-    return {decompiler.GetResult(), decompiler.GetShaderEntries()};
+    return decompiler.GetResult();
 }
 
 } // namespace OpenGL::GLShader

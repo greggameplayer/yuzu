@@ -14,8 +14,14 @@
 #include "core/core_cpu.h"
 #include "core/core_timing.h"
 #include "core/cpu_core_manager.h"
+#include "core/file_sys/bis_factory.h"
+#include "core/file_sys/card_image.h"
 #include "core/file_sys/mode.h"
+#include "core/file_sys/patch_manager.h"
 #include "core/file_sys/registered_cache.h"
+#include "core/file_sys/romfs_factory.h"
+#include "core/file_sys/savedata_factory.h"
+#include "core/file_sys/sdmc_factory.h"
 #include "core/file_sys/vfs_concat.h"
 #include "core/file_sys/vfs_real.h"
 #include "core/gdbstub/gdbstub.h"
@@ -27,17 +33,18 @@
 #include "core/hle/kernel/thread.h"
 #include "core/hle/service/am/applets/applets.h"
 #include "core/hle/service/apm/controller.h"
+#include "core/hle/service/filesystem/filesystem.h"
 #include "core/hle/service/glue/manager.h"
+#include "core/hle/service/lm/manager.h"
 #include "core/hle/service/service.h"
 #include "core/hle/service/sm/sm.h"
 #include "core/loader/loader.h"
+#include "core/memory/cheat_engine.h"
 #include "core/perf_stats.h"
 #include "core/reporter.h"
 #include "core/settings.h"
 #include "core/telemetry_session.h"
 #include "core/tools/freezer.h"
-#include "file_sys/cheat_engine.h"
-#include "file_sys/patch_manager.h"
 #include "video_core/debug_utils/debug_utils.h"
 #include "video_core/renderer_base.h"
 #include "video_core/video_core.h"
@@ -105,7 +112,8 @@ FileSys::VirtualFile GetGameFileFromPath(const FileSys::VirtualFilesystem& vfs,
 }
 struct System::Impl {
     explicit Impl(System& system)
-        : kernel{system}, cpu_core_manager{system}, applet_manager{system}, reporter{system} {}
+        : kernel{system}, fs_controller{system}, cpu_core_manager{system}, reporter{system},
+          applet_manager{system} {}
 
     Cpu& CurrentCpuCore() {
         return cpu_core_manager.GetCurrentCore();
@@ -157,12 +165,9 @@ struct System::Impl {
         gpu_core = VideoCore::CreateGPU(system);
 
         is_powered_on = true;
+        exit_lock = false;
 
         LOG_DEBUG(Core, "Initialized OK");
-
-        // Reset counters and set time origin to current frame
-        GetAndResetPerfStats();
-        perf_stats.BeginSystemFrame();
 
         return ResultStatus::Success;
     }
@@ -202,25 +207,59 @@ struct System::Impl {
         gpu_core->Start();
         cpu_core_manager.StartThreads();
 
+        // Initialize cheat engine
+        if (cheat_engine) {
+            cheat_engine->Initialize();
+        }
+
         // All threads are started, begin main process execution, now that we're in the clear.
         main_process->Run(load_parameters->main_thread_priority,
                           load_parameters->main_thread_stack_size);
+
+        if (Settings::values.gamecard_inserted) {
+            if (Settings::values.gamecard_current_game) {
+                fs_controller.SetGameCard(GetGameFileFromPath(virtual_filesystem, filepath));
+            } else if (!Settings::values.gamecard_path.empty()) {
+                fs_controller.SetGameCard(
+                    GetGameFileFromPath(virtual_filesystem, Settings::values.gamecard_path));
+            }
+        }
+
+        u64 title_id{0};
+        if (app_loader->ReadProgramId(title_id) != Loader::ResultStatus::Success) {
+            LOG_ERROR(Core, "Failed to find title id for ROM (Error {})",
+                      static_cast<u32>(load_result));
+        }
+        perf_stats = std::make_unique<PerfStats>(title_id);
+        // Reset counters and set time origin to current frame
+        GetAndResetPerfStats();
+        perf_stats->BeginSystemFrame();
 
         status = ResultStatus::Success;
         return status;
     }
 
     void Shutdown() {
-        // Log last frame performance stats
-        const auto perf_results = GetAndResetPerfStats();
-        telemetry_session->AddField(Telemetry::FieldType::Performance, "Shutdown_EmulationSpeed",
-                                    perf_results.emulation_speed * 100.0);
-        telemetry_session->AddField(Telemetry::FieldType::Performance, "Shutdown_Framerate",
-                                    perf_results.game_fps);
-        telemetry_session->AddField(Telemetry::FieldType::Performance, "Shutdown_Frametime",
-                                    perf_results.frametime * 1000.0);
+        // Log last frame performance stats if game was loded
+        if (perf_stats) {
+            const auto perf_results = GetAndResetPerfStats();
+            telemetry_session->AddField(Telemetry::FieldType::Performance,
+                                        "Shutdown_EmulationSpeed",
+                                        perf_results.emulation_speed * 100.0);
+            telemetry_session->AddField(Telemetry::FieldType::Performance, "Shutdown_Framerate",
+                                        perf_results.game_fps);
+            telemetry_session->AddField(Telemetry::FieldType::Performance, "Shutdown_Frametime",
+                                        perf_results.frametime * 1000.0);
+            telemetry_session->AddField(Telemetry::FieldType::Performance, "Mean_Frametime_MS",
+                                        perf_stats->GetMeanFrametime());
+        }
+
+        lm_manager.Flush();
 
         is_powered_on = false;
+        exit_lock = false;
+
+        gpu_core->WaitIdle();
 
         // Shutdown emulation session
         renderer.reset();
@@ -229,6 +268,7 @@ struct System::Impl {
         service_manager.reset();
         cheat_engine.reset();
         telemetry_session.reset();
+        perf_stats.reset();
         gpu_core.reset();
 
         // Close all CPU/threading state
@@ -286,7 +326,7 @@ struct System::Impl {
     }
 
     PerfStatsResults GetAndResetPerfStats() {
-        return perf_stats.GetAndResetStats(core_timing.GetGlobalTimeUs());
+        return perf_stats->GetAndResetStats(core_timing.GetGlobalTimeUs());
     }
 
     Timing::CoreTiming core_timing;
@@ -295,6 +335,7 @@ struct System::Impl {
     FileSys::VirtualFilesystem virtual_filesystem;
     /// ContentProviderUnion instance
     std::unique_ptr<FileSys::ContentProviderUnion> content_provider;
+    Service::FileSystem::FileSystemController fs_controller;
     /// AppLoader used to load the current executing application
     std::unique_ptr<Loader::AppLoader> app_loader;
     std::unique_ptr<VideoCore::RendererBase> renderer;
@@ -303,9 +344,12 @@ struct System::Impl {
     std::unique_ptr<Core::Hardware::InterruptManager> interrupt_manager;
     CpuCoreManager cpu_core_manager;
     bool is_powered_on = false;
+    bool exit_lock = false;
 
-    std::unique_ptr<FileSys::CheatEngine> cheat_engine;
+    Reporter reporter;
+    std::unique_ptr<Memory::CheatEngine> cheat_engine;
     std::unique_ptr<Tools::Freezer> memory_freezer;
+    std::array<u8, 0x20> build_id{};
 
     /// Frontend applets
     Service::AM::Applets::AppletManager applet_manager;
@@ -313,8 +357,9 @@ struct System::Impl {
     /// APM (Performance) services
     Service::APM::Controller apm_controller{core_timing};
 
-    /// Glue services
+    /// Service State
     Service::Glue::ARPManager arp_manager;
+    Service::LM::Manager lm_manager{reporter};
 
     /// Service manager
     std::shared_ptr<Service::SM::ServiceManager> service_manager;
@@ -322,12 +367,10 @@ struct System::Impl {
     /// Telemetry session for this emulation session
     std::unique_ptr<Core::TelemetrySession> telemetry_session;
 
-    Reporter reporter;
-
     ResultStatus status = ResultStatus::Success;
     std::string status_details = "";
 
-    Core::PerfStats perf_stats;
+    std::unique_ptr<Core::PerfStats> perf_stats;
     Core::FrameLimiter frame_limiter;
 };
 
@@ -364,6 +407,12 @@ bool System::IsPoweredOn() const {
 
 void System::PrepareReschedule() {
     CurrentCpuCore().PrepareReschedule();
+}
+
+void System::PrepareReschedule(const u32 core_index) {
+    if (core_index < GlobalScheduler().CpuCoresCount()) {
+        CpuCore(core_index).PrepareReschedule();
+    }
 }
 
 PerfStatsResults System::GetAndResetPerfStats() {
@@ -404,6 +453,16 @@ Kernel::Scheduler& System::Scheduler(std::size_t core_index) {
 
 const Kernel::Scheduler& System::Scheduler(std::size_t core_index) const {
     return CpuCore(core_index).Scheduler();
+}
+
+/// Gets the global scheduler
+Kernel::GlobalScheduler& System::GlobalScheduler() {
+    return impl->kernel.GlobalScheduler();
+}
+
+/// Gets the global scheduler
+const Kernel::GlobalScheduler& System::GlobalScheduler() const {
+    return impl->kernel.GlobalScheduler();
 }
 
 Kernel::Process* System::CurrentProcess() {
@@ -480,11 +539,11 @@ const Timing::CoreTiming& System::CoreTiming() const {
 }
 
 Core::PerfStats& System::GetPerfStats() {
-    return impl->perf_stats;
+    return *impl->perf_stats;
 }
 
 const Core::PerfStats& System::GetPerfStats() const {
-    return impl->perf_stats;
+    return *impl->perf_stats;
 }
 
 Core::FrameLimiter& System::FrameLimiter() {
@@ -519,19 +578,19 @@ Tegra::DebugContext* System::GetGPUDebugContext() const {
     return impl->debug_context.get();
 }
 
-void System::RegisterCheatList(const std::vector<FileSys::CheatList>& list,
-                               const std::string& build_id, VAddr code_region_start,
-                               VAddr code_region_end) {
-    impl->cheat_engine = std::make_unique<FileSys::CheatEngine>(*this, list, build_id,
-                                                                code_region_start, code_region_end);
-}
-
 void System::SetFilesystem(std::shared_ptr<FileSys::VfsFilesystem> vfs) {
     impl->virtual_filesystem = std::move(vfs);
 }
 
 std::shared_ptr<FileSys::VfsFilesystem> System::GetFilesystem() const {
     return impl->virtual_filesystem;
+}
+
+void System::RegisterCheatList(const std::vector<Memory::CheatEntry>& list,
+                               const std::array<u8, 32>& build_id, VAddr main_region_begin,
+                               u64 main_region_size) {
+    impl->cheat_engine = std::make_unique<Memory::CheatEngine>(*this, list, build_id);
+    impl->cheat_engine->SetMainMemoryParameters(main_region_begin, main_region_size);
 }
 
 void System::SetAppletFrontendSet(Service::AM::Applets::AppletFrontendSet&& set) {
@@ -562,6 +621,14 @@ const FileSys::ContentProvider& System::GetContentProvider() const {
     return *impl->content_provider;
 }
 
+Service::FileSystem::FileSystemController& System::GetFileSystemController() {
+    return impl->fs_controller;
+}
+
+const Service::FileSystem::FileSystemController& System::GetFileSystemController() const {
+    return impl->fs_controller;
+}
+
 void System::RegisterContentProvider(FileSys::ContentProviderUnionSlot slot,
                                      FileSys::ContentProvider* provider) {
     impl->content_provider->SetSlot(slot, provider);
@@ -589,6 +656,30 @@ Service::APM::Controller& System::GetAPMController() {
 
 const Service::APM::Controller& System::GetAPMController() const {
     return impl->apm_controller;
+}
+
+Service::LM::Manager& System::GetLogManager() {
+    return impl->lm_manager;
+}
+
+const Service::LM::Manager& System::GetLogManager() const {
+    return impl->lm_manager;
+}
+
+void System::SetExitLock(bool locked) {
+    impl->exit_lock = locked;
+}
+
+bool System::GetExitLock() const {
+    return impl->exit_lock;
+}
+
+void System::SetCurrentProcessBuildID(const CurrentBuildProcessID& id) {
+    impl->build_id = id;
+}
+
+const System::CurrentBuildProcessID& System::GetCurrentProcessBuildID() const {
+    return impl->build_id;
 }
 
 System::ResultStatus System::Init(Frontend::EmuWindow& emu_window) {

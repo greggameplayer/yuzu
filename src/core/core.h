@@ -8,7 +8,6 @@
 #include <memory>
 #include <string>
 
-#include <map>
 #include "common/common_types.h"
 #include "core/file_sys/vfs_types.h"
 #include "core/hle/kernel/object.h"
@@ -18,7 +17,6 @@ class EmuWindow;
 } // namespace Core::Frontend
 
 namespace FileSys {
-class CheatList;
 class ContentProvider;
 class ContentProviderUnion;
 enum class ContentProviderUnionSlot;
@@ -26,6 +24,7 @@ class VfsFilesystem;
 } // namespace FileSys
 
 namespace Kernel {
+class GlobalScheduler;
 class KernelCore;
 class Process;
 class Scheduler;
@@ -35,6 +34,10 @@ namespace Loader {
 class AppLoader;
 enum class ResultStatus : u16;
 } // namespace Loader
+
+namespace Memory {
+struct CheatEntry;
+} // namespace Memory
 
 namespace Service {
 
@@ -47,9 +50,17 @@ namespace APM {
 class Controller;
 }
 
+namespace FileSystem {
+class FileSystemController;
+} // namespace FileSystem
+
 namespace Glue {
 class ARPManager;
 }
+
+namespace LM {
+class Manager;
+} // namespace LM
 
 namespace SM {
 class ServiceManager;
@@ -91,6 +102,8 @@ FileSys::VirtualFile GetGameFileFromPath(const FileSys::VirtualFilesystem& vfs,
 
 class System {
 public:
+    using CurrentBuildProcessID = std::array<u8, 0x20>;
+
     System(const System&) = delete;
     System& operator=(const System&) = delete;
 
@@ -172,6 +185,9 @@ public:
     /// Prepare the core emulation for a reschedule
     void PrepareReschedule();
 
+    /// Prepare the core emulation for a reschedule
+    void PrepareReschedule(u32 core_index);
+
     /// Gets and resets core performance statistics
     PerfStatsResults GetAndResetPerfStats();
 
@@ -225,6 +241,12 @@ public:
 
     /// Gets the scheduler for the CPU core with the specified index
     const Kernel::Scheduler& Scheduler(std::size_t core_index) const;
+
+    /// Gets the global scheduler
+    Kernel::GlobalScheduler& GlobalScheduler();
+
+    /// Gets the global scheduler
+    const Kernel::GlobalScheduler& GlobalScheduler() const;
 
     /// Provides a pointer to the current process
     Kernel::Process* CurrentProcess();
@@ -282,8 +304,9 @@ public:
 
     std::shared_ptr<FileSys::VfsFilesystem> GetFilesystem() const;
 
-    void RegisterCheatList(const std::vector<FileSys::CheatList>& list, const std::string& build_id,
-                           VAddr code_region_start, VAddr code_region_end);
+    void RegisterCheatList(const std::vector<Memory::CheatEntry>& list,
+                           const std::array<u8, 0x20>& build_id, VAddr main_region_begin,
+                           u64 main_region_size);
 
     void SetAppletFrontendSet(Service::AM::Applets::AppletFrontendSet&& set);
 
@@ -299,6 +322,10 @@ public:
 
     const FileSys::ContentProvider& GetContentProvider() const;
 
+    Service::FileSystem::FileSystemController& GetFileSystemController();
+
+    const Service::FileSystem::FileSystemController& GetFileSystemController() const;
+
     void RegisterContentProvider(FileSys::ContentProviderUnionSlot slot,
                                  FileSys::ContentProvider* provider);
 
@@ -313,6 +340,18 @@ public:
     Service::APM::Controller& GetAPMController();
 
     const Service::APM::Controller& GetAPMController() const;
+
+    Service::LM::Manager& GetLogManager();
+
+    const Service::LM::Manager& GetLogManager() const;
+
+    void SetExitLock(bool locked);
+
+    bool GetExitLock() const;
+
+    void SetCurrentProcessBuildID(const CurrentBuildProcessID& id);
+
+    const CurrentBuildProcessID& GetCurrentProcessBuildID() const;
 
 private:
     System();
@@ -336,9 +375,5 @@ private:
 
     static System s_instance;
 };
-
-inline Kernel::Process* CurrentProcess() {
-    return System::GetInstance().CurrentProcess();
-}
 
 } // namespace Core

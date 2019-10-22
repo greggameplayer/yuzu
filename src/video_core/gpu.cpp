@@ -3,6 +3,7 @@
 // Refer to the license.txt file included.
 
 #include "common/assert.h"
+#include "common/microprofile.h"
 #include "core/core.h"
 #include "core/core_timing.h"
 #include "core/memory.h"
@@ -16,6 +17,8 @@
 #include "video_core/renderer_base.h"
 
 namespace Tegra {
+
+MICROPROFILE_DEFINE(GPU_wait, "GPU", "Wait for the GPU", MP_RGB(128, 128, 192));
 
 GPU::GPU(Core::System& system, VideoCore::RendererBase& renderer, bool is_async)
     : system{system}, renderer{renderer}, is_async{is_async} {
@@ -61,6 +64,16 @@ DmaPusher& GPU::DmaPusher() {
 
 const DmaPusher& GPU::DmaPusher() const {
     return *dma_pusher;
+}
+
+void GPU::WaitFence(u32 syncpoint_id, u32 value) const {
+    // Synced GPU, is always in sync
+    if (!is_async) {
+        return;
+    }
+    MICROPROFILE_SCOPE(GPU_wait);
+    while (syncpoints[syncpoint_id].load(std::memory_order_relaxed) < value) {
+    }
 }
 
 void GPU::IncrementSyncPoint(const u32 syncpoint_id) {
@@ -122,6 +135,7 @@ u32 RenderTargetBytesPerPixel(RenderTargetFormat format) {
     case RenderTargetFormat::RGBA16_UINT:
     case RenderTargetFormat::RGBA16_UNORM:
     case RenderTargetFormat::RGBA16_FLOAT:
+    case RenderTargetFormat::RGBX16_FLOAT:
     case RenderTargetFormat::RG32_FLOAT:
     case RenderTargetFormat::RG32_UINT:
         return 8;
@@ -325,7 +339,7 @@ void GPU::ProcessSemaphoreTriggerMethod() {
         block.sequence = regs.semaphore_sequence;
         // TODO(Kmather73): Generate a real GPU timestamp and write it here instead of
         // CoreTiming
-        block.timestamp = Core::System::GetInstance().CoreTiming().GetTicks();
+        block.timestamp = system.CoreTiming().GetTicks();
         memory_manager->WriteBlock(regs.semaphore_address.SemaphoreAddress(), &block,
                                    sizeof(block));
     } else {
