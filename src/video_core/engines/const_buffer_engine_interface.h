@@ -77,13 +77,12 @@ struct SamplerDescriptor {
             result.is_buffer.Assign(0);
             result.is_shadow.Assign(0);
             return result;
-        case Tegra::Texture::TextureType::Texture1DBuffer: {
+        case Tegra::Texture::TextureType::Texture1DBuffer:
             result.texture_type.Assign(Tegra::Shader::TextureType::Texture1D);
             result.is_array.Assign(0);
             result.is_buffer.Assign(1);
             result.is_shadow.Assign(0);
             return result;
-        }
         case Tegra::Texture::TextureType::Texture2DNoMipmap:
             result.texture_type.Assign(Tegra::Shader::TextureType::Texture2D);
             result.is_array.Assign(0);
