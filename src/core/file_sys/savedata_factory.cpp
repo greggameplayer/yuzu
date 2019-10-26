@@ -55,10 +55,9 @@ void PrintSaveDataDescriptorWarnings(SaveDataDescriptor meta) {
 }
 
 bool ShouldSaveDataBeAutomaticallyCreated(SaveDataSpaceId space, const SaveDataDescriptor& desc) {
-    return desc.type == SaveDataType::CacheStorage        ///< Cache Saves
-           || desc.type == SaveDataType::TemporaryStorage ///< Temp Saves
-           || (space == SaveDataSpaceId::NandUser && ///< Normal Save Data -- Current Title & User
-               desc.type == SaveDataType::SaveData && desc.title_id == 0 && desc.save_id == 0);
+    return desc.type == SaveDataType::CacheStorage || desc.type == SaveDataType::TemporaryStorage ||
+           (space == SaveDataSpaceId::NandUser && ///< Normal Save Data -- Current Title & User
+            desc.type == SaveDataType::SaveData && desc.title_id == 0 && desc.save_id == 0);
 }
 
 } // Anonymous namespace

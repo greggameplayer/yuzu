@@ -35,7 +35,7 @@ struct SamplerDescriptor {
     }
 
     bool operator!=(const SamplerDescriptor& rhs) const noexcept {
-        return raw != rhs.raw;
+        return !operator==(rhs);
     }
 
     static SamplerDescriptor FromTicTexture(Tegra::Texture::TextureType tic_texture_type) {

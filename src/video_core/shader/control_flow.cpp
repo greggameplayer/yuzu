@@ -168,8 +168,8 @@ std::optional<BranchIndirectInfo> TrackBranchIndirectInfo(const CFGRebuildState&
         if (opcode->get().GetId() == OpCode::Id::LD_C) {
             if (instr.gpr0.Value() == track_register &&
                 instr.ld_c.type.Value() == Tegra::Shader::UniformType::Single) {
-                result.buffer = instr.cbuf36.index;
-                result.offset = instr.cbuf36.GetOffset();
+                result.buffer = instr.cbuf36.index.Value();
+                result.offset = static_cast<u32>(instr.cbuf36.GetOffset());
                 track_register = instr.gpr8.Value();
                 pos--;
                 found_track = true;
@@ -190,7 +190,7 @@ std::optional<BranchIndirectInfo> TrackBranchIndirectInfo(const CFGRebuildState&
             pos--;
             continue;
         }
-        const Instruction instr = {state.program_code[pos]};
+        const Instruction instr = state.program_code[pos];
         const auto opcode = OpCode::Decode(instr);
         if (opcode->get().GetId() == OpCode::Id::SHL_IMM) {
             if (instr.gpr0.Value() == track_register) {
@@ -214,7 +214,7 @@ std::optional<BranchIndirectInfo> TrackBranchIndirectInfo(const CFGRebuildState&
             pos--;
             continue;
         }
-        const Instruction instr = {state.program_code[pos]};
+        const Instruction instr = state.program_code[pos];
         const auto opcode = OpCode::Decode(instr);
         if (opcode->get().GetId() == OpCode::Id::IMNMX_IMM) {
             if (instr.gpr0.Value() == track_register) {
@@ -231,7 +231,7 @@ std::optional<BranchIndirectInfo> TrackBranchIndirectInfo(const CFGRebuildState&
     if (!found_track) {
         return std::nullopt;
     }
-    return {result};
+    return result;
 }
 
 std::pair<ParseResult, ParseInfo> ParseCode(CFGRebuildState& state, u32 address) {
