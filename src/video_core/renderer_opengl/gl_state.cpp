@@ -410,12 +410,6 @@ void OpenGLState::ApplyAlphaTest() {
     }
 }
 
-void OpenGLState::ApplyClipControl() {
-    if (UpdateValue(cur_state.clip_control.origin, clip_control.origin)) {
-        glClipControl(clip_control.origin, GL_NEGATIVE_ONE_TO_ONE);
-    }
-}
-
 void OpenGLState::ApplyTextures() {
     if (const auto update = UpdateArray(cur_state.textures, textures)) {
         glBindTextures(update->first, update->second, textures.data() + update->first);
@@ -459,7 +453,6 @@ void OpenGLState::Apply() {
     ApplyImages();
     ApplyPolygonOffset();
     ApplyAlphaTest();
-    ApplyClipControl();
 }
 
 void OpenGLState::EmulateViewportWithScissor() {

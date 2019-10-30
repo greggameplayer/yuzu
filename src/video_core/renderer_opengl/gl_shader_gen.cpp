@@ -20,7 +20,8 @@ std::string GenerateVertexShader(const Device& device, const ShaderIR& ir, const
     std::string out = GetCommonDeclarations();
     out += R"(
 layout (std140, binding = EMULATION_UBO_BINDING) uniform vs_config {
-    float y_direction;
+    vec4 viewport_flip;
+    uvec4 config_pack; // instance_id, flip_stage, y_direction, padding
 };
 
 )";
@@ -34,10 +35,23 @@ layout (std140, binding = EMULATION_UBO_BINDING) uniform vs_config {
 void main() {
     execute_vertex();
 )";
+
     if (ir_b) {
         out += "    execute_vertex_b();";
     }
-    out += "}\n";
+
+    out += R"(
+
+    // Set Position Y direction
+    gl_Position.y *= utof(config_pack[2]);
+    // Check if the flip stage is VertexB
+    // Config pack's second value is flip_stage
+    if (config_pack[1] == 1) {
+        // Viewport can be flipped, which is unsupported by glViewport
+        gl_Position.xy *= viewport_flip.xy;
+    }
+}
+)";
     return out;
 }
 
@@ -45,7 +59,8 @@ std::string GenerateGeometryShader(const Device& device, const ShaderIR& ir) {
     std::string out = GetCommonDeclarations();
     out += R"(
 layout (std140, binding = EMULATION_UBO_BINDING) uniform gs_config {
-    float y_direction;
+    vec4 viewport_flip;
+    uvec4 config_pack; // instance_id, flip_stage, y_direction, padding
 };
 
 )";
@@ -72,7 +87,8 @@ layout (location = 6) out vec4 FragColor6;
 layout (location = 7) out vec4 FragColor7;
 
 layout (std140, binding = EMULATION_UBO_BINDING) uniform fs_config {
-    float y_direction;
+    vec4 viewport_flip;
+    uvec4 config_pack; // instance_id, flip_stage, y_direction, padding
 };
 
 )";
