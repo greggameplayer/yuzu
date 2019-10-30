@@ -331,6 +331,14 @@ PixelFormat PixelFormatFromTextureFormat(Tegra::Texture::TextureFormat format,
         return PixelFormat::S8Z24;
     case Tegra::Texture::TextureFormat::ZF32_X24S8:
         return PixelFormat::Z32FS8;
+    case Tegra::Texture::TextureFormat::G24R8:
+        switch (component_type) {
+        case Tegra::Texture::ComponentType::UINT:
+            return PixelFormat::G24R8;
+        default:
+            break;
+        }
+        break;
     case Tegra::Texture::TextureFormat::DXT1:
         return is_srgb ? PixelFormat::DXT1_SRGB : PixelFormat::DXT1;
     case Tegra::Texture::TextureFormat::DXT23:

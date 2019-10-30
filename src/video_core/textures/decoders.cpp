@@ -217,6 +217,8 @@ u32 BytesPerPixel(TextureFormat format) {
     case TextureFormat::BF10GF11RF11:
     case TextureFormat::R32:
     case TextureFormat::R16_G16:
+    case TextureFormat::E5B9G9R9_SHAREDEXP:
+    case TextureFormat::G24R8:
         return 4;
     case TextureFormat::A1B5G5R5:
     case TextureFormat::B5G6R5:
@@ -355,6 +357,8 @@ std::vector<u8> DecodeTexture(const std::vector<u8>& texture_data, TextureFormat
     case TextureFormat::R32:
     case TextureFormat::R16:
     case TextureFormat::R16_G16:
+    case TextureFormat::E5B9G9R9_SHAREDEXP:
+    case TextureFormat::G24R8:
     case TextureFormat::R32_G32_B32:
         // TODO(Subv): For the time being just forward the same data without any decoding.
         rgba_data = texture_data;
