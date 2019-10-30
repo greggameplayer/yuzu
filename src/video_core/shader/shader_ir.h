@@ -5,7 +5,6 @@
 #pragma once
 
 #include <array>
-#include <list>
 #include <map>
 #include <optional>
 #include <set>
@@ -96,11 +95,11 @@ public:
         return used_cbufs;
     }
 
-    const std::list<Sampler>& GetSamplers() const {
+    const std::set<Sampler>& GetSamplers() const {
         return used_samplers;
     }
 
-    const std::list<Image>& GetImages() const {
+    const std::map<u64, Image>& GetImages() const {
         return used_images;
     }
 
@@ -317,6 +316,9 @@ private:
     /// Access a bindless image sampler.
     Image& GetBindlessImage(Tegra::Shader::Register reg, Tegra::Shader::ImageType type);
 
+    /// Tries to access an existing image, updating it's state as needed
+    Image* TryUseExistingImage(u64 offset, Tegra::Shader::ImageType type);
+
     /// Extracts a sequence of bits from a node
     Node BitfieldExtract(Node value, u32 offset, u32 bits);
 
@@ -400,8 +402,8 @@ private:
     std::set<Tegra::Shader::Attribute::Index> used_input_attributes;
     std::set<Tegra::Shader::Attribute::Index> used_output_attributes;
     std::map<u32, ConstBuffer> used_cbufs;
-    std::list<Sampler> used_samplers;
-    std::list<Image> used_images;
+    std::set<Sampler> used_samplers;
+    std::map<u64, Image> used_images;
     std::array<bool, Tegra::Engines::Maxwell3D::Regs::NumClipDistances> used_clip_distances{};
     std::map<GlobalMemoryBase, GlobalMemoryUsage> used_global_memory;
     bool uses_layer{};

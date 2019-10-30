@@ -934,9 +934,10 @@ TextureBufferUsage RasterizerOpenGL::SetupDrawTextures(Maxwell::ShaderStage stag
             if (!entry.IsBindless()) {
                 return maxwell3d.GetStageTexture(stage, entry.GetOffset());
             }
-            const auto shader_type = static_cast<Tegra::Engines::ShaderType>(stage);
-            const Tegra::Texture::TextureHandle tex_handle =
-                maxwell3d.AccessConstBuffer32(shader_type, entry.GetBuffer(), entry.GetOffset());
+            const auto cbuf = entry.GetBindlessCBuf();
+            Tegra::Texture::TextureHandle tex_handle;
+            Tegra::Engines::ShaderType shader_type = static_cast<Tegra::Engines::ShaderType>(stage);
+            tex_handle.raw = maxwell3d.AccessConstBuffer32(shader_type, cbuf.first, cbuf.second);
             return maxwell3d.GetTextureInfo(tex_handle);
         }();
 
@@ -964,8 +965,10 @@ TextureBufferUsage RasterizerOpenGL::SetupComputeTextures(const Shader& kernel) 
             if (!entry.IsBindless()) {
                 return compute.GetTexture(entry.GetOffset());
             }
-            const Tegra::Texture::TextureHandle tex_handle = compute.AccessConstBuffer32(
-                Tegra::Engines::ShaderType::Compute, entry.GetBuffer(), entry.GetOffset());
+            const auto cbuf = entry.GetBindlessCBuf();
+            Tegra::Texture::TextureHandle tex_handle;
+            tex_handle.raw = compute.AccessConstBuffer32(Tegra::Engines::ShaderType::Compute,
+                                                         cbuf.first, cbuf.second);
             return compute.GetTextureInfo(tex_handle);
         }();
 
@@ -1008,8 +1011,10 @@ void RasterizerOpenGL::SetupComputeImages(const Shader& shader) {
             if (!entry.IsBindless()) {
                 return compute.GetTexture(entry.GetOffset()).tic;
             }
-            const Tegra::Texture::TextureHandle tex_handle = compute.AccessConstBuffer32(
-                Tegra::Engines::ShaderType::Compute, entry.GetBuffer(), entry.GetOffset());
+            const auto cbuf = entry.GetBindlessCBuf();
+            Tegra::Texture::TextureHandle tex_handle;
+            tex_handle.raw = compute.AccessConstBuffer32(Tegra::Engines::ShaderType::Compute,
+                                                         cbuf.first, cbuf.second);
             return compute.GetTextureInfo(tex_handle).tic;
         }();
         SetupImage(bindpoint, tic, entry);

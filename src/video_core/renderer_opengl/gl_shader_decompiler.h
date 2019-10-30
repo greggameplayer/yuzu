@@ -82,9 +82,10 @@ private:
 
 struct ShaderEntries {
     std::vector<ConstBufferEntry> const_buffers;
-    std::vector<GlobalMemoryEntry> global_memory_entries;
     std::vector<SamplerEntry> samplers;
+    std::vector<SamplerEntry> bindless_samplers;
     std::vector<ImageEntry> images;
+    std::vector<GlobalMemoryEntry> global_memory_entries;
     std::array<bool, Maxwell::NumClipDistances> clip_distances{};
     std::size_t shader_length{};
 };
