@@ -68,8 +68,6 @@ RasterizerOpenGL::RasterizerOpenGL(Core::System& system, Core::Frontend::EmuWind
                                    ScreenInfo& info)
     : texture_cache{system, *this, device}, shader_cache{*this, system, emu_window, device},
       system{system}, screen_info{info}, buffer_cache{*this, system, STREAM_BUFFER_SIZE} {
-    OpenGLState::ApplyDefaultState();
-
     shader_program_manager = std::make_unique<GLShader::ProgramManager>();
     state.draw.shader_program = 0;
     state.Apply();
@@ -340,42 +338,6 @@ std::size_t RasterizerOpenGL::CalculateIndexBufferSize() const {
 
     return static_cast<std::size_t>(regs.index_array.count) *
            static_cast<std::size_t>(regs.index_array.FormatSizeInBytes());
-}
-
-template <typename Map, typename Interval>
-static constexpr auto RangeFromInterval(Map& map, const Interval& interval) {
-    return boost::make_iterator_range(map.equal_range(interval));
-}
-
-void RasterizerOpenGL::UpdatePagesCachedCount(VAddr addr, u64 size, int delta) {
-    std::lock_guard lock{pages_mutex};
-    const u64 page_start{addr >> Memory::PAGE_BITS};
-    const u64 page_end{(addr + size + Memory::PAGE_SIZE - 1) >> Memory::PAGE_BITS};
-
-    // Interval maps will erase segments if count reaches 0, so if delta is negative we have to
-    // subtract after iterating
-    const auto pages_interval = CachedPageMap::interval_type::right_open(page_start, page_end);
-    if (delta > 0)
-        cached_pages.add({pages_interval, delta});
-
-    for (const auto& pair : RangeFromInterval(cached_pages, pages_interval)) {
-        const auto interval = pair.first & pages_interval;
-        const int count = pair.second;
-
-        const VAddr interval_start_addr = boost::icl::first(interval) << Memory::PAGE_BITS;
-        const VAddr interval_end_addr = boost::icl::last_next(interval) << Memory::PAGE_BITS;
-        const u64 interval_size = interval_end_addr - interval_start_addr;
-
-        if (delta > 0 && count == delta)
-            Memory::RasterizerMarkRegionCached(interval_start_addr, interval_size, true);
-        else if (delta < 0 && count == -delta)
-            Memory::RasterizerMarkRegionCached(interval_start_addr, interval_size, false);
-        else
-            ASSERT(count >= 0);
-    }
-
-    if (delta < 0)
-        cached_pages.add({pages_interval, delta});
 }
 
 void RasterizerOpenGL::LoadDiskResources(const std::atomic_bool& stop_loading,
@@ -969,7 +931,7 @@ TextureBufferUsage RasterizerOpenGL::SetupDrawTextures(Maxwell::ShaderStage stag
 
     for (u32 bindpoint = 0; bindpoint < entries.size(); ++bindpoint) {
         const auto& entry = entries[bindpoint];
-        const auto texture = [&]() {
+        const auto texture = [&] {
             if (!entry.IsBindless()) {
                 return maxwell3d.GetStageTexture(stage, entry.GetOffset());
             }
@@ -977,7 +939,7 @@ TextureBufferUsage RasterizerOpenGL::SetupDrawTextures(Maxwell::ShaderStage stag
             Tegra::Texture::TextureHandle tex_handle;
             Tegra::Engines::ShaderType shader_type = static_cast<Tegra::Engines::ShaderType>(stage);
             tex_handle.raw = maxwell3d.AccessConstBuffer32(shader_type, cbuf.first, cbuf.second);
-            return maxwell3d.GetTextureInfo(tex_handle, entry.GetOffset());
+            return maxwell3d.GetTextureInfo(tex_handle);
         }();
 
         if (SetupTexture(base_bindings.sampler + bindpoint, texture, entry)) {
@@ -1000,7 +962,7 @@ TextureBufferUsage RasterizerOpenGL::SetupComputeTextures(const Shader& kernel) 
 
     for (u32 bindpoint = 0; bindpoint < entries.size(); ++bindpoint) {
         const auto& entry = entries[bindpoint];
-        const auto texture = [&]() {
+        const auto texture = [&] {
             if (!entry.IsBindless()) {
                 return compute.GetTexture(entry.GetOffset());
             }
@@ -1008,7 +970,7 @@ TextureBufferUsage RasterizerOpenGL::SetupComputeTextures(const Shader& kernel) 
             Tegra::Texture::TextureHandle tex_handle;
             tex_handle.raw = compute.AccessConstBuffer32(Tegra::Engines::ShaderType::Compute,
                                                          cbuf.first, cbuf.second);
-            return compute.GetTextureInfo(tex_handle, entry.GetOffset());
+            return compute.GetTextureInfo(tex_handle);
         }();
 
         if (SetupTexture(bindpoint, texture, entry)) {
@@ -1046,7 +1008,7 @@ void RasterizerOpenGL::SetupComputeImages(const Shader& shader) {
     const auto& entries = shader->GetShaderEntries().images;
     for (u32 bindpoint = 0; bindpoint < entries.size(); ++bindpoint) {
         const auto& entry = entries[bindpoint];
-        const auto tic = [&]() {
+        const auto tic = [&] {
             if (!entry.IsBindless()) {
                 return compute.GetTexture(entry.GetOffset()).tic;
             }
@@ -1054,7 +1016,7 @@ void RasterizerOpenGL::SetupComputeImages(const Shader& shader) {
             Tegra::Texture::TextureHandle tex_handle;
             tex_handle.raw = compute.AccessConstBuffer32(Tegra::Engines::ShaderType::Compute,
                                                          cbuf.first, cbuf.second);
-            return compute.GetTextureInfo(tex_handle, entry.GetOffset()).tic;
+            return compute.GetTextureInfo(tex_handle).tic;
         }();
         SetupImage(bindpoint, tic, entry);
     }
