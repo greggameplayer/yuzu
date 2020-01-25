@@ -96,6 +96,7 @@ void LogSettings() {
                Settings::values.use_asynchronous_gpu_emulation);
     LogSetting("Audio_OutputEngine", Settings::values.sink_id);
     LogSetting("Audio_EnableAudioStretching", Settings::values.enable_audio_stretching);
+    LogSetting("Audio_EnableRealTime", Settings::values.enable_realtime_audio);
     LogSetting("Audio_OutputDevice", Settings::values.audio_device_id);
     LogSetting("DataStorage_UseVirtualSd", Settings::values.use_virtual_sd);
     LogSetting("DataStorage_NandDir", FileUtil::GetUserPath(FileUtil::UserPath::NANDDir));
