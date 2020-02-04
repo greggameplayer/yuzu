@@ -106,6 +106,8 @@ add_library(common STATIC
     common_funcs.h
     common_paths.h
     common_types.h
+    fiber.cpp
+    fiber.h
     file_util.cpp
     file_util.h
     hash.h
