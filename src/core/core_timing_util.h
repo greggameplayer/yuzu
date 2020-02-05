@@ -17,6 +17,7 @@ constexpr u64 CNTFREQ = 19200000;           // Value from fusee.
 s64 msToCycles(std::chrono::milliseconds ms);
 s64 usToCycles(std::chrono::microseconds us);
 s64 nsToCycles(std::chrono::nanoseconds ns);
+u64 nsToClockCycles(std::chrono::nanoseconds ns);
 
 inline std::chrono::milliseconds CyclesToMs(s64 cycles) {
     return std::chrono::milliseconds(cycles * 1000 / BASE_CLOCK_RATE);
