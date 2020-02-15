@@ -154,8 +154,8 @@ target_sources(yuzu
     PRIVATE
         ${COMPAT_LIST}
         ${ICONS}
-        ${THEMES}
         ${LANGUAGES}
+        ${THEMES}
 )
 
 if (APPLE)
