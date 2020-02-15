@@ -50,17 +50,17 @@ s64 nsToCycles(std::chrono::nanoseconds ns) {
 }
 
 u64 msToClockCycles(std::chrono::milliseconds ns) {
-    const u128 temp = Common::Multiply64Into128(ns.count(), CNTFREQ);
+    const u128 temp = Common::Multiply64Into128(ns.count(), Hardware::CNTFREQ);
     return Common::Divide128On32(temp, 1000).first;
 }
 
 u64 usToClockCycles(std::chrono::microseconds ns) {
-    const u128 temp = Common::Multiply64Into128(ns.count(), CNTFREQ);
+    const u128 temp = Common::Multiply64Into128(ns.count(), Hardware::CNTFREQ);
     return Common::Divide128On32(temp, 1000000).first;
 }
 
 u64 nsToClockCycles(std::chrono::nanoseconds ns) {
-    const u128 temp = Common::Multiply64Into128(ns.count(), CNTFREQ);
+    const u128 temp = Common::Multiply64Into128(ns.count(), Hardware::CNTFREQ);
     return Common::Divide128On32(temp, 1000000000).first;
 }
 
