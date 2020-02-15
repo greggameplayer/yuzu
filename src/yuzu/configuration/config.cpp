@@ -617,6 +617,7 @@ void Config::ReadPathValues() {
         }
     }
     UISettings::values.recent_files = ReadSetting(QStringLiteral("recentFiles")).toStringList();
+    UISettings::values.language = ReadSetting(QStringLiteral("language"), QString{}).toString();
 
     qt_config->endGroup();
 }
@@ -1052,6 +1053,7 @@ void Config::SavePathValues() {
     }
     qt_config->endArray();
     WriteSetting(QStringLiteral("recentFiles"), UISettings::values.recent_files);
+    WriteSetting(QStringLiteral("language"), UISettings::values.language, QString{});
 
     qt_config->endGroup();
 }
