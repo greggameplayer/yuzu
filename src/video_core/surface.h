@@ -172,6 +172,7 @@ constexpr std::array<u32, MaxPixelFormat> compression_factor_shift_table = {{
     0, // RG32UI
     0, // RGBX16F
     0, // R32UI
+    0, // R32I
     2, // ASTC_2D_8X8
     2, // ASTC_2D_8X5
     2, // ASTC_2D_5X4
@@ -268,6 +269,7 @@ constexpr std::array<u32, MaxPixelFormat> block_width_table = {{
     1,  // RG32UI
     1,  // RGBX16F
     1,  // R32UI
+    1,  // R32I
     8,  // ASTC_2D_8X8
     8,  // ASTC_2D_8X5
     5,  // ASTC_2D_5X4
