@@ -767,7 +767,7 @@ private:
     }
 
     std::optional<std::size_t> GetNumComponents(Attribute::Index index, u8 element = 0) const {
-        const u8 location = static_cast<u8>(index) * 4 + element;
+        const u8 location = static_cast<u8>(static_cast<u32>(index) * 4 + element);
         const auto it = transform_feedback.find(location);
         if (it == transform_feedback.end()) {
             return {};
@@ -776,7 +776,7 @@ private:
     }
 
     std::string GetTransformFeedbackDecoration(Attribute::Index index, u8 element = 0) const {
-        const u8 location = static_cast<u8>(index) * 4 + element;
+        const u8 location = static_cast<u8>(static_cast<u32>(index) * 4 + element);
         const auto it = transform_feedback.find(location);
         if (it == transform_feedback.end()) {
             return {};
@@ -817,7 +817,7 @@ private:
             code.AddLine("layout (location = {}, component = {}{}) out {} {};", location, element,
                          xfb, type, description.name);
 
-            element += static_cast<u8>(num_components);
+            element = static_cast<u8>(static_cast<std::size_t>(element) + num_components);
         }
     }
 
