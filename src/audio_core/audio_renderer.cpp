@@ -86,6 +86,20 @@ private:
     EffectInStatus info{};
 };
 
+class AudioRenderer::ChannelState {
+public:
+    const ChannelInfoIn& GetInfo() const {
+        return info;
+    }
+
+    ChannelInfoIn& GetInfo() {
+        return info;
+    }
+
+private:
+    ChannelInfoIn info{};
+};
+
 AudioRenderer::AudioRenderer(Core::Timing::CoreTiming& core_timing, Memory::Memory& memory_,
                              AudioRendererParameter params,
                              std::shared_ptr<Kernel::WritableEvent> buffer_event,
@@ -159,6 +173,15 @@ std::vector<u8> AudioRenderer::UpdateAudioRenderer(std::vector<u8>&& input_param
     for (auto& voice : voices) {
         std::memcpy(&voice.GetInfo(), input_params.data() + voice_offset, sizeof(VoiceInfo));
         voice_offset += sizeof(VoiceInfo);
+    }
+
+    std::size_t channel_offset{sizeof(UpdateDataHeader) + config.behavior_size +
+                               config.memory_pools_size};
+    channels.resize((voice_offset - channel_offset) / sizeof(ChannelInfoIn));
+    for (auto& channel : channels) {
+        std::memcpy(&channel.GetInfo(), input_params.data() + channel_offset,
+                    sizeof(ChannelInfoIn));
+        channel_offset += sizeof(ChannelInfoIn);
     }
 
     std::size_t effect_offset{sizeof(UpdateDataHeader) + config.behavior_size +
@@ -359,6 +382,17 @@ static constexpr s16 ClampToS16(s32 value) {
     return static_cast<s16>(std::clamp(value, -32768, 32767));
 }
 
+static std::size_t GetMixVolumeIndex(const VoiceInfo& voice_info, std::size_t offset) {
+    switch (voice_info.channel_count) {
+    case 1:
+        return 0;
+    case 2:
+        return offset % 2;
+    default:
+        UNIMPLEMENTED_MSG("Unimplemented channel_count={}", voice_info.channel_count);
+    }
+}
+
 void AudioRenderer::QueueMixedBuffer(Buffer::Tag tag) {
     constexpr std::size_t BUFFER_SIZE{512};
     std::vector<s16> buffer(BUFFER_SIZE * stream->GetNumChannels());
@@ -379,10 +413,16 @@ void AudioRenderer::QueueMixedBuffer(Buffer::Tag tag) {
 
             samples_remaining -= samples.size() / stream->GetNumChannels();
 
+            // TODO(FearlessTobi): Implement Surround mixing
+            const auto& mix_volumes{channels[voice.GetInfo().id].GetInfo().mix_volume};
             for (const auto& sample : samples) {
                 const s32 buffer_sample{buffer[offset]};
-                buffer[offset++] =
-                    ClampToS16(buffer_sample + static_cast<s32>(sample * voice.GetInfo().volume));
+
+                // Index 0 is for the left channel, 1 is for the right channel
+                const float mix_volume{mix_volumes[GetMixVolumeIndex(voice.GetInfo(), offset)]};
+
+                buffer[offset++] = ClampToS16(
+                    buffer_sample + static_cast<s32>(sample * voice.GetInfo().volume * mix_volume));
             }
         }
     }
