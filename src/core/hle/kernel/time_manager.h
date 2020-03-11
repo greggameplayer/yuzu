@@ -5,7 +5,6 @@
 #pragma once
 
 #include <memory>
-#include <unordered_map>
 
 #include "core/hle/kernel/object.h"
 
@@ -36,13 +35,9 @@ public:
     /// Unschedule an existing time event
     void UnscheduleTimeEvent(Handle event_handle);
 
-    void CancelTimeEvent(Thread* time_task);
-
 private:
     Core::System& system;
     std::shared_ptr<Core::Timing::EventType> time_manager_event_type;
-    std::unordered_map<Handle, bool> cancelled_events;
-    std::unordered_map<Handle, bool> event_fired;
 };
 
 } // namespace Kernel

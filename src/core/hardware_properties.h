@@ -42,10 +42,6 @@ struct EmuThreadHandle {
         constexpr u32 invalid_handle = 0xFFFFFFFF;
         return {invalid_handle, invalid_handle};
     }
-
-    bool IsInvalid() const {
-        return (*this) == InvalidHandle();
-    }
 };
 
 } // namespace Core

@@ -6,7 +6,6 @@
 
 #include <map>
 #include <memory>
-#include <mutex>
 #include <tuple>
 #include <vector>
 #include "common/common_types.h"
@@ -336,7 +335,7 @@ public:
     void Reset(FileSys::ProgramAddressSpaceType type);
 
     /// Finds the VMA in which the given address is included in, or `vma_map.end()`.
-    VMAHandle FindVMA(VAddr target);
+    VMAHandle FindVMA(VAddr target) const;
 
     /// Indicates whether or not the given handle is within the VMA map.
     bool IsValidHandle(VMAHandle handle) const;
@@ -375,7 +374,7 @@ public:
      * @returns If successful, the base address of the free region with
      *          the given size.
      */
-    ResultVal<VAddr> FindFreeRegion(u64 size);
+    ResultVal<VAddr> FindFreeRegion(u64 size) const;
 
     /**
      * Finds the first free address range that can hold a region of the desired size
@@ -397,7 +396,7 @@ public:
      * @pre The starting address must be less than the ending address.
      * @pre The size must not exceed the address range itself.
      */
-    ResultVal<VAddr> FindFreeRegion(VAddr begin, VAddr end, u64 size);
+    ResultVal<VAddr> FindFreeRegion(VAddr begin, VAddr end, u64 size) const;
 
     /**
      * Maps a memory-mapped IO region at a given address.
@@ -532,7 +531,7 @@ public:
     ///
     /// @return A MemoryInfo instance containing information about the given address.
     ///
-    MemoryInfo QueryMemory(VAddr address);
+    MemoryInfo QueryMemory(VAddr address) const;
 
     /// Sets an attribute across the given address range.
     ///
@@ -684,7 +683,7 @@ public:
     CheckResults CheckRangeState(VAddr address, u64 size, MemoryState state_mask, MemoryState state,
                                  VMAPermission permission_mask, VMAPermission permissions,
                                  MemoryAttribute attribute_mask, MemoryAttribute attribute,
-                                 MemoryAttribute ignore_mask);
+                                 MemoryAttribute ignore_mask) const;
 
 private:
     using VMAIter = VMAMap::iterator;
@@ -740,11 +739,11 @@ private:
     void ClearPageTable();
 
     /// Gets the amount of memory currently mapped (state != Unmapped) in a range.
-    ResultVal<std::size_t> SizeOfAllocatedVMAsInRange(VAddr address, std::size_t size);
+    ResultVal<std::size_t> SizeOfAllocatedVMAsInRange(VAddr address, std::size_t size) const;
 
     /// Gets the amount of memory unmappable by UnmapPhysicalMemory in a range.
     ResultVal<std::size_t> SizeOfUnmappablePhysicalMemoryInRange(VAddr address,
-                                                                 std::size_t size);
+                                                                 std::size_t size) const;
 
     /**
      * A map covering the entirety of the managed address space, keyed by the `base` field of each
@@ -793,6 +792,5 @@ private:
     u64 physical_memory_mapped = 0;
 
     Core::System& system;
-    std::recursive_mutex mutex;
 };
 } // namespace Kernel

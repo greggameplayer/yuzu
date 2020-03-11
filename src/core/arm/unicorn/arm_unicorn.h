@@ -11,12 +11,11 @@
 
 namespace Core {
 
-class CPUInterruptHandler;
 class System;
 
 class ARM_Unicorn final : public ARM_Interface {
 public:
-    explicit ARM_Unicorn(System& system, CPUInterruptHandler& interrupt_handler);
+    explicit ARM_Unicorn(System& system);
     ~ARM_Unicorn() override;
 
     void SetPC(u64 pc) override;

@@ -19,7 +19,6 @@
 #include "core/hle/kernel/scheduler.h"
 #include "core/hle/kernel/thread.h"
 #include "core/hle/kernel/vm_manager.h"
-#include "core/hle/lock.h"
 #include "core/memory.h"
 #include "core/settings.h"
 
@@ -28,17 +27,16 @@ namespace {
 /**
  * Sets up the primary application thread
  *
- * @param system The system instance to create the main thread under.
  * @param owner_process The parent process for the main thread
+ * @param kernel The kernel instance to create the main thread under.
  * @param priority The priority to give the main thread
  */
-void SetupMainThread(Core::System& system, Process& owner_process, u32 priority) {
+void SetupMainThread(Process& owner_process, KernelCore& kernel, u32 priority) {
     const auto& vm_manager = owner_process.VMManager();
     const VAddr entry_point = vm_manager.GetCodeRegionBaseAddress();
     const VAddr stack_top = vm_manager.GetTLSIORegionEndAddress();
-    ThreadType type = THREADTYPE_USER;
-    auto thread_res = Thread::Create(system, type, "main", entry_point, priority, 0,
-                                     owner_process.GetIdealCore(), stack_top, &owner_process);
+    auto thread_res = Thread::Create(kernel, "main", entry_point, priority, 0,
+                                     owner_process.GetIdealCore(), stack_top, owner_process);
 
     std::shared_ptr<Thread> thread = std::move(thread_res).Unwrap();
 
@@ -47,12 +45,8 @@ void SetupMainThread(Core::System& system, Process& owner_process, u32 priority)
     thread->GetContext32().cpu_registers[1] = thread_handle;
     thread->GetContext64().cpu_registers[1] = thread_handle;
 
-    auto& kernel = system.Kernel();
     // Threads by default are dormant, wake up the main thread so it runs when the scheduler fires
-    {
-        SchedulerLock lock{kernel};
-        thread->SetStatus(ThreadStatus::Ready);
-    }
+    thread->ResumeFromWait();
 }
 } // Anonymous namespace
 
@@ -176,6 +170,7 @@ void Process::RemoveConditionVariableThread(std::shared_ptr<Thread> thread) {
         }
         ++it;
     }
+    UNREACHABLE();
 }
 
 std::vector<std::shared_ptr<Thread>> Process::GetConditionVariableThreads(
@@ -200,7 +195,6 @@ void Process::UnregisterThread(const Thread* thread) {
 }
 
 ResultCode Process::ClearSignalState() {
-    SchedulerLock lock(system.Kernel());
     if (status == ProcessStatus::Exited) {
         LOG_ERROR(Kernel, "called on a terminated process instance.");
         return ERR_INVALID_STATE;
@@ -241,7 +235,7 @@ void Process::Run(s32 main_thread_priority, u64 stack_size) {
 
     ChangeStatus(ProcessStatus::Running);
 
-    SetupMainThread(system, *this, main_thread_priority);
+    SetupMainThread(*this, kernel, main_thread_priority);
 }
 
 void Process::PrepareForTermination() {
@@ -285,7 +279,6 @@ static auto FindTLSPageWithAvailableSlots(std::vector<TLSPage>& tls_pages) {
 }
 
 VAddr Process::CreateTLSRegion() {
-    SchedulerLock lock(system.Kernel());
     auto tls_page_iter = FindTLSPageWithAvailableSlots(tls_pages);
 
     if (tls_page_iter == tls_pages.cend()) {
@@ -311,7 +304,6 @@ VAddr Process::CreateTLSRegion() {
 }
 
 void Process::FreeTLSRegion(VAddr tls_address) {
-    SchedulerLock lock(system.Kernel());
     const VAddr aligned_address = Common::AlignDown(tls_address, Memory::PAGE_SIZE);
     auto iter =
         std::find_if(tls_pages.begin(), tls_pages.end(), [aligned_address](const auto& page) {
@@ -326,7 +318,6 @@ void Process::FreeTLSRegion(VAddr tls_address) {
 }
 
 void Process::LoadModule(CodeSet module_, VAddr base_addr) {
-    std::lock_guard lock{HLE::g_hle_lock};
     code_memory_size += module_.memory.size();
 
     const auto memory = std::make_shared<PhysicalMemory>(std::move(module_.memory));

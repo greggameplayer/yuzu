@@ -5,7 +5,6 @@
 #pragma once
 
 #include <memory>
-#include <mutex>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -80,10 +79,6 @@ public:
 
     s64 GetNextTicks() const;
 
-    std::unique_lock<std::mutex> Lock() {
-        return std::unique_lock{*guard};
-    }
-
 private:
     /// Finds the display identified by the specified ID.
     VI::Display* FindDisplay(u64 display_id);
@@ -112,8 +107,6 @@ private:
 
     /// Event that handles screen composition.
     std::shared_ptr<Core::Timing::EventType> composition_event;
-
-    std::shared_ptr<std::mutex> guard;
 
     Core::System& system;
 };

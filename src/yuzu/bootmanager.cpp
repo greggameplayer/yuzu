@@ -56,15 +56,11 @@ static GMainWindow* GetMainWindow() {
 }
 
 void EmuThread::run() {
-    std::string name = "yuzu:EmuControlThread";
-    MicroProfileOnThreadCreate(name.c_str());
-    Common::SetCurrentThreadName(name.c_str());
+    MicroProfileOnThreadCreate("EmuThread");
 
     Core::Frontend::ScopeAcquireContext acquire_context{context};
 
     emit LoadProgress(VideoCore::LoadCallbackStage::Prepare, 0, 0);
-
-    Core::System::GetInstance().RegisterHostThread();
 
     Core::System::GetInstance().Renderer().Rasterizer().LoadDiskResources(
         stop_run, [this](VideoCore::LoadCallbackStage stage, std::size_t value, std::size_t total) {
@@ -79,30 +75,28 @@ void EmuThread::run() {
     bool was_active = false;
     while (!stop_run) {
         if (running) {
-            if (was_active) {
+            if (!was_active)
                 emit DebugModeLeft();
-            }
 
-            running_guard = true;
-            Core::System::ResultStatus result = Core::System::GetInstance().Run();
+            Core::System::ResultStatus result = Core::System::GetInstance().RunLoop();
             if (result != Core::System::ResultStatus::Success) {
-                running_guard = false;
                 this->SetRunning(false);
                 emit ErrorThrown(result, Core::System::GetInstance().GetStatusDetails());
             }
-            running_wait.Wait();
-            result = Core::System::GetInstance().Pause();
-            if (result != Core::System::ResultStatus::Success) {
-                running_guard = false;
-                this->SetRunning(false);
-                emit ErrorThrown(result, Core::System::GetInstance().GetStatusDetails());
-            }
-            running_guard = false;
 
-            was_active = true;
-            emit DebugModeEntered();
+            was_active = running || exec_step;
+            if (!was_active && !stop_run)
+                emit DebugModeEntered();
         } else if (exec_step) {
-            UNIMPLEMENTED();
+            if (!was_active)
+                emit DebugModeLeft();
+
+            exec_step = false;
+            Core::System::GetInstance().SingleStep();
+            emit DebugModeEntered();
+            yieldCurrentThread();
+
+            was_active = false;
         } else {
             std::unique_lock lock{running_mutex};
             running_cv.wait(lock, [this] { return IsRunning() || exec_step || stop_run; });

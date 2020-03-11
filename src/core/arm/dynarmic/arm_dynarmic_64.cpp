@@ -8,7 +8,6 @@
 #include <dynarmic/A64/config.h>
 #include "common/logging/log.h"
 #include "common/microprofile.h"
-#include "core/arm/cpu_interrupt_handler.h"
 #include "core/arm/dynarmic/arm_dynarmic_64.h"
 #include "core/core.h"
 #include "core/core_manager.h"
@@ -108,16 +107,23 @@ public:
     }
 
     void AddTicks(u64 ticks) override {
-        /// We are using host timing, NOP
+        // Divide the number of ticks by the amount of CPU cores. TODO(Subv): This yields only a
+        // rough approximation of the amount of executed ticks in the system, it may be thrown off
+        // if not all cores are doing a similar amount of work. Instead of doing this, we should
+        // device a way so that timing is consistent across all cores without increasing the ticks 4
+        // times.
+        u64 amortized_ticks = (ticks - num_interpreted_instructions) / Core::NUM_CPU_CORES;
+        // Always execute at least one tick.
+        amortized_ticks = std::max<u64>(amortized_ticks, 1);
+
+        parent.system.CoreTiming().AddTicks(amortized_ticks);
+        num_interpreted_instructions = 0;
     }
     u64 GetTicksRemaining() override {
-        if (!parent.interrupt_handler.IsInterrupted()) {
-            return 1000ULL;
-        }
-        return 0ULL;
+        return std::max(parent.system.CoreTiming().GetDowncount(), s64{0});
     }
     u64 GetCNTPCT() override {
-        return parent.system.CoreTiming().GetClockTicks();
+        return Timing::CpuCyclesToClockCycles(parent.system.CoreTiming().GetTicks());
     }
 
     ARM_Dynarmic_64& parent;
@@ -168,10 +174,10 @@ void ARM_Dynarmic_64::Step() {
     cb->InterpreterFallback(jit->GetPC(), 1);
 }
 
-ARM_Dynarmic_64::ARM_Dynarmic_64(System& system, CPUInterruptHandler& interrupt_handler,
-                                 ExclusiveMonitor& exclusive_monitor, std::size_t core_index)
-    : ARM_Interface{system, interrupt_handler},
-      cb(std::make_unique<DynarmicCallbacks64>(*this)), inner_unicorn{system, interrupt_handler},
+ARM_Dynarmic_64::ARM_Dynarmic_64(System& system, ExclusiveMonitor& exclusive_monitor,
+                                 std::size_t core_index)
+    : ARM_Interface{system},
+      cb(std::make_unique<DynarmicCallbacks64>(*this)), inner_unicorn{system},
       core_index{core_index}, exclusive_monitor{
                                   dynamic_cast<DynarmicExclusiveMonitor&>(exclusive_monitor)} {}
 

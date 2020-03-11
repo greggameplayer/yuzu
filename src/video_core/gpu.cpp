@@ -2,8 +2,6 @@
 // Licensed under GPLv2 or any later version
 // Refer to the license.txt file included.
 
-#include <chrono>
-
 #include "common/assert.h"
 #include "common/microprofile.h"
 #include "core/core.h"
@@ -131,7 +129,8 @@ u64 GPU::GetTicks() const {
     constexpr u64 gpu_ticks_num = 384;
     constexpr u64 gpu_ticks_den = 625;
 
-    const u64 nanoseconds = system.CoreTiming().GetGlobalTimeNs().count();
+    const u64 cpu_ticks = system.CoreTiming().GetTicks();
+    const u64 nanoseconds = Core::Timing::CyclesToNs(cpu_ticks).count();
     const u64 nanoseconds_num = nanoseconds / gpu_ticks_den;
     const u64 nanoseconds_rem = nanoseconds % gpu_ticks_den;
     return nanoseconds_num * gpu_ticks_num + (nanoseconds_rem * gpu_ticks_num) / gpu_ticks_den;

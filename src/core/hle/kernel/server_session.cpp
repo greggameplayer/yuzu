@@ -19,7 +19,6 @@
 #include "core/hle/kernel/process.h"
 #include "core/hle/kernel/server_session.h"
 #include "core/hle/kernel/session.h"
-#include "core/hle/kernel/scheduler.h"
 #include "core/hle/kernel/thread.h"
 #include "core/memory.h"
 
@@ -168,12 +167,9 @@ ResultCode ServerSession::CompleteSyncRequest() {
     }
 
     // Some service requests require the thread to block
-    {
-        SchedulerLock lock(kernel);
-        if (!context.IsThreadWaiting()) {
-            context.GetThread().ResumeFromWait();
-            context.GetThread().SetSynchronizationResults(nullptr, result);
-        }
+    if (!context.IsThreadWaiting()) {
+        context.GetThread().ResumeFromWait();
+        context.GetThread().SetWaitSynchronizationResult(result);
     }
 
     request_queue.Pop();
@@ -183,9 +179,8 @@ ResultCode ServerSession::CompleteSyncRequest() {
 
 ResultCode ServerSession::HandleSyncRequest(std::shared_ptr<Thread> thread,
                                             Memory::Memory& memory) {
-    ResultCode result = QueueSyncRequest(std::move(thread), memory);
-    Core::System::GetInstance().CoreTiming().ScheduleEvent(0, request_event, {});
-    return result;
+    Core::System::GetInstance().CoreTiming().ScheduleEvent(20000, request_event, {});
+    return QueueSyncRequest(std::move(thread), memory);
 }
 
 } // namespace Kernel

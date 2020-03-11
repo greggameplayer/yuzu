@@ -6,7 +6,6 @@
 
 #include <array>
 #include <vector>
-#include <mutex>
 #include "common/common_types.h"
 
 namespace Common {
@@ -19,13 +18,11 @@ enum class VMAPermission : u8;
 
 namespace Core {
 class System;
-class CPUInterruptHandler;
 
 /// Generic ARMv8 CPU interface
 class ARM_Interface : NonCopyable {
 public:
-    explicit ARM_Interface(System& system_, CPUInterruptHandler& interrupt_handler)
-        : system{system_}, interrupt_handler{interrupt_handler} {}
+    explicit ARM_Interface(System& system_) : system{system_} {}
     virtual ~ARM_Interface() = default;
 
     struct ThreadContext32 {
@@ -165,14 +162,6 @@ public:
         std::string name;
     };
 
-    void Lock() {
-        guard.lock();
-    }
-
-    void Unlock() {
-        guard.unlock();
-    }
-
     std::vector<BacktraceEntry> GetBacktrace() const;
 
     /// fp (= r29) points to the last frame record.
@@ -186,8 +175,6 @@ public:
 protected:
     /// System context that this ARM interface is running under.
     System& system;
-    CPUInterruptHandler& interrupt_handler;
-    std::mutex guard;
 };
 
 } // namespace Core

@@ -6,7 +6,6 @@
 #include <unicorn/arm64.h>
 #include "common/assert.h"
 #include "common/microprofile.h"
-#include "core/arm/cpu_interrupt_handler.h"
 #include "core/arm/unicorn/arm_unicorn.h"
 #include "core/core.h"
 #include "core/core_timing.h"
@@ -62,8 +61,7 @@ static bool UnmappedMemoryHook(uc_engine* uc, uc_mem_type type, u64 addr, int si
     return false;
 }
 
-ARM_Unicorn::ARM_Unicorn(System& system, CPUInterruptHandler& interrupt_handler)
-    : ARM_Interface{system, interrupt_handler} {
+ARM_Unicorn::ARM_Unicorn(System& system) : ARM_Interface{system} {
     CHECKED(uc_open(UC_ARCH_ARM64, UC_MODE_ARM, &uc));
 
     auto fpv = 3 << 20;
@@ -160,12 +158,8 @@ void ARM_Unicorn::Run() {
     if (GDBStub::IsServerEnabled()) {
         ExecuteInstructions(std::max(4000000U, 0U));
     } else {
-        while (true) {
-            if (interrupt_handler.IsInterrupted()) {
-                return;
-            }
-            ExecuteInstructions(10);
-        }
+        ExecuteInstructions(
+            std::max(std::size_t(system.CoreTiming().GetDowncount()), std::size_t{0}));
     }
 }
 
@@ -178,6 +172,7 @@ MICROPROFILE_DEFINE(ARM_Jit_Unicorn, "ARM JIT", "Unicorn", MP_RGB(255, 64, 64));
 void ARM_Unicorn::ExecuteInstructions(std::size_t num_instructions) {
     MICROPROFILE_SCOPE(ARM_Jit_Unicorn);
     CHECKED(uc_emu_start(uc, GetPC(), 1ULL << 63, 0, num_instructions));
+    system.CoreTiming().AddTicks(num_instructions);
     if (GDBStub::IsServerEnabled()) {
         if (last_bkpt_hit && last_bkpt.type == GDBStub::BreakpointType::Execute) {
             uc_reg_write(uc, UC_ARM64_REG_PC, &last_bkpt.address);

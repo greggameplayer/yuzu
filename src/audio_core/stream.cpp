@@ -61,7 +61,7 @@ Stream::State Stream::GetState() const {
     return state;
 }
 
-s64 Stream::GetBufferReleaseNS(const Buffer& buffer) const {
+s64 Stream::GetBufferReleaseCycles(const Buffer& buffer) const {
     const std::size_t num_samples{buffer.GetSamples().size() / GetNumChannels()};
     const double time_scale{Settings::values.enable_realtime_audio
                                 ? Core::System::GetInstance().GetPerfStats().GetLastFrameTimeScale()
@@ -110,7 +110,7 @@ void Stream::PlayNextBuffer() {
 
     sink_stream.EnqueueSamples(GetNumChannels(), active_buffer->GetSamples());
 
-    core_timing.ScheduleEvent(GetBufferReleaseNS(*active_buffer), release_event, {});
+    core_timing.ScheduleEvent(GetBufferReleaseCycles(*active_buffer), release_event, {});
 }
 
 void Stream::ReleaseActiveBuffer() {

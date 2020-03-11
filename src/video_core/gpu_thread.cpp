@@ -4,7 +4,6 @@
 
 #include "common/assert.h"
 #include "common/microprofile.h"
-#include "common/thread.h"
 #include "core/core.h"
 #include "core/frontend/scope_acquire_context.h"
 #include "video_core/dma_pusher.h"
@@ -15,12 +14,9 @@
 namespace VideoCommon::GPUThread {
 
 /// Runs the GPU thread
-static void RunThread(Core::System& system, VideoCore::RendererBase& renderer,
-                      Tegra::DmaPusher& dma_pusher, SynchState& state) {
-    std::string name = "yuzu:GPU";
-    MicroProfileOnThreadCreate(name.c_str());
-    Common::SetCurrentThreadName(name.c_str());
-    system.RegisterHostThread();
+static void RunThread(VideoCore::RendererBase& renderer, Tegra::DmaPusher& dma_pusher,
+                      SynchState& state) {
+    MicroProfileOnThreadCreate("GpuThread");
 
     // Wait for first GPU command before acquiring the window context
     while (state.queue.Empty())
@@ -67,8 +63,7 @@ ThreadManager::~ThreadManager() {
 }
 
 void ThreadManager::StartThread(VideoCore::RendererBase& renderer, Tegra::DmaPusher& dma_pusher) {
-    thread = std::thread{RunThread, std::ref(system), std::ref(renderer), std::ref(dma_pusher),
-                         std::ref(state)};
+    thread = std::thread{RunThread, std::ref(renderer), std::ref(dma_pusher), std::ref(state)};
 }
 
 void ThreadManager::SubmitList(Tegra::CommandList&& entries) {

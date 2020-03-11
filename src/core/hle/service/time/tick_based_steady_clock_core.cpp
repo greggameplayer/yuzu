@@ -11,8 +11,9 @@
 namespace Service::Time::Clock {
 
 SteadyClockTimePoint TickBasedSteadyClockCore::GetTimePoint(Core::System& system) {
-    const TimeSpanType ticks_time_span{
-        TimeSpanType::FromTicks(system.CoreTiming().GetClockTicks(), Core::Hardware::CNTFREQ)};
+    const TimeSpanType ticks_time_span{TimeSpanType::FromTicks(
+        Core::Timing::CpuCyclesToClockCycles(system.CoreTiming().GetTicks()),
+        Core::Hardware::CNTFREQ)};
 
     return {ticks_time_span.ToSeconds(), GetClockSourceId()};
 }

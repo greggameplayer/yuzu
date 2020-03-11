@@ -28,12 +28,15 @@ namespace Memory {
 struct Memory::Impl {
     explicit Impl(Core::System& system_) : system{system_} {}
 
-    void SetCurrentPageTable(Kernel::Process& process, u32 core_id) {
+    void SetCurrentPageTable(Kernel::Process& process) {
         current_page_table = &process.VMManager().page_table;
 
         const std::size_t address_space_width = process.VMManager().GetAddressSpaceWidth();
 
-        system.ArmInterface(core_id).PageTableChanged(*current_page_table, address_space_width);
+        system.ArmInterface(0).PageTableChanged(*current_page_table, address_space_width);
+        system.ArmInterface(1).PageTableChanged(*current_page_table, address_space_width);
+        system.ArmInterface(2).PageTableChanged(*current_page_table, address_space_width);
+        system.ArmInterface(3).PageTableChanged(*current_page_table, address_space_width);
     }
 
     void MapMemoryRegion(Common::PageTable& page_table, VAddr base, u64 size,
@@ -114,8 +117,8 @@ struct Memory::Impl {
      * Gets a pointer to the exact memory at the virtual address (i.e. not page aligned)
      * using a VMA from the current process
      */
-    u8* GetPointerFromVMA(Kernel::Process& process, VAddr vaddr) {
-        auto& vm_manager = process.VMManager();
+    u8* GetPointerFromVMA(const Kernel::Process& process, VAddr vaddr) {
+        const auto& vm_manager = process.VMManager();
 
         const auto it = vm_manager.FindVMA(vaddr);
         DEBUG_ASSERT(vm_manager.IsValidHandle(it));
@@ -208,7 +211,7 @@ struct Memory::Impl {
         return string;
     }
 
-    void ReadBlock(Kernel::Process& process, const VAddr src_addr, void* dest_buffer,
+    void ReadBlock(const Kernel::Process& process, const VAddr src_addr, void* dest_buffer,
                    const std::size_t size) {
         const auto& page_table = process.VMManager().page_table;
 
@@ -258,7 +261,7 @@ struct Memory::Impl {
         ReadBlock(*system.CurrentProcess(), src_addr, dest_buffer, size);
     }
 
-    void WriteBlock(Kernel::Process& process, const VAddr dest_addr, const void* src_buffer,
+    void WriteBlock(const Kernel::Process& process, const VAddr dest_addr, const void* src_buffer,
                     const std::size_t size) {
         const auto& page_table = process.VMManager().page_table;
         std::size_t remaining_size = size;
@@ -306,7 +309,7 @@ struct Memory::Impl {
         WriteBlock(*system.CurrentProcess(), dest_addr, src_buffer, size);
     }
 
-    void ZeroBlock(Kernel::Process& process, const VAddr dest_addr, const std::size_t size) {
+    void ZeroBlock(const Kernel::Process& process, const VAddr dest_addr, const std::size_t size) {
         const auto& page_table = process.VMManager().page_table;
         std::size_t remaining_size = size;
         std::size_t page_index = dest_addr >> PAGE_BITS;
@@ -352,7 +355,7 @@ struct Memory::Impl {
         ZeroBlock(*system.CurrentProcess(), dest_addr, size);
     }
 
-    void CopyBlock(Kernel::Process& process, VAddr dest_addr, VAddr src_addr,
+    void CopyBlock(const Kernel::Process& process, VAddr dest_addr, VAddr src_addr,
                    const std::size_t size) {
         const auto& page_table = process.VMManager().page_table;
         std::size_t remaining_size = size;
@@ -600,8 +603,8 @@ struct Memory::Impl {
 Memory::Memory(Core::System& system) : impl{std::make_unique<Impl>(system)} {}
 Memory::~Memory() = default;
 
-void Memory::SetCurrentPageTable(Kernel::Process& process, u32 core_id) {
-    impl->SetCurrentPageTable(process, core_id);
+void Memory::SetCurrentPageTable(Kernel::Process& process) {
+    impl->SetCurrentPageTable(process);
 }
 
 void Memory::MapMemoryRegion(Common::PageTable& page_table, VAddr base, u64 size,
@@ -684,7 +687,7 @@ std::string Memory::ReadCString(VAddr vaddr, std::size_t max_length) {
     return impl->ReadCString(vaddr, max_length);
 }
 
-void Memory::ReadBlock(Kernel::Process& process, const VAddr src_addr, void* dest_buffer,
+void Memory::ReadBlock(const Kernel::Process& process, const VAddr src_addr, void* dest_buffer,
                        const std::size_t size) {
     impl->ReadBlock(process, src_addr, dest_buffer, size);
 }
@@ -693,7 +696,7 @@ void Memory::ReadBlock(const VAddr src_addr, void* dest_buffer, const std::size_
     impl->ReadBlock(src_addr, dest_buffer, size);
 }
 
-void Memory::WriteBlock(Kernel::Process& process, VAddr dest_addr, const void* src_buffer,
+void Memory::WriteBlock(const Kernel::Process& process, VAddr dest_addr, const void* src_buffer,
                         std::size_t size) {
     impl->WriteBlock(process, dest_addr, src_buffer, size);
 }
@@ -702,7 +705,7 @@ void Memory::WriteBlock(const VAddr dest_addr, const void* src_buffer, const std
     impl->WriteBlock(dest_addr, src_buffer, size);
 }
 
-void Memory::ZeroBlock(Kernel::Process& process, VAddr dest_addr, std::size_t size) {
+void Memory::ZeroBlock(const Kernel::Process& process, VAddr dest_addr, std::size_t size) {
     impl->ZeroBlock(process, dest_addr, size);
 }
 
@@ -710,7 +713,7 @@ void Memory::ZeroBlock(VAddr dest_addr, std::size_t size) {
     impl->ZeroBlock(dest_addr, size);
 }
 
-void Memory::CopyBlock(Kernel::Process& process, VAddr dest_addr, VAddr src_addr,
+void Memory::CopyBlock(const Kernel::Process& process, VAddr dest_addr, VAddr src_addr,
                        const std::size_t size) {
     impl->CopyBlock(process, dest_addr, src_addr, size);
 }
