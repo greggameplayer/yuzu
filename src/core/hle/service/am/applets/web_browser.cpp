@@ -254,6 +254,9 @@ void WebBrowser::Execute() {
 
     if (status != RESULT_SUCCESS) {
         complete = true;
+        Finalize();
+        // Set the status to RESULT_SUCCESS, so the application doesn't svcBreak when returning
+        status = RESULT_SUCCESS;
         return;
     }
 
