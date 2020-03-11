@@ -102,6 +102,18 @@ public:
     /// Gets the an instance of the respective physical CPU core.
     const Kernel::PhysicalCore& PhysicalCore(std::size_t id) const;
 
+    /// Gets the sole instance of the Scheduler at the current running core.
+    Kernel::Scheduler& CurrentScheduler();
+
+    /// Gets the sole instance of the Scheduler at the current running core.
+    const Kernel::Scheduler& CurrentScheduler() const;
+
+    /// Gets the an instance of the current physical CPU core.
+    Kernel::PhysicalCore& CurrentPhysicalCore();
+
+    /// Gets the an instance of the current physical CPU core.
+    const Kernel::PhysicalCore& CurrentPhysicalCore() const;
+
     /// Gets the an instance of the Synchronization Interface.
     Kernel::Synchronization& Synchronization();
 
@@ -147,6 +159,12 @@ public:
     /// Register the current thread as a non CPU core thread.
     void RegisterHostThread();
 
+    /// Suspend/unsuspend the OS.
+    void Suspend(bool in_suspention);
+
+    /// Exceptional exit the OS.
+    void ExceptionalExit();
+
 private:
     friend class Object;
     friend class Process;
@@ -175,6 +193,7 @@ private:
 
     struct Impl;
     std::unique_ptr<Impl> impl;
+    bool exception_exited{};
 };
 
 } // namespace Kernel

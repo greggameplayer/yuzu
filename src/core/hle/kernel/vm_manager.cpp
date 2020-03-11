@@ -77,6 +77,7 @@ VMManager::VMManager(Core::System& system) : system{system} {
 VMManager::~VMManager() = default;
 
 void VMManager::Reset(FileSys::ProgramAddressSpaceType type) {
+    std::lock_guard lock{mutex};
     Clear();
 
     InitializeMemoryRegionRanges(type);
@@ -91,7 +92,8 @@ void VMManager::Reset(FileSys::ProgramAddressSpaceType type) {
     UpdatePageTableForVMA(initial_vma);
 }
 
-VMManager::VMAHandle VMManager::FindVMA(VAddr target) const {
+VMManager::VMAHandle VMManager::FindVMA(VAddr target) {
+    std::lock_guard lock{mutex};
     if (target >= address_space_end) {
         return vma_map.end();
     } else {
@@ -107,6 +109,7 @@ ResultVal<VMManager::VMAHandle> VMManager::MapMemoryBlock(VAddr target,
                                                           std::shared_ptr<PhysicalMemory> block,
                                                           std::size_t offset, u64 size,
                                                           MemoryState state, VMAPermission perm) {
+    std::lock_guard lock{mutex};
     ASSERT(block != nullptr);
     ASSERT(offset + size <= block->size());
 
@@ -127,6 +130,7 @@ ResultVal<VMManager::VMAHandle> VMManager::MapMemoryBlock(VAddr target,
 
 ResultVal<VMManager::VMAHandle> VMManager::MapBackingMemory(VAddr target, u8* memory, u64 size,
                                                             MemoryState state) {
+    std::lock_guard lock{mutex};
     ASSERT(memory != nullptr);
 
     // This is the appropriately sized VMA that will turn into our allocation.
@@ -143,11 +147,12 @@ ResultVal<VMManager::VMAHandle> VMManager::MapBackingMemory(VAddr target, u8* me
     return MakeResult<VMAHandle>(MergeAdjacent(vma_handle));
 }
 
-ResultVal<VAddr> VMManager::FindFreeRegion(u64 size) const {
+ResultVal<VAddr> VMManager::FindFreeRegion(u64 size) {
     return FindFreeRegion(GetASLRRegionBaseAddress(), GetASLRRegionEndAddress(), size);
 }
 
-ResultVal<VAddr> VMManager::FindFreeRegion(VAddr begin, VAddr end, u64 size) const {
+ResultVal<VAddr> VMManager::FindFreeRegion(VAddr begin, VAddr end, u64 size) {
+    std::lock_guard lock{mutex};
     ASSERT(begin < end);
     ASSERT(size <= end - begin);
 
@@ -177,6 +182,7 @@ ResultVal<VAddr> VMManager::FindFreeRegion(VAddr begin, VAddr end, u64 size) con
 ResultVal<VMManager::VMAHandle> VMManager::MapMMIO(VAddr target, PAddr paddr, u64 size,
                                                    MemoryState state,
                                                    Common::MemoryHookPointer mmio_handler) {
+    std::lock_guard lock{mutex};
     // This is the appropriately sized VMA that will turn into our allocation.
     CASCADE_RESULT(VMAIter vma_handle, CarveVMA(target, size));
     VirtualMemoryArea& final_vma = vma_handle->second;
@@ -193,6 +199,7 @@ ResultVal<VMManager::VMAHandle> VMManager::MapMMIO(VAddr target, PAddr paddr, u6
 }
 
 VMManager::VMAIter VMManager::Unmap(VMAIter vma_handle) {
+    std::lock_guard lock{mutex};
     VirtualMemoryArea& vma = vma_handle->second;
     vma.type = VMAType::Free;
     vma.permissions = VMAPermission::None;
@@ -210,6 +217,7 @@ VMManager::VMAIter VMManager::Unmap(VMAIter vma_handle) {
 }
 
 ResultCode VMManager::UnmapRange(VAddr target, u64 size) {
+    std::lock_guard lock{mutex};
     CASCADE_RESULT(VMAIter vma, CarveVMARange(target, size));
     const VAddr target_end = target + size;
 
@@ -226,6 +234,7 @@ ResultCode VMManager::UnmapRange(VAddr target, u64 size) {
 }
 
 VMManager::VMAHandle VMManager::Reprotect(VMAHandle vma_handle, VMAPermission new_perms) {
+    std::lock_guard lock{mutex};
     VMAIter iter = StripIterConstness(vma_handle);
 
     VirtualMemoryArea& vma = iter->second;
@@ -236,6 +245,7 @@ VMManager::VMAHandle VMManager::Reprotect(VMAHandle vma_handle, VMAPermission ne
 }
 
 ResultCode VMManager::ReprotectRange(VAddr target, u64 size, VMAPermission new_perms) {
+    std::lock_guard lock{mutex};
     CASCADE_RESULT(VMAIter vma, CarveVMARange(target, size));
     const VAddr target_end = target + size;
 
@@ -250,6 +260,7 @@ ResultCode VMManager::ReprotectRange(VAddr target, u64 size, VMAPermission new_p
 }
 
 ResultVal<VAddr> VMManager::SetHeapSize(u64 size) {
+    std::lock_guard lock{mutex};
     if (size > GetHeapRegionSize()) {
         return ERR_OUT_OF_MEMORY;
     }
@@ -287,6 +298,7 @@ ResultVal<VAddr> VMManager::SetHeapSize(u64 size) {
 }
 
 ResultCode VMManager::MapPhysicalMemory(VAddr target, u64 size) {
+    std::lock_guard lock{mutex};
     // Check how much memory we've already mapped.
     const auto mapped_size_result = SizeOfAllocatedVMAsInRange(target, size);
     if (mapped_size_result.Failed()) {
@@ -369,6 +381,7 @@ ResultCode VMManager::MapPhysicalMemory(VAddr target, u64 size) {
 }
 
 ResultCode VMManager::UnmapPhysicalMemory(VAddr target, u64 size) {
+    std::lock_guard lock{mutex};
     // Check how much memory is currently mapped.
     const auto mapped_size_result = SizeOfUnmappablePhysicalMemoryInRange(target, size);
     if (mapped_size_result.Failed()) {
@@ -443,6 +456,7 @@ ResultCode VMManager::UnmapPhysicalMemory(VAddr target, u64 size) {
 }
 
 ResultCode VMManager::MapCodeMemory(VAddr dst_address, VAddr src_address, u64 size) {
+    std::lock_guard lock{mutex};
     constexpr auto ignore_attribute = MemoryAttribute::LockedForIPC | MemoryAttribute::DeviceMapped;
     const auto src_check_result = CheckRangeState(
         src_address, size, MemoryState::All, MemoryState::Heap, VMAPermission::All,
@@ -472,6 +486,7 @@ ResultCode VMManager::MapCodeMemory(VAddr dst_address, VAddr src_address, u64 si
 }
 
 ResultCode VMManager::UnmapCodeMemory(VAddr dst_address, VAddr src_address, u64 size) {
+    std::lock_guard lock{mutex};
     constexpr auto ignore_attribute = MemoryAttribute::LockedForIPC | MemoryAttribute::DeviceMapped;
     const auto src_check_result = CheckRangeState(
         src_address, size, MemoryState::All, MemoryState::Heap, VMAPermission::None,
@@ -522,7 +537,8 @@ ResultCode VMManager::UnmapCodeMemory(VAddr dst_address, VAddr src_address, u64 
     return unmap_result;
 }
 
-MemoryInfo VMManager::QueryMemory(VAddr address) const {
+MemoryInfo VMManager::QueryMemory(VAddr address) {
+    std::lock_guard lock{mutex};
     const auto vma = FindVMA(address);
     MemoryInfo memory_info{};
 
@@ -544,6 +560,7 @@ MemoryInfo VMManager::QueryMemory(VAddr address) const {
 
 ResultCode VMManager::SetMemoryAttribute(VAddr address, u64 size, MemoryAttribute mask,
                                          MemoryAttribute attribute) {
+    std::lock_guard lock{mutex};
     constexpr auto ignore_mask =
         MemoryAttribute::Uncached | MemoryAttribute::DeviceMapped | MemoryAttribute::Locked;
     constexpr auto attribute_mask = ~ignore_mask;
@@ -572,6 +589,7 @@ ResultCode VMManager::SetMemoryAttribute(VAddr address, u64 size, MemoryAttribut
 }
 
 ResultCode VMManager::MirrorMemory(VAddr dst_addr, VAddr src_addr, u64 size, MemoryState state) {
+    std::lock_guard lock{mutex};
     const auto vma = FindVMA(src_addr);
 
     ASSERT_MSG(vma != vma_map.end(), "Invalid memory address");
@@ -596,6 +614,7 @@ ResultCode VMManager::MirrorMemory(VAddr dst_addr, VAddr src_addr, u64 size, Mem
 }
 
 void VMManager::RefreshMemoryBlockMappings(const PhysicalMemory* block) {
+    std::lock_guard lock{mutex};
     // If this ever proves to have a noticeable performance impact, allow users of the function to
     // specify a specific range of addresses to limit the scan to.
     for (const auto& p : vma_map) {
@@ -619,12 +638,14 @@ void VMManager::LogLayout() const {
 }
 
 VMManager::VMAIter VMManager::StripIterConstness(const VMAHandle& iter) {
+    std::lock_guard lock{mutex};
     // This uses a neat C++ trick to convert a const_iterator to a regular iterator, given
     // non-const access to its container.
     return vma_map.erase(iter, iter); // Erases an empty range of elements
 }
 
 ResultVal<VMManager::VMAIter> VMManager::CarveVMA(VAddr base, u64 size) {
+    std::lock_guard lock{mutex};
     ASSERT_MSG((size & Memory::PAGE_MASK) == 0, "non-page aligned size: 0x{:016X}", size);
     ASSERT_MSG((base & Memory::PAGE_MASK) == 0, "non-page aligned base: 0x{:016X}", base);
 
@@ -661,6 +682,7 @@ ResultVal<VMManager::VMAIter> VMManager::CarveVMA(VAddr base, u64 size) {
 }
 
 ResultVal<VMManager::VMAIter> VMManager::CarveVMARange(VAddr target, u64 size) {
+    std::lock_guard lock{mutex};
     ASSERT_MSG((size & Memory::PAGE_MASK) == 0, "non-page aligned size: 0x{:016X}", size);
     ASSERT_MSG((target & Memory::PAGE_MASK) == 0, "non-page aligned base: 0x{:016X}", target);
 
@@ -689,6 +711,7 @@ ResultVal<VMManager::VMAIter> VMManager::CarveVMARange(VAddr target, u64 size) {
 }
 
 VMManager::VMAIter VMManager::SplitVMA(VMAIter vma_handle, u64 offset_in_vma) {
+    std::lock_guard lock{mutex};
     VirtualMemoryArea& old_vma = vma_handle->second;
     VirtualMemoryArea new_vma = old_vma; // Make a copy of the VMA
 
@@ -721,6 +744,7 @@ VMManager::VMAIter VMManager::SplitVMA(VMAIter vma_handle, u64 offset_in_vma) {
 }
 
 VMManager::VMAIter VMManager::MergeAdjacent(VMAIter iter) {
+    std::lock_guard lock{mutex};
     const VMAIter next_vma = std::next(iter);
     if (next_vma != vma_map.end() && iter->second.CanBeMergedWith(next_vma->second)) {
         MergeAdjacentVMA(iter->second, next_vma->second);
@@ -740,6 +764,7 @@ VMManager::VMAIter VMManager::MergeAdjacent(VMAIter iter) {
 }
 
 void VMManager::MergeAdjacentVMA(VirtualMemoryArea& left, const VirtualMemoryArea& right) {
+    std::lock_guard lock{mutex};
     ASSERT(left.CanBeMergedWith(right));
 
     // Always merge allocated memory blocks, even when they don't share the same backing block.
@@ -774,6 +799,7 @@ void VMManager::MergeAdjacentVMA(VirtualMemoryArea& left, const VirtualMemoryAre
 }
 
 void VMManager::UpdatePageTableForVMA(const VirtualMemoryArea& vma) {
+    std::lock_guard lock{mutex};
     auto& memory = system.Memory();
 
     switch (vma.type) {
@@ -793,6 +819,7 @@ void VMManager::UpdatePageTableForVMA(const VirtualMemoryArea& vma) {
 }
 
 void VMManager::InitializeMemoryRegionRanges(FileSys::ProgramAddressSpaceType type) {
+    std::lock_guard lock{mutex};
     u64 map_region_size = 0;
     u64 heap_region_size = 0;
     u64 stack_region_size = 0;
@@ -873,15 +900,18 @@ void VMManager::InitializeMemoryRegionRanges(FileSys::ProgramAddressSpaceType ty
 }
 
 void VMManager::Clear() {
+    std::lock_guard lock{mutex};
     ClearVMAMap();
     ClearPageTable();
 }
 
 void VMManager::ClearVMAMap() {
+    std::lock_guard lock{mutex};
     vma_map.clear();
 }
 
 void VMManager::ClearPageTable() {
+    std::lock_guard lock{mutex};
     std::fill(page_table.pointers.begin(), page_table.pointers.end(), nullptr);
     page_table.special_regions.clear();
     std::fill(page_table.attributes.begin(), page_table.attributes.end(),
@@ -893,7 +923,8 @@ VMManager::CheckResults VMManager::CheckRangeState(VAddr address, u64 size, Memo
                                                    VMAPermission permissions,
                                                    MemoryAttribute attribute_mask,
                                                    MemoryAttribute attribute,
-                                                   MemoryAttribute ignore_mask) const {
+                                                   MemoryAttribute ignore_mask) {
+    std::lock_guard lock{mutex};
     auto iter = FindVMA(address);
 
     // If we don't have a valid VMA handle at this point, then it means this is
@@ -949,7 +980,8 @@ VMManager::CheckResults VMManager::CheckRangeState(VAddr address, u64 size, Memo
 }
 
 ResultVal<std::size_t> VMManager::SizeOfAllocatedVMAsInRange(VAddr address,
-                                                             std::size_t size) const {
+                                                             std::size_t size) {
+    std::lock_guard lock{mutex};
     const VAddr end_addr = address + size;
     const VAddr last_addr = end_addr - 1;
     std::size_t mapped_size = 0;
@@ -984,7 +1016,8 @@ ResultVal<std::size_t> VMManager::SizeOfAllocatedVMAsInRange(VAddr address,
 }
 
 ResultVal<std::size_t> VMManager::SizeOfUnmappablePhysicalMemoryInRange(VAddr address,
-                                                                        std::size_t size) const {
+                                                                        std::size_t size) {
+    std::lock_guard lock{mutex};
     const VAddr end_addr = address + size;
     const VAddr last_addr = end_addr - 1;
     std::size_t mapped_size = 0;

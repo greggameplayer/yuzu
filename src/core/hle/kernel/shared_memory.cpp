@@ -38,7 +38,7 @@ std::shared_ptr<SharedMemory> SharedMemory::Create(KernelCore& kernel, Process* 
                 shared_memory->backing_block.get());
         }
     } else {
-        const auto& vm_manager = shared_memory->owner_process->VMManager();
+        auto& vm_manager = shared_memory->owner_process->VMManager();
 
         // The memory is already available and mapped in the owner process.
         const auto vma = vm_manager.FindVMA(address);

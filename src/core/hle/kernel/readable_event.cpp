@@ -5,8 +5,10 @@
 #include <algorithm>
 #include "common/assert.h"
 #include "core/hle/kernel/errors.h"
+#include "core/hle/kernel/kernel.h"
 #include "core/hle/kernel/object.h"
 #include "core/hle/kernel/readable_event.h"
+#include "core/hle/kernel/scheduler.h"
 #include "core/hle/kernel/thread.h"
 
 namespace Kernel {
@@ -34,6 +36,7 @@ void ReadableEvent::Clear() {
 }
 
 ResultCode ReadableEvent::Reset() {
+    SchedulerLock lock(kernel);
     if (!is_signaled) {
         return ERR_INVALID_STATE;
     }

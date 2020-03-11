@@ -2,6 +2,7 @@
 // Licensed under GPLv2 or any later version
 // Refer to the license.txt file included.
 
+#include <chrono>
 #include <iostream>
 #include <memory>
 #include <string>
@@ -259,9 +260,11 @@ int main(int argc, char** argv) {
 
     system.Renderer().Rasterizer().LoadDiskResources();
 
+    system.Run();
     while (!finished) {
-        system.RunLoop();
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
     }
+    system.Pause();
 
     detached_tasks.WaitForAllTasks();
     return return_value;

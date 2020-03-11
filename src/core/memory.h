@@ -64,7 +64,7 @@ public:
      *
      * @param process The process to use the page table of.
      */
-    void SetCurrentPageTable(Kernel::Process& process);
+    void SetCurrentPageTable(Kernel::Process& process, u32 core_id);
 
     /**
      * Maps an physical buffer onto a region of the emulated process address space.
@@ -291,7 +291,7 @@ public:
      * @post The range [dest_buffer, size) contains the read bytes from the
      *       process' address space.
      */
-    void ReadBlock(const Kernel::Process& process, VAddr src_addr, void* dest_buffer,
+    void ReadBlock(Kernel::Process& process, VAddr src_addr, void* dest_buffer,
                    std::size_t size);
 
     /**
@@ -332,7 +332,7 @@ public:
      *       and will mark that region as invalidated to caches that the active
      *       graphics backend may be maintaining over the course of execution.
      */
-    void WriteBlock(const Kernel::Process& process, VAddr dest_addr, const void* src_buffer,
+    void WriteBlock(Kernel::Process& process, VAddr dest_addr, const void* src_buffer,
                     std::size_t size);
 
     /**
@@ -366,7 +366,7 @@ public:
      * @post The range [dest_addr, size) within the process' address space is
      *       filled with zeroes.
      */
-    void ZeroBlock(const Kernel::Process& process, VAddr dest_addr, std::size_t size);
+    void ZeroBlock(Kernel::Process& process, VAddr dest_addr, std::size_t size);
 
     /**
      * Fills the specified address range within the current process' address space with zeroes.
@@ -391,7 +391,7 @@ public:
      * @post The range [dest_addr, size) within the process' address space contains the
      *       same data within the range [src_addr, size).
      */
-    void CopyBlock(const Kernel::Process& process, VAddr dest_addr, VAddr src_addr,
+    void CopyBlock(Kernel::Process& process, VAddr dest_addr, VAddr src_addr,
                    std::size_t size);
 
     /**
