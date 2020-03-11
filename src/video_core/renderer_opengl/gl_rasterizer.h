@@ -98,7 +98,7 @@ private:
 
     /// Configures a constant buffer.
     void SetupConstBuffer(u32 binding, const Tegra::Engines::ConstBufferInfo& buffer,
-                          const GLShader::ConstBufferEntry& entry);
+                          const ConstBufferEntry& entry);
 
     /// Configures the current global memory entries to use for the draw command.
     void SetupDrawGlobalMemory(std::size_t stage_index, const Shader& shader);
@@ -107,7 +107,7 @@ private:
     void SetupComputeGlobalMemory(const Shader& kernel);
 
     /// Configures a constant buffer.
-    void SetupGlobalMemory(u32 binding, const GLShader::GlobalMemoryEntry& entry, GPUVAddr gpu_addr,
+    void SetupGlobalMemory(u32 binding, const GlobalMemoryEntry& entry, GPUVAddr gpu_addr,
                            std::size_t size);
 
     /// Configures the current textures to use for the draw command.
@@ -118,7 +118,7 @@ private:
 
     /// Configures a texture.
     void SetupTexture(u32 binding, const Tegra::Texture::FullTextureInfo& texture,
-                      const GLShader::SamplerEntry& entry);
+                      const SamplerEntry& entry);
 
     /// Configures images in a graphics shader.
     void SetupDrawImages(std::size_t stage_index, const Shader& shader);
@@ -127,8 +127,7 @@ private:
     void SetupComputeImages(const Shader& shader);
 
     /// Configures an image.
-    void SetupImage(u32 binding, const Tegra::Texture::TICEntry& tic,
-                    const GLShader::ImageEntry& entry);
+    void SetupImage(u32 binding, const Tegra::Texture::TICEntry& tic, const ImageEntry& entry);
 
     /// Syncs the viewport and depth range to match the guest state
     void SyncViewport();
@@ -169,9 +168,6 @@ private:
     /// Syncs the scissor test state to match the guest state
     void SyncScissorTest();
 
-    /// Syncs the transform feedback state to match the guest state
-    void SyncTransformFeedback();
-
     /// Syncs the point state to match the guest state
     void SyncPointState();
 
@@ -192,6 +188,12 @@ private:
 
     /// Syncs the framebuffer sRGB state to match the guest state
     void SyncFramebufferSRGB();
+
+    /// Begin a transform feedback
+    void BeginTransformFeedback(GLenum primitive_mode);
+
+    /// End a transform feedback
+    void EndTransformFeedback();
 
     /// Check for extension that are not strictly required but are needed for correct emulation
     void CheckExtensions();
@@ -229,6 +231,11 @@ private:
     VertexArrayPushBuffer vertex_array_pushbuffer{state_tracker};
     BindBuffersRangePushBuffer bind_ubo_pushbuffer{GL_UNIFORM_BUFFER};
     BindBuffersRangePushBuffer bind_ssbo_pushbuffer{GL_SHADER_STORAGE_BUFFER};
+
+    std::array<OGLBuffer, Tegra::Engines::Maxwell3D::Regs::NumTransformFeedbackBuffers>
+        transform_feedback_buffers;
+    std::bitset<Tegra::Engines::Maxwell3D::Regs::NumTransformFeedbackBuffers>
+        enabled_transform_feedback_buffers;
 
     /// Number of commands queued to the OpenGL driver. Reseted on flush.
     std::size_t num_queued_commands = 0;
