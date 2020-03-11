@@ -11,8 +11,10 @@
 #include "audio_core/stream.h"
 #include "common/assert.h"
 #include "common/logging/log.h"
+#include "core/core.h"
 #include "core/core_timing.h"
 #include "core/core_timing_util.h"
+#include "core/perf_stats.h"
 #include "core/settings.h"
 
 namespace AudioCore {
@@ -61,9 +63,12 @@ Stream::State Stream::GetState() const {
 
 s64 Stream::GetBufferReleaseNS(const Buffer& buffer) const {
     const std::size_t num_samples{buffer.GetSamples().size() / GetNumChannels()};
-    const auto ns =
-        std::chrono::nanoseconds((static_cast<u64>(num_samples) * 1000000000ULL) / sample_rate);
-    return ns.count();
+    const double time_scale{Settings::values.enable_realtime_audio
+                                ? Core::System::GetInstance().GetPerfStats().GetLastFrameTimeScale()
+                                : 1.0f};
+    const auto us{std::chrono::microseconds(
+        (static_cast<u64>(num_samples) * static_cast<u64>(1000000 / time_scale)) / sample_rate)};
+    return Core::Timing::usToCycles(us);
 }
 
 static void VolumeAdjustSamples(std::vector<s16>& samples, float game_volume) {
