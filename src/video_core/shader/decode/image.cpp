@@ -18,6 +18,8 @@ namespace VideoCommon::Shader {
 
 using Tegra::Shader::Instruction;
 using Tegra::Shader::OpCode;
+using Tegra::Shader::PredCondition;
+using Tegra::Shader::StoreType;
 
 namespace {
 std::size_t GetImageTypeNumCoordinates(Tegra::Shader::ImageType image_type) {
@@ -53,7 +55,6 @@ u32 ShaderIR::DecodeImage(NodeBlock& bb, u32 pc) {
 
     switch (opcode->get().GetId()) {
     case OpCode::Id::SULD: {
-        UNIMPLEMENTED_IF(instr.suldst.mode != Tegra::Shader::SurfaceDataMode::P);
         UNIMPLEMENTED_IF(instr.suldst.out_of_bounds_store !=
                          Tegra::Shader::OutOfBoundsStore::Ignore);
 
@@ -62,17 +63,58 @@ u32 ShaderIR::DecodeImage(NodeBlock& bb, u32 pc) {
                                               : GetBindlessImage(instr.gpr39, type)};
         image.MarkRead();
 
-        u32 indexer = 0;
-        for (u32 element = 0; element < 4; ++element) {
-            if (!instr.suldst.IsComponentEnabled(element)) {
-                continue;
+        if (instr.suldst.mode == Tegra::Shader::SurfaceDataMode::P) {
+            u32 indexer = 0;
+            for (u32 element = 0; element < 4; ++element) {
+                if (!instr.suldst.IsComponentEnabled(element)) {
+                    continue;
+                }
+                MetaImage meta{image, {}, element};
+                Node value = Operation(OperationCode::ImageLoad, meta, GetCoordinates(type));
+                SetTemporary(bb, indexer++, std::move(value));
             }
-            MetaImage meta{image, {}, element};
-            Node value = Operation(OperationCode::ImageLoad, meta, GetCoordinates(type));
-            SetTemporary(bb, indexer++, std::move(value));
-        }
-        for (u32 i = 0; i < indexer; ++i) {
-            SetRegister(bb, instr.gpr0.Value() + i, GetTemporary(i));
+            for (u32 i = 0; i < indexer; ++i) {
+                SetRegister(bb, instr.gpr0.Value() + i, GetTemporary(i));
+            }
+        } else if (instr.suldst.mode == Tegra::Shader::SurfaceDataMode::D_BA) {
+            UNIMPLEMENTED_IF(instr.suldst.GetStoreDataLayout() != StoreType::Bits32);
+
+            switch (instr.suldst.GetStoreDataLayout()) {
+            case StoreType::Bits32: {
+                Node value{};
+                for (s32 i = 3; i >= 0; i--) {
+                    MetaImage meta{image, {}, i};
+                    Node element_value =
+                        Operation(OperationCode::ImageLoad, meta, GetCoordinates(type));
+
+                    const Node comp = GetPredicateComparisonFloat(PredCondition::GreaterEqual,
+                                                                  element_value, Immediate(1.0f));
+                    const Node mul =
+                        Operation(OperationCode::Select, comp, Immediate(1.f), Immediate(255.f));
+
+                    Node element = Operation(OperationCode::FMul, NO_PRECISE, element_value, mul);
+                    element = SignedOperation(OperationCode::ICastFloat, true, NO_PRECISE,
+                                              std::move(element));
+                    element = Operation(OperationCode::ULogicalShiftLeft, std::move(element),
+                                        Immediate(8 * i));
+                    if (i == 3) {
+                        //(namkazt) for now i'm force it to 0 at alpha component if color is in
+                        // range (0-255)
+                        value = Operation(OperationCode::Select, comp, Immediate(0),
+                                          std::move(element));
+                    } else {
+                        value = Operation(OperationCode::UBitwiseOr, value,
+                                          Operation(OperationCode::Select, comp,
+                                                    std::move(element_value), std::move(element)));
+                    }
+                }
+                SetRegister(bb, instr.gpr0.Value(), std::move(value));
+                break;
+            }
+            default:
+                UNREACHABLE();
+                break;
+            }
         }
         break;
     }
