@@ -257,6 +257,8 @@ vk::ShaderStageFlagBits ShaderStage(Tegra::Engines::ShaderType stage) {
         return vk::ShaderStageFlagBits::eGeometry;
     case Tegra::Engines::ShaderType::Fragment:
         return vk::ShaderStageFlagBits::eFragment;
+    case Tegra::Engines::ShaderType::Compute:
+        return vk::ShaderStageFlagBits::eCompute;
     }
     UNIMPLEMENTED_MSG("Unimplemented shader stage={}", static_cast<u32>(stage));
     return {};
@@ -367,6 +369,10 @@ vk::Format VertexFormat(Maxwell::VertexAttribute::Type type, Maxwell::VertexAttr
             return vk::Format::eR8G8B8A8Uint;
         case Maxwell::VertexAttribute::Size::Size_32:
             return vk::Format::eR32Uint;
+        case Maxwell::VertexAttribute::Size::Size_32_32:
+            return vk::Format::eR32G32Uint;
+        case Maxwell::VertexAttribute::Size::Size_32_32_32:
+            return vk::Format::eR32G32B32Uint;
         case Maxwell::VertexAttribute::Size::Size_32_32_32_32:
             return vk::Format::eR32G32B32A32Uint;
         default:
