@@ -541,7 +541,7 @@ void Config::ReadDebuggingValues() {
 void Config::ReadServiceValues() {
     qt_config->beginGroup(QStringLiteral("Services"));
     Settings::values.bcat_backend =
-        ReadSetting(QStringLiteral("bcat_backend"), QStringLiteral("boxcat"))
+        ReadSetting(QStringLiteral("bcat_backend"), QStringLiteral("null"))
             .toString()
             .toStdString();
     Settings::values.bcat_boxcat_local =
