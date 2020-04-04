@@ -260,13 +260,13 @@ QuadArrayPass::QuadArrayPass(const VKDevice& device, VKScheduler& scheduler,
 
 QuadArrayPass::~QuadArrayPass() = default;
 
-std::pair<const vk::Buffer&, vk::DeviceSize> QuadArrayPass::Assemble(u32 num_vertices, u32 first) {
+std::pair<vk::Buffer, vk::DeviceSize> QuadArrayPass::Assemble(u32 num_vertices, u32 first) {
     const u32 num_triangle_vertices = num_vertices * 6 / 4;
     const std::size_t staging_size = num_triangle_vertices * sizeof(u32);
     auto& buffer = staging_buffer_pool.GetUnusedBuffer(staging_size, false);
 
     update_descriptor_queue.Acquire();
-    update_descriptor_queue.AddBuffer(&*buffer.handle, 0, staging_size);
+    update_descriptor_queue.AddBuffer(*buffer.handle, 0, staging_size);
     const auto set = CommitDescriptorSet(update_descriptor_queue, scheduler.GetFence());
 
     scheduler.RequestOutsideRenderPassOperationContext();
@@ -308,14 +308,14 @@ Uint8Pass::Uint8Pass(const VKDevice& device, VKScheduler& scheduler,
 
 Uint8Pass::~Uint8Pass() = default;
 
-std::pair<const vk::Buffer*, u64> Uint8Pass::Assemble(u32 num_vertices, vk::Buffer src_buffer,
-                                                      u64 src_offset) {
+std::pair<vk::Buffer, u64> Uint8Pass::Assemble(u32 num_vertices, vk::Buffer src_buffer,
+                                               u64 src_offset) {
     const auto staging_size = static_cast<u32>(num_vertices * sizeof(u16));
     auto& buffer = staging_buffer_pool.GetUnusedBuffer(staging_size, false);
 
     update_descriptor_queue.Acquire();
-    update_descriptor_queue.AddBuffer(&src_buffer, src_offset, num_vertices);
-    update_descriptor_queue.AddBuffer(&*buffer.handle, 0, staging_size);
+    update_descriptor_queue.AddBuffer(src_buffer, src_offset, num_vertices);
+    update_descriptor_queue.AddBuffer(*buffer.handle, 0, staging_size);
     const auto set = CommitDescriptorSet(update_descriptor_queue, scheduler.GetFence());
 
     scheduler.RequestOutsideRenderPassOperationContext();
@@ -333,7 +333,7 @@ std::pair<const vk::Buffer*, u64> Uint8Pass::Assemble(u32 num_vertices, vk::Buff
         cmdbuf.pipelineBarrier(vk::PipelineStageFlagBits::eComputeShader,
                                vk::PipelineStageFlagBits::eVertexInput, {}, {}, {barrier}, {}, dld);
     });
-    return {&*buffer.handle, 0};
+    return {*buffer.handle, 0};
 }
 
 } // namespace Vulkan

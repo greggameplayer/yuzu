@@ -50,7 +50,7 @@ public:
                            VKUpdateDescriptorQueue& update_descriptor_queue);
     ~QuadArrayPass();
 
-    std::pair<const vk::Buffer&, vk::DeviceSize> Assemble(u32 num_vertices, u32 first);
+    std::pair<vk::Buffer, vk::DeviceSize> Assemble(u32 num_vertices, u32 first);
 
 private:
     VKScheduler& scheduler;
@@ -65,8 +65,7 @@ public:
                        VKUpdateDescriptorQueue& update_descriptor_queue);
     ~Uint8Pass();
 
-    std::pair<const vk::Buffer*, u64> Assemble(u32 num_vertices, vk::Buffer src_buffer,
-                                               u64 src_offset);
+    std::pair<vk::Buffer, u64> Assemble(u32 num_vertices, vk::Buffer src_buffer, u64 src_offset);
 
 private:
     VKScheduler& scheduler;

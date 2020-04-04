@@ -127,13 +127,13 @@ Tegra::Texture::FullTextureInfo GetTextureInfo(const Engine& engine, const Entry
 
 class BufferBindings final {
 public:
-    void AddVertexBinding(const vk::Buffer* buffer, vk::DeviceSize offset) {
-        vertex.buffer_ptrs[vertex.num_buffers] = buffer;
+    void AddVertexBinding(vk::Buffer buffer, vk::DeviceSize offset) {
+        vertex.buffers[vertex.num_buffers] = buffer;
         vertex.offsets[vertex.num_buffers] = offset;
         ++vertex.num_buffers;
     }
 
-    void SetIndexBinding(const vk::Buffer* buffer, vk::DeviceSize offset, vk::IndexType type) {
+    void SetIndexBinding(vk::Buffer buffer, vk::DeviceSize offset, vk::IndexType type) {
         index.buffer = buffer;
         index.offset = offset;
         index.type = type;
@@ -217,19 +217,19 @@ private:
     // Some of these fields are intentionally left uninitialized to avoid initializing them twice.
     struct {
         std::size_t num_buffers = 0;
-        std::array<const vk::Buffer*, Maxwell::NumVertexArrays> buffer_ptrs;
+        std::array<vk::Buffer, Maxwell::NumVertexArrays> buffers;
         std::array<vk::DeviceSize, Maxwell::NumVertexArrays> offsets;
     } vertex;
 
     struct {
-        const vk::Buffer* buffer = nullptr;
+        vk::Buffer buffer;
         vk::DeviceSize offset;
         vk::IndexType type;
     } index;
 
     template <std::size_t N>
     void BindStatic(VKScheduler& scheduler) const {
-        if (index.buffer != nullptr) {
+        if (index.buffer) {
             BindStatic<N, true>(scheduler);
         } else {
             BindStatic<N, false>(scheduler);
@@ -244,18 +244,14 @@ private:
         }
 
         std::array<vk::Buffer, N> buffers;
-        std::transform(vertex.buffer_ptrs.begin(), vertex.buffer_ptrs.begin() + N, buffers.begin(),
-                       [](const auto ptr) { return *ptr; });
-
         std::array<vk::DeviceSize, N> offsets;
+        std::copy(vertex.buffers.begin(), vertex.buffers.begin() + N, buffers.begin());
         std::copy(vertex.offsets.begin(), vertex.offsets.begin() + N, offsets.begin());
 
         if constexpr (is_indexed) {
             // Indexed draw
-            scheduler.Record([buffers, offsets, index_buffer = *index.buffer,
-                              index_offset = index.offset,
-                              index_type = index.type](auto cmdbuf, auto& dld) {
-                cmdbuf.bindIndexBuffer(index_buffer, index_offset, index_type, dld);
+            scheduler.Record([buffers, offsets, index = index](auto cmdbuf, auto& dld) {
+                cmdbuf.bindIndexBuffer(index.buffer, index.offset, index.type, dld);
                 cmdbuf.bindVertexBuffers(0, static_cast<u32>(N), buffers.data(), offsets.data(),
                                          dld);
             });
@@ -773,7 +769,7 @@ void RasterizerVulkan::BeginTransformFeedback() {
     const std::size_t size = binding.buffer_size;
     const auto [buffer, offset] = buffer_cache.UploadMemory(gpu_addr, size, 4, true);
 
-    scheduler.Record([buffer = *buffer, offset = offset, size](auto cmdbuf, auto& dld) {
+    scheduler.Record([buffer = buffer, offset = offset, size](auto cmdbuf, auto& dld) {
         cmdbuf.bindTransformFeedbackBuffersEXT(0, {buffer}, {offset}, {size}, dld);
         cmdbuf.beginTransformFeedbackEXT(0, {}, {}, dld);
     });
@@ -837,7 +833,7 @@ void RasterizerVulkan::SetupIndexBuffer(BufferBindings& buffer_bindings, DrawPar
         } else {
             const auto [buffer, offset] =
                 quad_array_pass.Assemble(params.num_vertices, params.base_vertex);
-            buffer_bindings.SetIndexBinding(&buffer, offset, vk::IndexType::eUint32);
+            buffer_bindings.SetIndexBinding(buffer, offset, vk::IndexType::eUint32);
             params.base_vertex = 0;
             params.num_vertices = params.num_vertices * 6 / 4;
             params.is_indexed = true;
@@ -853,7 +849,7 @@ void RasterizerVulkan::SetupIndexBuffer(BufferBindings& buffer_bindings, DrawPar
         auto format = regs.index_array.format;
         const bool is_uint8 = format == Maxwell::IndexFormat::UnsignedByte;
         if (is_uint8 && !device.IsExtIndexTypeUint8Supported()) {
-            std::tie(buffer, offset) = uint8_pass.Assemble(params.num_vertices, *buffer, offset);
+            std::tie(buffer, offset) = uint8_pass.Assemble(params.num_vertices, buffer, offset);
             format = Maxwell::IndexFormat::UnsignedShort;
         }
 
