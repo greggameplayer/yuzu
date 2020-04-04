@@ -35,12 +35,13 @@ void VKUpdateDescriptorQueue::Send(vk::DescriptorUpdateTemplate update_template,
         payload.clear();
     }
 
+    // TODO(Rodrigo): Rework to write the payload directly
     const auto payload_start = payload.data() + payload.size();
     for (const auto& entry : entries) {
         if (const auto image = std::get_if<vk::DescriptorImageInfo>(&entry)) {
             payload.push_back(*image);
-        } else if (const auto buffer = std::get_if<Buffer>(&entry)) {
-            payload.emplace_back(*buffer->buffer, buffer->offset, buffer->size);
+        } else if (const auto buffer = std::get_if<vk::DescriptorBufferInfo>(&entry)) {
+            payload.push_back(*buffer);
         } else if (const auto texel = std::get_if<vk::BufferView>(&entry)) {
             payload.push_back(*texel);
         } else {
