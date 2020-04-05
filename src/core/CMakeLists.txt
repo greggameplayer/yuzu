@@ -131,8 +131,6 @@ add_library(core STATIC
     frontend/framebuffer_layout.cpp
     frontend/framebuffer_layout.h
     frontend/input.h
-    frontend/scope_acquire_context.cpp
-    frontend/scope_acquire_context.h
     gdbstub/gdbstub.cpp
     gdbstub/gdbstub.h
     hardware_interrupt_manager.cpp
@@ -287,6 +285,18 @@ add_library(core STATIC
     hle/service/btm/btm.h
     hle/service/caps/caps.cpp
     hle/service/caps/caps.h
+    hle/service/caps/caps_a.cpp
+    hle/service/caps/caps_a.h
+    hle/service/caps/caps_c.cpp
+    hle/service/caps/caps_c.h
+    hle/service/caps/caps_u.cpp
+    hle/service/caps/caps_u.h
+    hle/service/caps/caps_sc.cpp
+    hle/service/caps/caps_sc.h
+    hle/service/caps/caps_ss.cpp
+    hle/service/caps/caps_ss.h
+    hle/service/caps/caps_su.cpp
+    hle/service/caps/caps_su.h
     hle/service/erpt/erpt.cpp
     hle/service/erpt/erpt.h
     hle/service/es/es.cpp
