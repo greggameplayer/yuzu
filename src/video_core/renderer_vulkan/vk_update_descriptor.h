@@ -22,8 +22,7 @@ public:
 
     DescriptorUpdateEntry(vk::DescriptorImageInfo image) : image{image} {}
 
-    DescriptorUpdateEntry(vk::Buffer buffer, vk::DeviceSize offset, vk::DeviceSize size)
-        : buffer{buffer, offset, size} {}
+    DescriptorUpdateEntry(vk::DescriptorBufferInfo buffer) : buffer{buffer} {}
 
     DescriptorUpdateEntry(vk::BufferView texel_buffer) : texel_buffer{texel_buffer} {}
 
@@ -54,8 +53,8 @@ public:
         entries.emplace_back(vk::DescriptorImageInfo{{}, image_view, {}});
     }
 
-    void AddBuffer(const vk::Buffer* buffer, u64 offset, std::size_t size) {
-        entries.push_back(Buffer{buffer, offset, size});
+    void AddBuffer(vk::Buffer buffer, u64 offset, std::size_t size) {
+        entries.push_back(vk::DescriptorBufferInfo{buffer, offset, size});
     }
 
     void AddTexelBuffer(vk::BufferView texel_buffer) {
@@ -67,14 +66,7 @@ public:
     }
 
 private:
-    struct Buffer {
-        const vk::Buffer* buffer{};
-        u64 offset{};
-        std::size_t size{};
-    };
-    using Variant = std::variant<vk::DescriptorImageInfo, Buffer, vk::BufferView>;
-    // Old gcc versions don't consider this trivially copyable.
-    // static_assert(std::is_trivially_copyable_v<Variant>);
+    using Variant = std::variant<vk::DescriptorImageInfo, vk::DescriptorBufferInfo, vk::BufferView>;
 
     const VKDevice& device;
     VKScheduler& scheduler;
