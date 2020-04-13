@@ -18,15 +18,20 @@ MICROPROFILE_DEFINE(GPU_Flush_Texture, "GPU", "Texture Flush", MP_RGB(128, 192, 
 
 using Tegra::Texture::ConvertFromGuestToHost;
 using VideoCore::MortonSwizzleMode;
-using VideoCore::Surface::SurfaceCompression;
+using VideoCore::Surface::IsPixelFormatASTC;
+using VideoCore::Surface::PixelFormat;
 
 StagingCache::StagingCache() = default;
 
 StagingCache::~StagingCache() = default;
 
-SurfaceBaseImpl::SurfaceBaseImpl(GPUVAddr gpu_addr, const SurfaceParams& params)
-    : params{params}, host_memory_size{params.GetHostSizeInBytes()}, gpu_addr{gpu_addr},
-      mipmap_sizes(params.num_levels), mipmap_offsets(params.num_levels) {
+SurfaceBaseImpl::SurfaceBaseImpl(GPUVAddr gpu_addr, const SurfaceParams& params,
+                                 bool is_astc_supported)
+    : params{params}, gpu_addr{gpu_addr}, mipmap_sizes(params.num_levels),
+      mipmap_offsets(params.num_levels) {
+    is_converted = IsPixelFormatASTC(params.pixel_format) && !is_astc_supported;
+    host_memory_size = params.GetHostSizeInBytes(is_converted);
+
     std::size_t offset = 0;
     for (u32 level = 0; level < params.num_levels; ++level) {
         const std::size_t mipmap_size{params.GetGuestMipmapSize(level)};
@@ -164,7 +169,7 @@ void SurfaceBaseImpl::SwizzleFunc(MortonSwizzleMode mode, u8* memory, const Surf
 
     std::size_t guest_offset{mipmap_offsets[level]};
     if (params.is_layered) {
-        std::size_t host_offset{0};
+        std::size_t host_offset = 0;
         const std::size_t guest_stride = layer_size;
         const std::size_t host_stride = params.GetHostLayerSize(level);
         for (u32 layer = 0; layer < params.depth; ++layer) {
@@ -185,28 +190,17 @@ void SurfaceBaseImpl::LoadBuffer(Tegra::MemoryManager& memory_manager,
     MICROPROFILE_SCOPE(GPU_Load_Texture);
     auto& staging_buffer = staging_cache.GetBuffer(0);
     u8* host_ptr;
-    is_continuous = memory_manager.IsBlockContinuous(gpu_addr, guest_memory_size);
-
-    // Handle continuouty
-    if (is_continuous) {
-        // Use physical memory directly
-        host_ptr = memory_manager.GetPointer(gpu_addr);
-        if (!host_ptr) {
-            return;
-        }
-    } else {
-        // Use an extra temporal buffer
-        auto& tmp_buffer = staging_cache.GetBuffer(1);
-        tmp_buffer.resize(guest_memory_size);
-        host_ptr = tmp_buffer.data();
-        memory_manager.ReadBlockUnsafe(gpu_addr, host_ptr, guest_memory_size);
-    }
+    // Use an extra temporal buffer
+    auto& tmp_buffer = staging_cache.GetBuffer(1);
+    tmp_buffer.resize(guest_memory_size);
+    host_ptr = tmp_buffer.data();
+    memory_manager.ReadBlockUnsafe(gpu_addr, host_ptr, guest_memory_size);
 
     if (params.is_tiled) {
         ASSERT_MSG(params.block_width == 0, "Block width is defined as {} on texture target {}",
                    params.block_width, static_cast<u32>(params.target));
         for (u32 level = 0; level < params.num_levels; ++level) {
-            const std::size_t host_offset{params.GetHostMipmapLevelOffset(level)};
+            const std::size_t host_offset{params.GetHostMipmapLevelOffset(level, false)};
             SwizzleFunc(MortonSwizzleMode::MortonToLinear, host_ptr, params,
                         staging_buffer.data() + host_offset, level);
         }
@@ -219,7 +213,7 @@ void SurfaceBaseImpl::LoadBuffer(Tegra::MemoryManager& memory_manager,
         const u32 height{(params.height + block_height - 1) / block_height};
         const u32 copy_size{width * bpp};
         if (params.pitch == copy_size) {
-            std::memcpy(staging_buffer.data(), host_ptr, params.GetHostSizeInBytes());
+            std::memcpy(staging_buffer.data(), host_ptr, params.GetHostSizeInBytes(false));
         } else {
             const u8* start{host_ptr};
             u8* write_to{staging_buffer.data()};
@@ -231,19 +225,15 @@ void SurfaceBaseImpl::LoadBuffer(Tegra::MemoryManager& memory_manager,
         }
     }
 
-    auto compression_type = params.GetCompressionType();
-    if (compression_type == SurfaceCompression::None ||
-        compression_type == SurfaceCompression::Compressed)
+    if (!is_converted && params.pixel_format != PixelFormat::S8Z24) {
         return;
+    }
 
-    for (u32 level_up = params.num_levels; level_up > 0; --level_up) {
-        const u32 level = level_up - 1;
-        const std::size_t in_host_offset{params.GetHostMipmapLevelOffset(level)};
-        const std::size_t out_host_offset = compression_type == SurfaceCompression::Rearranged
-                                                ? in_host_offset
-                                                : params.GetConvertedMipmapOffset(level);
-        u8* in_buffer = staging_buffer.data() + in_host_offset;
-        u8* out_buffer = staging_buffer.data() + out_host_offset;
+    for (u32 level = params.num_levels; level--;) {
+        const std::size_t in_host_offset{params.GetHostMipmapLevelOffset(level, false)};
+        const std::size_t out_host_offset{params.GetHostMipmapLevelOffset(level, is_converted)};
+        u8* const in_buffer = staging_buffer.data() + in_host_offset;
+        u8* const out_buffer = staging_buffer.data() + out_host_offset;
         ConvertFromGuestToHost(in_buffer, out_buffer, params.pixel_format,
                                params.GetMipWidth(level), params.GetMipHeight(level),
                                params.GetMipDepth(level), true, true);
@@ -256,24 +246,15 @@ void SurfaceBaseImpl::FlushBuffer(Tegra::MemoryManager& memory_manager,
     auto& staging_buffer = staging_cache.GetBuffer(0);
     u8* host_ptr;
 
-    // Handle continuouty
-    if (is_continuous) {
-        // Use physical memory directly
-        host_ptr = memory_manager.GetPointer(gpu_addr);
-        if (!host_ptr) {
-            return;
-        }
-    } else {
-        // Use an extra temporal buffer
-        auto& tmp_buffer = staging_cache.GetBuffer(1);
-        tmp_buffer.resize(guest_memory_size);
-        host_ptr = tmp_buffer.data();
-    }
+    // Use an extra temporal buffer
+    auto& tmp_buffer = staging_cache.GetBuffer(1);
+    tmp_buffer.resize(guest_memory_size);
+    host_ptr = tmp_buffer.data();
 
     if (params.is_tiled) {
         ASSERT_MSG(params.block_width == 0, "Block width is defined as {}", params.block_width);
         for (u32 level = 0; level < params.num_levels; ++level) {
-            const std::size_t host_offset{params.GetHostMipmapLevelOffset(level)};
+            const std::size_t host_offset{params.GetHostMipmapLevelOffset(level, false)};
             SwizzleFunc(MortonSwizzleMode::LinearToMorton, host_ptr, params,
                         staging_buffer.data() + host_offset, level);
         }
@@ -299,9 +280,7 @@ void SurfaceBaseImpl::FlushBuffer(Tegra::MemoryManager& memory_manager,
             }
         }
     }
-    if (!is_continuous) {
-        memory_manager.WriteBlockUnsafe(gpu_addr, host_ptr, guest_memory_size);
-    }
+    memory_manager.WriteBlockUnsafe(gpu_addr, host_ptr, guest_memory_size);
 }
 
 } // namespace VideoCommon

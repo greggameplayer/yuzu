@@ -214,11 +214,11 @@ std::unordered_set<GLenum> GetSupportedFormats() {
 
 } // Anonymous namespace
 
-CachedShader::CachedShader(const u8* host_ptr, VAddr cpu_addr, std::size_t size_in_bytes,
+CachedShader::CachedShader(VAddr cpu_addr, std::size_t size_in_bytes,
                            std::shared_ptr<VideoCommon::Shader::Registry> registry,
                            ShaderEntries entries, std::shared_ptr<OGLProgram> program)
-    : RasterizerCacheObject{host_ptr}, registry{std::move(registry)}, entries{std::move(entries)},
-      cpu_addr{cpu_addr}, size_in_bytes{size_in_bytes}, program{std::move(program)} {}
+    : RasterizerCacheObject{cpu_addr}, registry{std::move(registry)}, entries{std::move(entries)},
+      size_in_bytes{size_in_bytes}, program{std::move(program)} {}
 
 CachedShader::~CachedShader() = default;
 
@@ -234,7 +234,7 @@ Shader CachedShader::CreateStageFromMemory(const ShaderParameters& params,
     const std::size_t size_in_bytes = code.size() * sizeof(u64);
 
     auto registry = std::make_shared<Registry>(shader_type, params.system.GPU().Maxwell3D());
-    const ShaderIR ir(code, shader_type, STAGE_MAIN_OFFSET, COMPILER_SETTINGS, *registry);
+    const ShaderIR ir(code, STAGE_MAIN_OFFSET, COMPILER_SETTINGS, *registry);
     // TODO(Rodrigo): Handle VertexA shaders
     // std::optional<ShaderIR> ir_b;
     // if (!code_b.empty()) {
@@ -254,9 +254,8 @@ Shader CachedShader::CreateStageFromMemory(const ShaderParameters& params,
     entry.bindless_samplers = registry->GetBindlessSamplers();
     params.disk_cache.SaveEntry(std::move(entry));
 
-    return std::shared_ptr<CachedShader>(new CachedShader(params.host_ptr, params.cpu_addr,
-                                                          size_in_bytes, std::move(registry),
-                                                          MakeEntries(ir), std::move(program)));
+    return std::shared_ptr<CachedShader>(new CachedShader(
+        params.cpu_addr, size_in_bytes, std::move(registry), MakeEntries(ir), std::move(program)));
 }
 
 Shader CachedShader::CreateKernelFromMemory(const ShaderParameters& params, ProgramCode code) {
@@ -264,7 +263,7 @@ Shader CachedShader::CreateKernelFromMemory(const ShaderParameters& params, Prog
 
     auto& engine = params.system.GPU().KeplerCompute();
     auto registry = std::make_shared<Registry>(ShaderType::Compute, engine);
-    const ShaderIR ir(code, ShaderType::Compute, KERNEL_MAIN_OFFSET, COMPILER_SETTINGS, *registry);
+    const ShaderIR ir(code, KERNEL_MAIN_OFFSET, COMPILER_SETTINGS, *registry);
     const u64 uid = params.unique_identifier;
     auto program = BuildShader(params.device, ShaderType::Compute, uid, ir, *registry);
 
@@ -279,17 +278,16 @@ Shader CachedShader::CreateKernelFromMemory(const ShaderParameters& params, Prog
     entry.bindless_samplers = registry->GetBindlessSamplers();
     params.disk_cache.SaveEntry(std::move(entry));
 
-    return std::shared_ptr<CachedShader>(new CachedShader(params.host_ptr, params.cpu_addr,
-                                                          size_in_bytes, std::move(registry),
-                                                          MakeEntries(ir), std::move(program)));
+    return std::shared_ptr<CachedShader>(new CachedShader(
+        params.cpu_addr, size_in_bytes, std::move(registry), MakeEntries(ir), std::move(program)));
 }
 
 Shader CachedShader::CreateFromCache(const ShaderParameters& params,
                                      const PrecompiledShader& precompiled_shader,
                                      std::size_t size_in_bytes) {
-    return std::shared_ptr<CachedShader>(new CachedShader(
-        params.host_ptr, params.cpu_addr, size_in_bytes, precompiled_shader.registry,
-        precompiled_shader.entries, precompiled_shader.program));
+    return std::shared_ptr<CachedShader>(
+        new CachedShader(params.cpu_addr, size_in_bytes, precompiled_shader.registry,
+                         precompiled_shader.entries, precompiled_shader.program));
 }
 
 ShaderCacheOpenGL::ShaderCacheOpenGL(RasterizerOpenGL& rasterizer, Core::System& system,
@@ -341,7 +339,7 @@ void ShaderCacheOpenGL::LoadDiskCache(const std::atomic_bool& stop_loading,
             const bool is_compute = entry.type == ShaderType::Compute;
             const u32 main_offset = is_compute ? KERNEL_MAIN_OFFSET : STAGE_MAIN_OFFSET;
             auto registry = MakeRegistry(entry);
-            const ShaderIR ir(entry.code, entry.type, main_offset, COMPILER_SETTINGS, *registry);
+            const ShaderIR ir(entry.code, main_offset, COMPILER_SETTINGS, *registry);
 
             std::shared_ptr<OGLProgram> program;
             if (precompiled_entry) {
@@ -449,11 +447,13 @@ Shader ShaderCacheOpenGL::GetStageProgram(Maxwell::ShaderProgram program) {
     const GPUVAddr address{GetShaderAddress(system, program)};
 
     // Look up shader in the cache based on address
-    const auto host_ptr{memory_manager.GetPointer(address)};
-    Shader shader{TryGet(host_ptr)};
+    const auto cpu_addr{memory_manager.GpuToCpuAddress(address)};
+    Shader shader{cpu_addr ? TryGet(*cpu_addr) : nullptr};
     if (shader) {
         return last_shaders[static_cast<std::size_t>(program)] = shader;
     }
+
+    const auto host_ptr{memory_manager.GetPointer(address)};
 
     // No shader found - create a new one
     ProgramCode code{GetShaderCode(memory_manager, address, host_ptr)};
@@ -465,9 +465,9 @@ Shader ShaderCacheOpenGL::GetStageProgram(Maxwell::ShaderProgram program) {
 
     const auto unique_identifier = GetUniqueIdentifier(
         GetShaderType(program), program == Maxwell::ShaderProgram::VertexA, code, code_b);
-    const auto cpu_addr{*memory_manager.GpuToCpuAddress(address)};
-    const ShaderParameters params{system,   disk_cache, device,
-                                  cpu_addr, host_ptr,   unique_identifier};
+
+    const ShaderParameters params{system,    disk_cache, device,
+                                  *cpu_addr, host_ptr,   unique_identifier};
 
     const auto found = runtime_cache.find(unique_identifier);
     if (found == runtime_cache.end()) {
@@ -484,18 +484,20 @@ Shader ShaderCacheOpenGL::GetStageProgram(Maxwell::ShaderProgram program) {
 
 Shader ShaderCacheOpenGL::GetComputeKernel(GPUVAddr code_addr) {
     auto& memory_manager{system.GPU().MemoryManager()};
-    const auto host_ptr{memory_manager.GetPointer(code_addr)};
-    auto kernel = TryGet(host_ptr);
+    const auto cpu_addr{memory_manager.GpuToCpuAddress(code_addr)};
+
+    auto kernel = cpu_addr ? TryGet(*cpu_addr) : nullptr;
     if (kernel) {
         return kernel;
     }
 
+    const auto host_ptr{memory_manager.GetPointer(code_addr)};
     // No kernel found, create a new one
     auto code{GetShaderCode(memory_manager, code_addr, host_ptr)};
     const auto unique_identifier{GetUniqueIdentifier(ShaderType::Compute, false, code)};
-    const auto cpu_addr{*memory_manager.GpuToCpuAddress(code_addr)};
-    const ShaderParameters params{system,   disk_cache, device,
-                                  cpu_addr, host_ptr,   unique_identifier};
+
+    const ShaderParameters params{system,    disk_cache, device,
+                                  *cpu_addr, host_ptr,   unique_identifier};
 
     const auto found = runtime_cache.find(unique_identifier);
     if (found == runtime_cache.end()) {

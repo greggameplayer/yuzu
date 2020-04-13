@@ -30,7 +30,7 @@ class VKScheduler;
 class CachedBufferBlock final : public VideoCommon::BufferBlock {
 public:
     explicit CachedBufferBlock(const VKDevice& device, VKMemoryManager& memory_manager,
-                               CacheAddr cache_addr, std::size_t size);
+                               VAddr cpu_addr, std::size_t size);
     ~CachedBufferBlock();
 
     vk::Buffer GetHandle() const {
@@ -57,7 +57,7 @@ protected:
 
     void WriteBarrier() override {}
 
-    Buffer CreateBlock(CacheAddr cache_addr, std::size_t size) override;
+    Buffer CreateBlock(VAddr cpu_addr, std::size_t size) override;
 
     void UploadBlockData(const Buffer& buffer, std::size_t offset, std::size_t size,
                          const u8* data) override;

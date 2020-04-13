@@ -312,6 +312,35 @@ public:
             }
         };
 
+        struct MsaaSampleLocation {
+            union {
+                BitField<0, 4, u32> x0;
+                BitField<4, 4, u32> y0;
+                BitField<8, 4, u32> x1;
+                BitField<12, 4, u32> y1;
+                BitField<16, 4, u32> x2;
+                BitField<20, 4, u32> y2;
+                BitField<24, 4, u32> x3;
+                BitField<28, 4, u32> y3;
+            };
+
+            constexpr std::pair<u32, u32> Location(int index) const {
+                switch (index) {
+                case 0:
+                    return {x0, y0};
+                case 1:
+                    return {x1, y1};
+                case 2:
+                    return {x2, y2};
+                case 3:
+                    return {x3, y3};
+                default:
+                    UNREACHABLE();
+                    return {0, 0};
+                }
+            }
+        };
+
         enum class DepthMode : u32 {
             MinusOneToOne = 0,
             ZeroToOne = 1,
@@ -793,7 +822,13 @@ public:
 
                 u32 rt_separate_frag_data;
 
-                INSERT_UNION_PADDING_WORDS(0xC);
+                INSERT_UNION_PADDING_WORDS(0x1);
+
+                u32 multisample_raster_enable;
+                u32 multisample_raster_samples;
+                std::array<u32, 4> multisample_sample_mask;
+
+                INSERT_UNION_PADDING_WORDS(0x5);
 
                 struct {
                     u32 address_high;
@@ -830,7 +865,16 @@ public:
 
                 std::array<VertexAttribute, NumVertexAttributes> vertex_attrib_format;
 
-                INSERT_UNION_PADDING_WORDS(0xF);
+                std::array<MsaaSampleLocation, 4> multisample_sample_locations;
+
+                INSERT_UNION_PADDING_WORDS(0x2);
+
+                union {
+                    BitField<0, 1, u32> enable;
+                    BitField<4, 3, u32> target;
+                } multisample_coverage_to_color;
+
+                INSERT_UNION_PADDING_WORDS(0x8);
 
                 struct {
                     union {
@@ -922,7 +966,10 @@ public:
                     BitField<4, 1, u32> triangle_rast_flip;
                 } screen_y_control;
 
-                INSERT_UNION_PADDING_WORDS(0x21);
+                float line_width_smooth;
+                float line_width_aliased;
+
+                INSERT_UNION_PADDING_WORDS(0x1F);
 
                 u32 vb_element_base;
                 u32 vb_base_instance;
@@ -943,7 +990,7 @@ public:
 
                 CounterReset counter_reset;
 
-                INSERT_UNION_PADDING_WORDS(0x1);
+                u32 multisample_enable;
 
                 u32 zeta_enable;
 
@@ -980,7 +1027,7 @@ public:
 
                 float polygon_offset_factor;
 
-                INSERT_UNION_PADDING_WORDS(0x1);
+                u32 line_smooth_enable;
 
                 struct {
                     u32 tic_address_high;
@@ -1007,7 +1054,11 @@ public:
 
                 float polygon_offset_units;
 
-                INSERT_UNION_PADDING_WORDS(0x11);
+                INSERT_UNION_PADDING_WORDS(0x4);
+
+                Tegra::Texture::MsaaMode multisample_mode;
+
+                INSERT_UNION_PADDING_WORDS(0xC);
 
                 union {
                     BitField<2, 1, u32> coord_origin;
@@ -1507,12 +1558,17 @@ ASSERT_REG_POSITION(stencil_back_func_ref, 0x3D5);
 ASSERT_REG_POSITION(stencil_back_mask, 0x3D6);
 ASSERT_REG_POSITION(stencil_back_func_mask, 0x3D7);
 ASSERT_REG_POSITION(color_mask_common, 0x3E4);
-ASSERT_REG_POSITION(rt_separate_frag_data, 0x3EB);
 ASSERT_REG_POSITION(depth_bounds, 0x3E7);
+ASSERT_REG_POSITION(rt_separate_frag_data, 0x3EB);
+ASSERT_REG_POSITION(multisample_raster_enable, 0x3ED);
+ASSERT_REG_POSITION(multisample_raster_samples, 0x3EE);
+ASSERT_REG_POSITION(multisample_sample_mask, 0x3EF);
 ASSERT_REG_POSITION(zeta, 0x3F8);
 ASSERT_REG_POSITION(clear_flags, 0x43E);
 ASSERT_REG_POSITION(fill_rectangle, 0x44F);
 ASSERT_REG_POSITION(vertex_attrib_format, 0x458);
+ASSERT_REG_POSITION(multisample_sample_locations, 0x478);
+ASSERT_REG_POSITION(multisample_coverage_to_color, 0x47E);
 ASSERT_REG_POSITION(rt_control, 0x487);
 ASSERT_REG_POSITION(zeta_width, 0x48a);
 ASSERT_REG_POSITION(zeta_height, 0x48b);
@@ -1538,6 +1594,8 @@ ASSERT_REG_POSITION(stencil_front_func_mask, 0x4E6);
 ASSERT_REG_POSITION(stencil_front_mask, 0x4E7);
 ASSERT_REG_POSITION(frag_color_clamp, 0x4EA);
 ASSERT_REG_POSITION(screen_y_control, 0x4EB);
+ASSERT_REG_POSITION(line_width_smooth, 0x4EC);
+ASSERT_REG_POSITION(line_width_aliased, 0x4ED);
 ASSERT_REG_POSITION(vb_element_base, 0x50D);
 ASSERT_REG_POSITION(vb_base_instance, 0x50E);
 ASSERT_REG_POSITION(clip_distance_enabled, 0x544);
@@ -1545,11 +1603,13 @@ ASSERT_REG_POSITION(samplecnt_enable, 0x545);
 ASSERT_REG_POSITION(point_size, 0x546);
 ASSERT_REG_POSITION(point_sprite_enable, 0x548);
 ASSERT_REG_POSITION(counter_reset, 0x54C);
+ASSERT_REG_POSITION(multisample_enable, 0x54D);
 ASSERT_REG_POSITION(zeta_enable, 0x54E);
 ASSERT_REG_POSITION(multisample_control, 0x54F);
 ASSERT_REG_POSITION(condition, 0x554);
 ASSERT_REG_POSITION(tsc, 0x557);
-ASSERT_REG_POSITION(polygon_offset_factor, 0x55b);
+ASSERT_REG_POSITION(polygon_offset_factor, 0x55B);
+ASSERT_REG_POSITION(line_smooth_enable, 0x55C);
 ASSERT_REG_POSITION(tic, 0x55D);
 ASSERT_REG_POSITION(stencil_two_side_enable, 0x565);
 ASSERT_REG_POSITION(stencil_back_op_fail, 0x566);
@@ -1558,6 +1618,7 @@ ASSERT_REG_POSITION(stencil_back_op_zpass, 0x568);
 ASSERT_REG_POSITION(stencil_back_func_func, 0x569);
 ASSERT_REG_POSITION(framebuffer_srgb, 0x56E);
 ASSERT_REG_POSITION(polygon_offset_units, 0x56F);
+ASSERT_REG_POSITION(multisample_mode, 0x574);
 ASSERT_REG_POSITION(point_coord_replace, 0x581);
 ASSERT_REG_POSITION(code_address, 0x582);
 ASSERT_REG_POSITION(draw, 0x585);

@@ -491,20 +491,26 @@ void RasterizerVulkan::Query(GPUVAddr gpu_addr, VideoCore::QueryType type,
 
 void RasterizerVulkan::FlushAll() {}
 
-void RasterizerVulkan::FlushRegion(CacheAddr addr, u64 size) {
+void RasterizerVulkan::FlushRegion(VAddr addr, u64 size) {
+    if (addr == 0 || size == 0) {
+        return;
+    }
     texture_cache.FlushRegion(addr, size);
     buffer_cache.FlushRegion(addr, size);
     query_cache.FlushRegion(addr, size);
 }
 
-void RasterizerVulkan::InvalidateRegion(CacheAddr addr, u64 size) {
+void RasterizerVulkan::InvalidateRegion(VAddr addr, u64 size) {
+    if (addr == 0 || size == 0) {
+        return;
+    }
     texture_cache.InvalidateRegion(addr, size);
     pipeline_cache.InvalidateRegion(addr, size);
     buffer_cache.InvalidateRegion(addr, size);
     query_cache.InvalidateRegion(addr, size);
 }
 
-void RasterizerVulkan::FlushAndInvalidateRegion(CacheAddr addr, u64 size) {
+void RasterizerVulkan::FlushAndInvalidateRegion(VAddr addr, u64 size) {
     FlushRegion(addr, size);
     InvalidateRegion(addr, size);
 }
@@ -536,8 +542,7 @@ bool RasterizerVulkan::AccelerateDisplay(const Tegra::FramebufferConfig& config,
         return false;
     }
 
-    const u8* host_ptr{system.Memory().GetPointer(framebuffer_addr)};
-    const auto surface{texture_cache.TryFindFramebufferSurface(host_ptr)};
+    const auto surface{texture_cache.TryFindFramebufferSurface(framebuffer_addr)};
     if (!surface) {
         return false;
     }
@@ -590,7 +595,7 @@ RasterizerVulkan::Texceptions RasterizerVulkan::UpdateAttachments() {
     Texceptions texceptions;
     for (std::size_t rt = 0; rt < Maxwell::NumRenderTargets; ++rt) {
         if (update_rendertargets) {
-            color_attachments[rt] = texture_cache.GetColorBufferSurface(rt, true);
+            color_attachments[rt] = texture_cache.GetColorBufferSurface(rt);
         }
         if (color_attachments[rt] && WalkAttachmentOverlaps(*color_attachments[rt])) {
             texceptions[rt] = true;
@@ -598,7 +603,7 @@ RasterizerVulkan::Texceptions RasterizerVulkan::UpdateAttachments() {
     }
 
     if (update_rendertargets) {
-        zeta_attachment = texture_cache.GetDepthBufferSurface(true);
+        zeta_attachment = texture_cache.GetDepthBufferSurface();
     }
     if (zeta_attachment && WalkAttachmentOverlaps(*zeta_attachment)) {
         texceptions[ZETA_TEXCEPTION_INDEX] = true;

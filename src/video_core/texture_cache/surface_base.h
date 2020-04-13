@@ -68,8 +68,8 @@ public:
         return gpu_addr;
     }
 
-    bool Overlaps(const CacheAddr start, const CacheAddr end) const {
-        return (cache_addr < end) && (cache_addr_end > start);
+    bool Overlaps(const VAddr start, const VAddr end) const {
+        return (cpu_addr < end) && (cpu_addr_end > start);
     }
 
     bool IsInside(const GPUVAddr other_start, const GPUVAddr other_end) {
@@ -86,21 +86,13 @@ public:
         return cpu_addr;
     }
 
+    VAddr GetCpuAddrEnd() const {
+        return cpu_addr_end;
+    }
+
     void SetCpuAddr(const VAddr new_addr) {
         cpu_addr = new_addr;
-    }
-
-    CacheAddr GetCacheAddr() const {
-        return cache_addr;
-    }
-
-    CacheAddr GetCacheAddrEnd() const {
-        return cache_addr_end;
-    }
-
-    void SetCacheAddr(const CacheAddr new_addr) {
-        cache_addr = new_addr;
-        cache_addr_end = new_addr + guest_memory_size;
+        cpu_addr_end = new_addr + guest_memory_size;
     }
 
     const SurfaceParams& GetSurfaceParams() const {
@@ -119,16 +111,12 @@ public:
         return mipmap_sizes[level];
     }
 
-    void MarkAsContinuous(const bool is_continuous) {
-        this->is_continuous = is_continuous;
-    }
-
-    bool IsContinuous() const {
-        return is_continuous;
-    }
-
     bool IsLinear() const {
         return !params.is_tiled;
+    }
+
+    bool IsConverted() const {
+        return is_converted;
     }
 
     bool MatchFormat(VideoCore::Surface::PixelFormat pixel_format) const {
@@ -160,7 +148,8 @@ public:
     }
 
 protected:
-    explicit SurfaceBaseImpl(GPUVAddr gpu_addr, const SurfaceParams& params);
+    explicit SurfaceBaseImpl(GPUVAddr gpu_addr, const SurfaceParams& params,
+                             bool is_astc_supported);
     ~SurfaceBaseImpl() = default;
 
     virtual void DecorateSurfaceName() = 0;
@@ -168,12 +157,11 @@ protected:
     const SurfaceParams params;
     std::size_t layer_size;
     std::size_t guest_memory_size;
-    const std::size_t host_memory_size;
+    std::size_t host_memory_size;
     GPUVAddr gpu_addr{};
-    CacheAddr cache_addr{};
-    CacheAddr cache_addr_end{};
     VAddr cpu_addr{};
-    bool is_continuous{};
+    VAddr cpu_addr_end{};
+    bool is_converted{};
 
     std::vector<std::size_t> mipmap_sizes;
     std::vector<std::size_t> mipmap_offsets;
@@ -288,8 +276,9 @@ public:
     }
 
 protected:
-    explicit SurfaceBase(const GPUVAddr gpu_addr, const SurfaceParams& params)
-        : SurfaceBaseImpl(gpu_addr, params) {}
+    explicit SurfaceBase(const GPUVAddr gpu_addr, const SurfaceParams& params,
+                         bool is_astc_supported)
+        : SurfaceBaseImpl(gpu_addr, params, is_astc_supported) {}
 
     ~SurfaceBase() = default;
 

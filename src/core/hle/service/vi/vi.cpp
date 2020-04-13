@@ -598,6 +598,7 @@ private:
             break;
         }
         case TransactionId::Disconnect: {
+            LOG_WARNING(Service_VI, "(STUBBED) called, transaction=Disconnect");
             const auto buffer = ctx.ReadBuffer();
 
             buffer_queue.Disconnect();

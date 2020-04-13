@@ -68,8 +68,8 @@ struct GlobalMemoryUsage {
 
 class ShaderIR final {
 public:
-    explicit ShaderIR(const ProgramCode& program_code, Tegra::Engines::ShaderType shader_stage,
-                      u32 main_offset, CompilerSettings settings, Registry& registry);
+    explicit ShaderIR(const ProgramCode& program_code, u32 main_offset, CompilerSettings settings,
+                      Registry& registry);
     ~ShaderIR();
 
     const std::map<u32, NodeBlock>& GetBasicBlocks() const {
@@ -312,6 +312,10 @@ private:
     /// Conditionally saturates a half float pair
     Node GetSaturatedHalfFloat(Node value, bool saturate = true);
 
+    /// Get image component value by type and size
+    std::pair<Node, bool> GetComponentValue(Tegra::Texture::ComponentType component_type,
+                                            u32 component_size, Node original_value);
+
     /// Returns a predicate comparing two floats
     Node GetPredicateComparisonFloat(Tegra::Shader::PredCondition condition, Node op_a, Node op_b);
     /// Returns a predicate comparing two integers
@@ -349,6 +353,9 @@ private:
 
     /// Marks the usage of a input or output attribute.
     void MarkAttributeUsage(Tegra::Shader::Attribute::Index index, u64 element);
+
+    /// Decodes VMNMX instruction and inserts its code into the passed basic block.
+    void DecodeVMNMX(NodeBlock& bb, Tegra::Shader::Instruction instr);
 
     void WriteTexInstructionFloat(NodeBlock& bb, Tegra::Shader::Instruction instr,
                                   const Node4& components);
@@ -419,7 +426,6 @@ private:
     u32 NewCustomVariable();
 
     const ProgramCode& program_code;
-    const Tegra::Engines::ShaderType shader_stage;
     const u32 main_offset;
     const CompilerSettings settings;
     Registry& registry;

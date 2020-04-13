@@ -164,4 +164,54 @@ Node ShaderIR::GetVideoOperand(Node op, bool is_chunk, bool is_signed,
     }
 }
 
+void ShaderIR::DecodeVMNMX(NodeBlock& bb, Tegra::Shader::Instruction instr) {
+    UNIMPLEMENTED_IF(!instr.vmnmx.is_op_b_register);
+    UNIMPLEMENTED_IF(instr.vmnmx.SourceFormatA() != VmnmxType::Bits32);
+    UNIMPLEMENTED_IF(instr.vmnmx.SourceFormatB() != VmnmxType::Bits32);
+    UNIMPLEMENTED_IF(instr.vmnmx.is_src_a_signed != instr.vmnmx.is_src_b_signed);
+    UNIMPLEMENTED_IF(instr.vmnmx.sat);
+    UNIMPLEMENTED_IF(instr.generates_cc);
+
+    Node op_a = GetRegister(instr.gpr8);
+    Node op_b = GetRegister(instr.gpr20);
+    Node op_c = GetRegister(instr.gpr39);
+
+    const bool is_oper1_signed = instr.vmnmx.is_src_a_signed; // Stubbed
+    const bool is_oper2_signed = instr.vmnmx.is_dest_signed;
+
+    const auto operation_a = instr.vmnmx.mx ? OperationCode::IMax : OperationCode::IMin;
+    Node value = SignedOperation(operation_a, is_oper1_signed, move(op_a), move(op_b));
+
+    switch (instr.vmnmx.operation) {
+    case VmnmxOperation::Mrg_16H:
+        value = BitfieldInsert(move(op_c), move(value), 16, 16);
+        break;
+    case VmnmxOperation::Mrg_16L:
+        value = BitfieldInsert(move(op_c), move(value), 0, 16);
+        break;
+    case VmnmxOperation::Mrg_8B0:
+        value = BitfieldInsert(move(op_c), move(value), 0, 8);
+        break;
+    case VmnmxOperation::Mrg_8B2:
+        value = BitfieldInsert(move(op_c), move(value), 16, 8);
+        break;
+    case VmnmxOperation::Acc:
+        value = Operation(OperationCode::IAdd, move(value), move(op_c));
+        break;
+    case VmnmxOperation::Min:
+        value = SignedOperation(OperationCode::IMin, is_oper2_signed, move(value), move(op_c));
+        break;
+    case VmnmxOperation::Max:
+        value = SignedOperation(OperationCode::IMax, is_oper2_signed, move(value), move(op_c));
+        break;
+    case VmnmxOperation::Nop:
+        break;
+    default:
+        UNREACHABLE();
+        break;
+    }
+
+    SetRegister(bb, instr.gpr0, move(value));
+}
+
 } // namespace VideoCommon::Shader
