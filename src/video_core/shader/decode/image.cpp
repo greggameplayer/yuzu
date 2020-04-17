@@ -119,7 +119,7 @@ ComponentType GetComponentType(Tegra::Engines::SamplerDescriptor descriptor,
         }
         break;
     }
-    UNIMPLEMENTED_MSG("texture format not implement={}", format);
+    UNIMPLEMENTED_MSG("Texture format not implemented={}", format);
     return ComponentType::FLOAT;
 }
 
@@ -201,10 +201,10 @@ u32 GetComponentSize(TextureFormat format, std::size_t component) {
         return 0;
     case TextureFormat::G24R8:
         if (component == 0) {
-            return 8;
+            return 24;
         }
         if (component == 1) {
-            return 24;
+            return 8;
         }
         return 0;
     case TextureFormat::G8R8:
@@ -212,7 +212,7 @@ u32 GetComponentSize(TextureFormat format, std::size_t component) {
     case TextureFormat::G4R4:
         return (component == 0 || component == 1) ? 4 : 0;
     default:
-        UNIMPLEMENTED_MSG("texture format not implement={}", format);
+        UNIMPLEMENTED_MSG("Texture format not implemented={}", format);
         return 0;
     }
 }
@@ -249,7 +249,7 @@ std::size_t GetImageComponentMask(TextureFormat format) {
     case TextureFormat::R1:
         return std::size_t{R};
     default:
-        UNIMPLEMENTED_MSG("texture format not implement={}", format);
+        UNIMPLEMENTED_MSG("Texture format not implemented={}", format);
         return std::size_t{R | G | B | A};
     }
 }
