@@ -298,7 +298,9 @@ RasterizerVulkan::RasterizerVulkan(Core::System& system, Core::Frontend::EmuWind
       pipeline_cache(system, *this, device, scheduler, descriptor_pool, update_descriptor_queue,
                      renderpass_cache),
       buffer_cache(*this, system, device, memory_manager, scheduler, staging_pool),
-      sampler_cache(device), query_cache(system, *this, device, scheduler) {
+      sampler_cache(device),
+      fence_manager(system, *this, device, scheduler, texture_cache, buffer_cache, query_cache),
+      query_cache(system, *this, device, scheduler) {
     scheduler.SetQueryCache(query_cache);
 }
 
@@ -364,6 +366,8 @@ void RasterizerVulkan::Draw(bool is_indexed, bool is_instanced) {
     });
 
     EndTransformFeedback();
+
+    system.GPU().TickWork();
 }
 
 void RasterizerVulkan::Clear() {
@@ -513,6 +517,10 @@ void RasterizerVulkan::FlushRegion(VAddr addr, u64 size) {
     query_cache.FlushRegion(addr, size);
 }
 
+bool RasterizerVulkan::MustFlushRegion(VAddr addr, u64 size) {
+    return texture_cache.MustFlushRegion(addr, size) || buffer_cache.MustFlushRegion(addr, size);
+}
+
 void RasterizerVulkan::InvalidateRegion(VAddr addr, u64 size) {
     if (addr == 0 || size == 0) {
         return;
@@ -521,6 +529,47 @@ void RasterizerVulkan::InvalidateRegion(VAddr addr, u64 size) {
     pipeline_cache.InvalidateRegion(addr, size);
     buffer_cache.InvalidateRegion(addr, size);
     query_cache.InvalidateRegion(addr, size);
+}
+
+void RasterizerVulkan::OnCPUWrite(VAddr addr, u64 size) {
+    if (addr == 0 || size == 0) {
+        return;
+    }
+    texture_cache.OnCPUWrite(addr, size);
+    pipeline_cache.InvalidateRegion(addr, size);
+    buffer_cache.OnCPUWrite(addr, size);
+    query_cache.InvalidateRegion(addr, size);
+}
+
+void RasterizerVulkan::SyncGuestHost() {
+    texture_cache.SyncGuestHost();
+    buffer_cache.SyncGuestHost();
+}
+
+void RasterizerVulkan::SignalSemaphore(GPUVAddr addr, u32 value) {
+    auto& gpu{system.GPU()};
+    if (!gpu.IsAsync()) {
+        gpu.MemoryManager().Write<u32>(addr, value);
+        return;
+    }
+    fence_manager.SignalSemaphore(addr, value);
+}
+
+void RasterizerVulkan::SignalSyncPoint(u32 value) {
+    auto& gpu{system.GPU()};
+    if (!gpu.IsAsync()) {
+        gpu.IncrementSyncPoint(value);
+        return;
+    }
+    fence_manager.SignalSyncPoint(value);
+}
+
+void RasterizerVulkan::ReleaseFences() {
+    auto& gpu{system.GPU()};
+    if (!gpu.IsAsync()) {
+        return;
+    }
+    fence_manager.WaitPendingFences();
 }
 
 void RasterizerVulkan::FlushAndInvalidateRegion(VAddr addr, u64 size) {
