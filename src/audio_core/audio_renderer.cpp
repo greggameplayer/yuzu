@@ -87,7 +87,7 @@ private:
     ChannelInfoIn info{};
 };
 
-AudioRenderer::AudioRenderer(Core::Timing::CoreTiming& core_timing, Core::Memory::Memory& memory_,
+AudioRenderer::AudioRenderer(Core::Timing::CoreTiming& core_timing, Memory::Memory& memory_,
                              AudioRendererParameter params,
                              std::shared_ptr<Kernel::WritableEvent> buffer_event,
                              std::size_t instance_number)
