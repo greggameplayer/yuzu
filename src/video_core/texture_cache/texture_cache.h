@@ -614,10 +614,10 @@ private:
      * textures within the GPU if possible. Falls back to LLE when it isn't possible to use any of
      * the HLE methods.
      *
-     * @param overlaps          The overlapping surfaces registered in the cache.
-     * @param params            The parameters on the new surface.
-     * @param gpu_addr          The starting address of the new surface.
-     * @param cache_addr        The starting address of the new surface on physical memory.
+     * @param overlaps  The overlapping surfaces registered in the cache.
+     * @param params    The parameters on the new surface.
+     * @param gpu_addr  The starting address of the new surface.
+     * @param cpu_addr  The starting address of the new surface on physical memory.
      */
     std::optional<std::pair<TSurface, TView>> Manage3DSurfaces(std::vector<TSurface>& overlaps,
                                                                const SurfaceParams& params,
@@ -647,7 +647,8 @@ private:
                     break;
                 }
                 const u32 offset = static_cast<u32>(surface->GetCpuAddr() - cpu_addr);
-                const auto [x, y, z] = params.GetBlockOffsetXYZ(offset);
+                const auto offsets = params.GetBlockOffsetXYZ(offset);
+                const auto z = std::get<2>(offsets);
                 modified |= surface->IsModified();
                 const CopyParams copy_params(0, 0, 0, 0, 0, z, 0, 0, params.width, params.height,
                                              1);

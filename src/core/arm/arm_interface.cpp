@@ -60,7 +60,7 @@ static_assert(sizeof(ELFSymbol) == 0x18, "ELFSymbol has incorrect size.");
 
 using Symbols = std::vector<std::pair<ELFSymbol, std::string>>;
 
-Symbols GetSymbols(VAddr text_offset, Memory::Memory& memory) {
+Symbols GetSymbols(VAddr text_offset, Core::Memory::Memory& memory) {
     const auto mod_offset = text_offset + memory.Read32(text_offset + 4);
 
     if (mod_offset < text_offset || (mod_offset & 0b11) != 0 ||
@@ -123,7 +123,7 @@ Symbols GetSymbols(VAddr text_offset, Memory::Memory& memory) {
 std::optional<std::string> GetSymbolName(const Symbols& symbols, VAddr func_address) {
     const auto iter =
         std::find_if(symbols.begin(), symbols.end(), [func_address](const auto& pair) {
-            const auto& [symbol, name] = pair;
+            const auto& symbol = pair.first;
             const auto end_address = symbol.value + symbol.size;
             return func_address >= symbol.value && func_address < end_address;
         });
@@ -146,7 +146,7 @@ std::vector<ARM_Interface::BacktraceEntry> ARM_Interface::GetBacktrace() const {
     auto fp = GetReg(29);
     auto lr = GetReg(30);
     while (true) {
-        out.push_back({"", 0, lr, 0});
+        out.push_back({"", 0, lr, 0, ""});
         if (!fp) {
             break;
         }

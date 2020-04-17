@@ -835,7 +835,8 @@ private:
 
     void DeclareConstantBuffers() {
         u32 binding = device.GetBaseBindings(stage).uniform_buffer;
-        for (const auto& [index, cbuf] : ir.GetConstantBuffers()) {
+        for (const auto& buffers : ir.GetConstantBuffers()) {
+            const auto index = buffers.first;
             code.AddLine("layout (std140, binding = {}) uniform {} {{", binding++,
                          GetConstBufferBlock(index));
             code.AddLine("    uvec4 {}[{}];", GetConstBuffer(index), MAX_CONSTBUFFER_ELEMENTS);
@@ -1821,13 +1822,15 @@ private:
     Expression HMergeH0(Operation operation) {
         const std::string dest = VisitOperand(operation, 0).AsUint();
         const std::string src = VisitOperand(operation, 1).AsUint();
-        return {fmt::format("bitfieldInsert({}, {}, 0, 16)", dest, src), Type::Uint};
+        return {fmt::format("vec2(unpackHalf2x16({}).x, unpackHalf2x16({}).y)", src, dest),
+                Type::HalfFloat};
     }
 
     Expression HMergeH1(Operation operation) {
         const std::string dest = VisitOperand(operation, 0).AsUint();
         const std::string src = VisitOperand(operation, 1).AsUint();
-        return {fmt::format("bitfieldInsert({}, {}, 16, 16)", dest, src), Type::Uint};
+        return {fmt::format("vec2(unpackHalf2x16({}).x, unpackHalf2x16({}).y)", dest, src),
+                Type::HalfFloat};
     }
 
     Expression HPack2(Operation operation) {

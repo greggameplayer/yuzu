@@ -232,7 +232,7 @@ private:
     } vertex;
 
     struct {
-        VkBuffer buffer;
+        VkBuffer buffer = nullptr;
         VkDeviceSize offset;
         VkIndexType type;
     } index;
