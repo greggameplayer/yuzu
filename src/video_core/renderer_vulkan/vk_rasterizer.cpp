@@ -639,7 +639,7 @@ std::tuple<VkFramebuffer, VkExtent2D> RasterizerVulkan::ConfigureFramebuffers(
     FramebufferCacheKey key{renderpass, std::numeric_limits<u32>::max(),
                             std::numeric_limits<u32>::max(), std::numeric_limits<u32>::max()};
 
-    const auto try_push = [&](const View& view) {
+    const auto try_push = [&key](const View& view) {
         if (!view) {
             return false;
         }
@@ -650,7 +650,9 @@ std::tuple<VkFramebuffer, VkExtent2D> RasterizerVulkan::ConfigureFramebuffers(
         return true;
     };
 
-    for (std::size_t index = 0; index < std::size(color_attachments); ++index) {
+    const auto& regs = system.GPU().Maxwell3D().regs;
+    const std::size_t num_attachments = static_cast<std::size_t>(regs.rt_control.count);
+    for (std::size_t index = 0; index < num_attachments; ++index) {
         if (try_push(color_attachments[index])) {
             texture_cache.MarkColorBufferInUse(index);
         }
