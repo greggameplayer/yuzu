@@ -870,13 +870,13 @@ private:
         for (const auto& sampler : ir.GetSamplers()) {
             const std::string name = GetSampler(sampler);
             const std::string description = fmt::format("layout (binding = {}) uniform", binding);
-            binding += sampler.is_indexed ? sampler.size : 1;
+            binding += sampler.IsIndexed() ? sampler.Size() : 1;
 
             std::string sampler_type = [&]() {
-                if (sampler.is_buffer) {
+                if (sampler.IsBuffer()) {
                     return "samplerBuffer";
                 }
-                switch (sampler.type) {
+                switch (sampler.GetType()) {
                 case Tegra::Shader::TextureType::Texture1D:
                     return "sampler1D";
                 case Tegra::Shader::TextureType::Texture2D:
@@ -890,17 +890,17 @@ private:
                     return "sampler2D";
                 }
             }();
-            if (sampler.is_array) {
+            if (sampler.IsArray()) {
                 sampler_type += "Array";
             }
-            if (sampler.is_shadow) {
+            if (sampler.IsShadow()) {
                 sampler_type += "Shadow";
             }
 
-            if (!sampler.is_indexed) {
+            if (!sampler.IsIndexed()) {
                 code.AddLine("{} {} {};", description, sampler_type, name);
             } else {
-                code.AddLine("{} {} {}[{}];", description, sampler_type, name, sampler.size);
+                code.AddLine("{} {} {}[{}];", description, sampler_type, name, sampler.Size());
             }
         }
         if (!ir.GetSamplers().empty()) {
@@ -946,14 +946,14 @@ private:
         u32 binding = device.GetBaseBindings(stage).image;
         for (const auto& image : ir.GetImages()) {
             std::string qualifier = "coherent volatile";
-            if (image.is_read && !image.is_written) {
+            if (image.IsRead() && !image.IsWritten()) {
                 qualifier += " readonly";
-            } else if (image.is_written && !image.is_read) {
+            } else if (image.IsWritten() && !image.IsRead()) {
                 qualifier += " writeonly";
             }
 
-            const char* format = image.is_atomic ? "r32ui, " : "";
-            const char* type_declaration = GetImageTypeDeclaration(image.type);
+            const char* format = image.IsAtomic() ? "r32ui, " : "";
+            const char* type_declaration = GetImageTypeDeclaration(image.GetType());
             code.AddLine("layout ({}binding = {}) {} uniform uimage{} {};", format, binding++,
                          qualifier, type_declaration, GetImage(image));
         }
@@ -1337,8 +1337,8 @@ private:
         ASSERT(meta);
 
         const std::size_t count = operation.GetOperandsCount();
-        const bool has_array = meta->sampler.is_array;
-        const bool has_shadow = meta->sampler.is_shadow;
+        const bool has_array = meta->sampler.IsArray();
+        const bool has_shadow = meta->sampler.IsShadow();
 
         std::string expr = "texture" + function_suffix;
         if (!meta->aoffi.empty()) {
@@ -1346,7 +1346,7 @@ private:
         } else if (!meta->ptp.empty()) {
             expr += "Offsets";
         }
-        if (!meta->sampler.is_indexed) {
+        if (!meta->sampler.IsIndexed()) {
             expr += '(' + GetSampler(meta->sampler) + ", ";
         } else {
             expr += '(' + GetSampler(meta->sampler) + '[' + Visit(meta->index).AsUint() + "], ";
@@ -1974,7 +1974,7 @@ private:
 
         std::string expr = GenerateTexture(
             operation, "", {TextureOffset{}, TextureArgument{Type::Float, meta->bias}});
-        if (meta->sampler.is_shadow) {
+        if (meta->sampler.IsShadow()) {
             expr = "vec4(" + expr + ')';
         }
         return {expr + GetSwizzle(meta->element), Type::Float};
@@ -1986,7 +1986,7 @@ private:
 
         std::string expr = GenerateTexture(
             operation, "Lod", {TextureArgument{Type::Float, meta->lod}, TextureOffset{}});
-        if (meta->sampler.is_shadow) {
+        if (meta->sampler.IsShadow()) {
             expr = "vec4(" + expr + ')';
         }
         return {expr + GetSwizzle(meta->element), Type::Float};
@@ -1995,11 +1995,11 @@ private:
     Expression TextureGather(Operation operation) {
         const auto& meta = std::get<MetaTexture>(operation.GetMeta());
 
-        const auto type = meta.sampler.is_shadow ? Type::Float : Type::Int;
-        const bool separate_dc = meta.sampler.is_shadow;
+        const auto type = meta.sampler.IsShadow() ? Type::Float : Type::Int;
+        const bool separate_dc = meta.sampler.IsShadow();
 
         std::vector<TextureIR> ir;
-        if (meta.sampler.is_shadow) {
+        if (meta.sampler.IsShadow()) {
             ir = {TextureOffset{}};
         } else {
             ir = {TextureOffset{}, TextureArgument{type, meta.component}};
@@ -2044,7 +2044,7 @@ private:
         constexpr std::array constructors = {"int", "ivec2", "ivec3", "ivec4"};
         const auto meta = std::get_if<MetaTexture>(&operation.GetMeta());
         ASSERT(meta);
-        UNIMPLEMENTED_IF(meta->sampler.is_array);
+        UNIMPLEMENTED_IF(meta->sampler.IsArray());
         const std::size_t count = operation.GetOperandsCount();
 
         std::string expr = "texelFetch(";
@@ -2065,7 +2065,7 @@ private:
         }
         expr += ')';
 
-        if (meta->lod && !meta->sampler.is_buffer) {
+        if (meta->lod && !meta->sampler.IsBuffer()) {
             expr += ", ";
             expr += Visit(meta->lod).AsInt();
         }
@@ -2076,10 +2076,12 @@ private:
     }
 
     Expression TextureGradient(Operation operation) {
-        const auto& meta = std::get<MetaTexture>(operation.GetMeta());
+        const auto meta = std::get_if<MetaTexture>(&operation.GetMeta());
+        ASSERT(meta);
+
         std::string expr =
             GenerateTexture(operation, "Grad", {TextureDerivates{}, TextureOffset{}});
-        return {std::move(expr) + GetSwizzle(meta.element), Type::Float};
+        return {std::move(expr) + GetSwizzle(meta->element), Type::Float};
     }
 
     Expression ImageLoad(Operation operation) {
@@ -2596,11 +2598,11 @@ private:
     }
 
     std::string GetSampler(const Sampler& sampler) const {
-        return AppendSuffix(sampler.index, "sampler");
+        return AppendSuffix(static_cast<u32>(sampler.GetIndex()), "sampler");
     }
 
     std::string GetImage(const Image& image) const {
-        return AppendSuffix(image.index, "image");
+        return AppendSuffix(static_cast<u32>(image.GetIndex()), "image");
     }
 
     std::string AppendSuffix(u32 index, std::string_view name) const {

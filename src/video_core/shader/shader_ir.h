@@ -29,11 +29,12 @@ using ProgramCode = std::vector<u64>;
 
 constexpr u32 MAX_PROGRAM_LENGTH = 0x1000;
 
-struct ConstBuffer {
-    constexpr explicit ConstBuffer(u32 max_offset, bool is_indirect)
+class ConstBuffer {
+public:
+    explicit ConstBuffer(u32 max_offset, bool is_indirect)
         : max_offset{max_offset}, is_indirect{is_indirect} {}
 
-    constexpr ConstBuffer() = default;
+    ConstBuffer() = default;
 
     void MarkAsUsed(u64 offset) {
         max_offset = std::max(max_offset, static_cast<u32>(offset));
@@ -56,8 +57,8 @@ struct ConstBuffer {
     }
 
 private:
-    u32 max_offset = 0;
-    bool is_indirect = false;
+    u32 max_offset{};
+    bool is_indirect{};
 };
 
 struct GlobalMemoryUsage {
@@ -191,14 +192,10 @@ private:
     friend class ASTDecoder;
 
     struct SamplerInfo {
-        std::optional<Tegra::Shader::TextureType> type;
-        std::optional<bool> is_array;
-        std::optional<bool> is_shadow;
-        std::optional<bool> is_buffer;
-
-        constexpr bool IsComplete() const noexcept {
-            return type && is_array && is_shadow && is_buffer;
-        }
+        Tegra::Shader::TextureType type;
+        bool is_array;
+        bool is_shadow;
+        bool is_buffer;
     };
 
     void Decode();
@@ -331,15 +328,16 @@ private:
     OperationCode GetPredicateCombiner(Tegra::Shader::PredOperation operation);
 
     /// Queries the missing sampler info from the execution context.
-    SamplerInfo GetSamplerInfo(SamplerInfo info, u32 offset,
+    SamplerInfo GetSamplerInfo(std::optional<SamplerInfo> sampler_info, u32 offset,
                                std::optional<u32> buffer = std::nullopt);
 
-    /// Accesses a texture sampler.
-    std::optional<Sampler> GetSampler(Tegra::Shader::Sampler sampler, SamplerInfo info);
+    /// Accesses a texture sampler
+    const Sampler* GetSampler(const Tegra::Shader::Sampler& sampler,
+                              std::optional<SamplerInfo> sampler_info = std::nullopt);
 
     /// Accesses a texture sampler for a bindless texture.
-    std::optional<Sampler> GetBindlessSampler(Tegra::Shader::Register reg, SamplerInfo info,
-                                              Node& index_var);
+    const Sampler* GetBindlessSampler(Tegra::Shader::Register reg, Node& index_var,
+                                      std::optional<SamplerInfo> sampler_info = std::nullopt);
 
     /// Accesses an image.
     Image& GetImage(Tegra::Shader::Image image, Tegra::Shader::ImageType type);

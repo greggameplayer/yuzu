@@ -265,30 +265,76 @@ class ArraySamplerNode;
 using TrackSamplerData = std::variant<BindlessSamplerNode, ArraySamplerNode>;
 using TrackSampler = std::shared_ptr<TrackSamplerData>;
 
-struct Sampler {
-    /// Bound samplers constructor
+class Sampler {
+public:
+    /// This constructor is for bound samplers
     constexpr explicit Sampler(u32 index, u32 offset, Tegra::Shader::TextureType type,
                                bool is_array, bool is_shadow, bool is_buffer, bool is_indexed)
         : index{index}, offset{offset}, type{type}, is_array{is_array}, is_shadow{is_shadow},
           is_buffer{is_buffer}, is_indexed{is_indexed} {}
 
-    /// Bindless samplers constructor
+    /// This constructor is for bindless samplers
     constexpr explicit Sampler(u32 index, u32 offset, u32 buffer, Tegra::Shader::TextureType type,
                                bool is_array, bool is_shadow, bool is_buffer, bool is_indexed)
         : index{index}, offset{offset}, buffer{buffer}, type{type}, is_array{is_array},
           is_shadow{is_shadow}, is_buffer{is_buffer}, is_bindless{true}, is_indexed{is_indexed} {}
 
-    u32 index = 0;  ///< Emulated index given for the this sampler.
-    u32 offset = 0; ///< Offset in the const buffer from where the sampler is being read.
-    u32 buffer = 0; ///< Buffer where the bindless sampler is being read (unused on bound samplers).
-    u32 size = 1;   ///< Size of the sampler.
+    constexpr u32 GetIndex() const {
+        return index;
+    }
+
+    constexpr u32 GetOffset() const {
+        return offset;
+    }
+
+    constexpr u32 GetBuffer() const {
+        return buffer;
+    }
+
+    constexpr Tegra::Shader::TextureType GetType() const {
+        return type;
+    }
+
+    constexpr bool IsArray() const {
+        return is_array;
+    }
+
+    constexpr bool IsShadow() const {
+        return is_shadow;
+    }
+
+    constexpr bool IsBuffer() const {
+        return is_buffer;
+    }
+
+    constexpr bool IsBindless() const {
+        return is_bindless;
+    }
+
+    constexpr bool IsIndexed() const {
+        return is_indexed;
+    }
+
+    constexpr u32 Size() const {
+        return size;
+    }
+
+    constexpr void SetSize(u32 new_size) {
+        size = new_size;
+    }
+
+private:
+    u32 index{};  ///< Emulated index given for the this sampler.
+    u32 offset{}; ///< Offset in the const buffer from where the sampler is being read.
+    u32 buffer{}; ///< Buffer where the bindless sampler is being read (unused on bound samplers).
+    u32 size{1};  ///< Size of the sampler.
 
     Tegra::Shader::TextureType type{}; ///< The type used to sample this texture (Texture2D, etc)
-    bool is_array = false;    ///< Whether the texture is being sampled as an array texture or not.
-    bool is_shadow = false;   ///< Whether the texture is being sampled as a depth texture or not.
-    bool is_buffer = false;   ///< Whether the texture is a texture buffer without sampler.
-    bool is_bindless = false; ///< Whether this sampler belongs to a bindless texture or not.
-    bool is_indexed = false;  ///< Whether this sampler is an indexed array of textures.
+    bool is_array{};    ///< Whether the texture is being sampled as an array texture or not.
+    bool is_shadow{};   ///< Whether the texture is being sampled as a depth texture or not.
+    bool is_buffer{};   ///< Whether the texture is a texture buffer without sampler.
+    bool is_bindless{}; ///< Whether this sampler belongs to a bindless texture or not.
+    bool is_indexed{};  ///< Whether this sampler is an indexed array of textures.
 };
 
 /// Represents a tracked bindless sampler into a direct const buffer
@@ -333,13 +379,13 @@ private:
     u32 offset;
 };
 
-struct Image {
+class Image final {
 public:
-    /// Bound images constructor
+    /// This constructor is for bound images
     constexpr explicit Image(u32 index, u32 offset, Tegra::Shader::ImageType type)
         : index{index}, offset{offset}, type{type} {}
 
-    /// Bindless samplers constructor
+    /// This constructor is for bindless samplers
     constexpr explicit Image(u32 index, u32 offset, u32 buffer, Tegra::Shader::ImageType type)
         : index{index}, offset{offset}, buffer{buffer}, type{type}, is_bindless{true} {}
 
@@ -357,20 +403,53 @@ public:
         is_atomic = true;
     }
 
-    u32 index = 0;
-    u32 offset = 0;
-    u32 buffer = 0;
+    constexpr u32 GetIndex() const {
+        return index;
+    }
+
+    constexpr u32 GetOffset() const {
+        return offset;
+    }
+
+    constexpr u32 GetBuffer() const {
+        return buffer;
+    }
+
+    constexpr Tegra::Shader::ImageType GetType() const {
+        return type;
+    }
+
+    constexpr bool IsBindless() const {
+        return is_bindless;
+    }
+
+    constexpr bool IsWritten() const {
+        return is_written;
+    }
+
+    constexpr bool IsRead() const {
+        return is_read;
+    }
+
+    constexpr bool IsAtomic() const {
+        return is_atomic;
+    }
+
+private:
+    u32 index{};
+    u32 offset{};
+    u32 buffer{};
 
     Tegra::Shader::ImageType type{};
-    bool is_bindless = false;
-    bool is_written = false;
-    bool is_read = false;
-    bool is_atomic = false;
+    bool is_bindless{};
+    bool is_written{};
+    bool is_read{};
+    bool is_atomic{};
 };
 
 struct GlobalMemoryBase {
-    u32 cbuf_index = 0;
-    u32 cbuf_offset = 0;
+    u32 cbuf_index{};
+    u32 cbuf_offset{};
 
     bool operator<(const GlobalMemoryBase& rhs) const {
         return std::tie(cbuf_index, cbuf_offset) < std::tie(rhs.cbuf_index, rhs.cbuf_offset);
@@ -384,7 +463,7 @@ struct MetaArithmetic {
 
 /// Parameters describing a texture sampler
 struct MetaTexture {
-    Sampler sampler;
+    const Sampler& sampler;
     Node array;
     Node depth_compare;
     std::vector<Node> aoffi;

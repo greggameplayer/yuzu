@@ -42,11 +42,11 @@ void DeduceTextureHandlerSize(VideoCore::GuestDriverProfile& gpu_driver,
     u32 count{};
     std::vector<u32> bound_offsets;
     for (const auto& sampler : used_samplers) {
-        if (sampler.is_bindless) {
+        if (sampler.IsBindless()) {
             continue;
         }
         ++count;
-        bound_offsets.emplace_back(sampler.offset);
+        bound_offsets.emplace_back(sampler.GetOffset());
     }
     if (count > 1) {
         gpu_driver.DeduceTextureHandlerSize(std::move(bound_offsets));
@@ -56,14 +56,14 @@ void DeduceTextureHandlerSize(VideoCore::GuestDriverProfile& gpu_driver,
 std::optional<u32> TryDeduceSamplerSize(const Sampler& sampler_to_deduce,
                                         VideoCore::GuestDriverProfile& gpu_driver,
                                         const std::list<Sampler>& used_samplers) {
-    const u32 base_offset = sampler_to_deduce.offset;
+    const u32 base_offset = sampler_to_deduce.GetOffset();
     u32 max_offset{std::numeric_limits<u32>::max()};
     for (const auto& sampler : used_samplers) {
-        if (sampler.is_bindless) {
+        if (sampler.IsBindless()) {
             continue;
         }
-        if (sampler.offset > base_offset) {
-            max_offset = std::min(sampler.offset, max_offset);
+        if (sampler.GetOffset() > base_offset) {
+            max_offset = std::min(sampler.GetOffset(), max_offset);
         }
     }
     if (max_offset == std::numeric_limits<u32>::max()) {
@@ -363,14 +363,14 @@ void ShaderIR::PostDecode() {
         return;
     }
     for (auto& sampler : used_samplers) {
-        if (!sampler.is_indexed) {
+        if (!sampler.IsIndexed()) {
             continue;
         }
         if (const auto size = TryDeduceSamplerSize(sampler, gpu_driver, used_samplers)) {
-            sampler.size = *size;
+            sampler.SetSize(*size);
         } else {
             LOG_CRITICAL(HW_GPU, "Failed to deduce size of indexed sampler");
-            sampler.size = 1;
+            sampler.SetSize(1);
         }
     }
 }
