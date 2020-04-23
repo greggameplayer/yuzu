@@ -534,6 +534,8 @@ void Config::ReadDebuggingValues() {
     Settings::values.reporting_services =
         ReadSetting(QStringLiteral("reporting_services"), false).toBool();
     Settings::values.quest_flag = ReadSetting(QStringLiteral("quest_flag"), false).toBool();
+    Settings::values.disable_cpu_opt =
+        ReadSetting(QStringLiteral("disable_cpu_opt"), false).toBool();
 
     qt_config->endGroup();
 }
@@ -1005,6 +1007,7 @@ void Config::SaveDebuggingValues() {
     WriteSetting(QStringLiteral("dump_exefs"), Settings::values.dump_exefs, false);
     WriteSetting(QStringLiteral("dump_nso"), Settings::values.dump_nso, false);
     WriteSetting(QStringLiteral("quest_flag"), Settings::values.quest_flag, false);
+    WriteSetting(QStringLiteral("disable_cpu_opt"), Settings::values.disable_cpu_opt, false);
 
     qt_config->endGroup();
 }

@@ -17,6 +17,7 @@
 #include "common/microprofile.h"
 #include "core/core.h"
 #include "core/memory.h"
+#include "core/settings.h"
 #include "video_core/engines/kepler_compute.h"
 #include "video_core/engines/maxwell_3d.h"
 #include "video_core/renderer_vulkan/fixed_pipeline_state.h"
@@ -292,6 +293,7 @@ RasterizerVulkan::RasterizerVulkan(Core::System& system, Core::Frontend::EmuWind
       staging_pool(device, memory_manager, scheduler), descriptor_pool(device),
       update_descriptor_queue(device, scheduler), renderpass_cache(device),
       quad_array_pass(device, scheduler, descriptor_pool, staging_pool, update_descriptor_queue),
+      quad_indexed_pass(device, scheduler, descriptor_pool, staging_pool, update_descriptor_queue),
       uint8_pass(device, scheduler, descriptor_pool, staging_pool, update_descriptor_queue),
       texture_cache(system, *this, device, resource_manager, memory_manager, scheduler,
                     staging_pool),
@@ -347,11 +349,6 @@ void RasterizerVulkan::Draw(bool is_indexed, bool is_instanced) {
     UpdateDynamicStates();
 
     buffer_bindings.Bind(scheduler);
-
-    if (device.IsNvDeviceDiagnosticCheckpoints()) {
-        scheduler.Record(
-            [&pipeline](vk::CommandBuffer cmdbuf) { cmdbuf.SetCheckpointNV(&pipeline); });
-    }
 
     BeginTransformFeedback();
 
@@ -481,11 +478,6 @@ void RasterizerVulkan::DispatchCompute(GPUVAddr code_addr) {
     TransitionImages(image_views, VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
                      VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT);
 
-    if (device.IsNvDeviceDiagnosticCheckpoints()) {
-        scheduler.Record(
-            [&pipeline](vk::CommandBuffer cmdbuf) { cmdbuf.SetCheckpointNV(nullptr); });
-    }
-
     scheduler.Record([grid_x = launch_desc.grid_dim_x, grid_y = launch_desc.grid_dim_y,
                       grid_z = launch_desc.grid_dim_z, pipeline_handle = pipeline.GetHandle(),
                       layout = pipeline.GetLayout(),
@@ -518,6 +510,9 @@ void RasterizerVulkan::FlushRegion(VAddr addr, u64 size) {
 }
 
 bool RasterizerVulkan::MustFlushRegion(VAddr addr, u64 size) {
+    if (!Settings::IsGPULevelHigh()) {
+        return buffer_cache.MustFlushRegion(addr, size);
+    }
     return texture_cache.MustFlushRegion(addr, size) || buffer_cache.MustFlushRegion(addr, size);
 }
 
@@ -855,25 +850,29 @@ void RasterizerVulkan::SetupVertexArrays(FixedPipelineState::VertexInput& vertex
                                          BufferBindings& buffer_bindings) {
     const auto& regs = system.GPU().Maxwell3D().regs;
 
-    for (u32 index = 0; index < static_cast<u32>(Maxwell::NumVertexAttributes); ++index) {
+    for (std::size_t index = 0; index < Maxwell::NumVertexAttributes; ++index) {
         const auto& attrib = regs.vertex_attrib_format[index];
         if (!attrib.IsValid()) {
+            vertex_input.SetAttribute(index, false, 0, 0, {}, {});
             continue;
         }
 
-        const auto& buffer = regs.vertex_array[attrib.buffer];
+        [[maybe_unused]] const auto& buffer = regs.vertex_array[attrib.buffer];
         ASSERT(buffer.IsEnabled());
 
-        vertex_input.attributes[vertex_input.num_attributes++] =
-            FixedPipelineState::VertexAttribute(index, attrib.buffer, attrib.type, attrib.size,
-                                                attrib.offset);
+        vertex_input.SetAttribute(index, true, attrib.buffer, attrib.offset, attrib.type.Value(),
+                                  attrib.size.Value());
     }
 
-    for (u32 index = 0; index < static_cast<u32>(Maxwell::NumVertexArrays); ++index) {
+    for (std::size_t index = 0; index < Maxwell::NumVertexArrays; ++index) {
         const auto& vertex_array = regs.vertex_array[index];
         if (!vertex_array.IsEnabled()) {
+            vertex_input.SetBinding(index, false, 0, 0);
             continue;
         }
+        vertex_input.SetBinding(
+            index, true, vertex_array.stride,
+            regs.instanced_arrays.IsInstancingEnabled(index) ? vertex_array.divisor : 0);
 
         const GPUVAddr start{vertex_array.StartAddress()};
         const GPUVAddr end{regs.vertex_array_limit[index].LimitAddress()};
@@ -881,10 +880,6 @@ void RasterizerVulkan::SetupVertexArrays(FixedPipelineState::VertexInput& vertex
         ASSERT(end > start);
         const std::size_t size{end - start + 1};
         const auto [buffer, offset] = buffer_cache.UploadMemory(start, size);
-
-        vertex_input.bindings[vertex_input.num_bindings++] = FixedPipelineState::VertexBinding(
-            index, vertex_array.stride,
-            regs.instanced_arrays.IsInstancingEnabled(index) ? vertex_array.divisor : 0);
         buffer_bindings.AddVertexBinding(buffer, offset);
     }
 }
@@ -893,18 +888,26 @@ void RasterizerVulkan::SetupIndexBuffer(BufferBindings& buffer_bindings, DrawPar
                                         bool is_indexed) {
     const auto& regs = system.GPU().Maxwell3D().regs;
     switch (regs.draw.topology) {
-    case Maxwell::PrimitiveTopology::Quads:
-        if (params.is_indexed) {
-            UNIMPLEMENTED();
-        } else {
+    case Maxwell::PrimitiveTopology::Quads: {
+        if (!params.is_indexed) {
             const auto [buffer, offset] =
                 quad_array_pass.Assemble(params.num_vertices, params.base_vertex);
             buffer_bindings.SetIndexBinding(buffer, offset, VK_INDEX_TYPE_UINT32);
             params.base_vertex = 0;
             params.num_vertices = params.num_vertices * 6 / 4;
             params.is_indexed = true;
+            break;
         }
+        const GPUVAddr gpu_addr = regs.index_array.IndexStart();
+        auto [buffer, offset] = buffer_cache.UploadMemory(gpu_addr, CalculateIndexBufferSize());
+        std::tie(buffer, offset) = quad_indexed_pass.Assemble(
+            regs.index_array.format, params.num_vertices, params.base_vertex, buffer, offset);
+
+        buffer_bindings.SetIndexBinding(buffer, offset, VK_INDEX_TYPE_UINT32);
+        params.num_vertices = (params.num_vertices / 4) * 6;
+        params.base_vertex = 0;
         break;
+    }
     default: {
         if (!is_indexed) {
             break;

@@ -92,11 +92,16 @@ private:
     }
 
     void RequestUpdateImpl(Kernel::HLERequestContext& ctx) {
-        LOG_WARNING(Service_Audio, "(STUBBED) called");
+        LOG_DEBUG(Service_Audio, "(STUBBED) called");
 
-        ctx.WriteBuffer(renderer->UpdateAudioRenderer(ctx.ReadBuffer()));
+        auto result = renderer->UpdateAudioRenderer(ctx.ReadBuffer());
+
+        if (result.Succeeded()) {
+            ctx.WriteBuffer(result.Unwrap());
+        }
+
         IPC::ResponseBuilder rb{ctx, 2};
-        rb.Push(RESULT_SUCCESS);
+        rb.Push(result.Code());
     }
 
     void Start(Kernel::HLERequestContext& ctx) {
@@ -252,8 +257,6 @@ private:
     }
 
     void GetAudioDeviceOutputVolume(Kernel::HLERequestContext& ctx) {
-        IPC::RequestParser rp{ctx};
-
         const auto device_name_buffer = ctx.ReadBuffer();
         const std::string name = Common::StringFromBuffer(device_name_buffer);
 
