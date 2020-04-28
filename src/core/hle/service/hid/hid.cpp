@@ -233,7 +233,7 @@ Hid::Hid(Core::System& system) : ServiceFramework("hid"), system(system) {
         {302, nullptr, "StopConsoleSixAxisSensor"},
         {303, nullptr, "ActivateSevenSixAxisSensor"},
         {304, nullptr, "StartSevenSixAxisSensor"},
-        {305, nullptr, "StopSevenSixAxisSensor"},
+        {305, &Hid::StopSevenSixAxisSensor, "StopSevenSixAxisSensor"},
         {306, &Hid::InitializeSevenSixAxisSensor, "InitializeSevenSixAxisSensor"},
         {307, nullptr, "FinalizeSevenSixAxisSensor"},
         {308, nullptr, "SetSevenSixAxisSensorFusionStrength"},
@@ -282,6 +282,7 @@ Hid::Hid(Core::System& system) : ServiceFramework("hid"), system(system) {
         {1001, nullptr, "GetNpadCommunicationMode"},
         {1002, nullptr, "SetTouchScreenConfiguration"},
         {1003, nullptr, "IsFirmwareUpdateNeededForNotification"},
+        {2000, nullptr, "ActivateDigitizer"},
     };
     // clang-format on
 
@@ -852,6 +853,17 @@ void Hid::SetPalmaBoostMode(Kernel::HLERequestContext& ctx) {
     rb.Push(RESULT_SUCCESS);
 }
 
+void Hid::StopSevenSixAxisSensor(Kernel::HLERequestContext& ctx) {
+    IPC::RequestParser rp{ctx};
+    const auto applet_resource_user_id{rp.Pop<u64>()};
+
+    LOG_WARNING(Service_HID, "(STUBBED) called, applet_resource_user_id={}",
+                applet_resource_user_id);
+
+    IPC::ResponseBuilder rb{ctx, 2};
+    rb.Push(RESULT_SUCCESS);
+}
+
 void Hid::InitializeSevenSixAxisSensor(Kernel::HLERequestContext& ctx) {
     LOG_WARNING(Service_HID, "(STUBBED) called");
 
@@ -870,6 +882,7 @@ public:
             {10, nullptr, "DeactivateTouchScreen"},
             {11, nullptr, "SetTouchScreenAutoPilotState"},
             {12, nullptr, "UnsetTouchScreenAutoPilotState"},
+            {13, nullptr, "GetTouchScreenConfiguration"},
             {20, nullptr, "DeactivateMouse"},
             {21, nullptr, "SetMouseAutoPilotState"},
             {22, nullptr, "UnsetMouseAutoPilotState"},
@@ -879,7 +892,9 @@ public:
             {50, nullptr, "DeactivateXpad"},
             {51, nullptr, "SetXpadAutoPilotState"},
             {52, nullptr, "UnsetXpadAutoPilotState"},
-            {60, nullptr, "DeactivateJoyXpad"},
+            {60, nullptr, "ClearNpadSystemCommonPolicy"},
+            {61, nullptr, "DeactivateNpad"},
+            {62, nullptr, "ForceDisconnectNpad"},
             {91, nullptr, "DeactivateGesture"},
             {110, nullptr, "DeactivateHomeButton"},
             {111, nullptr, "SetHomeButtonAutoPilotState"},
@@ -899,6 +914,15 @@ public:
             {141, nullptr, "GetConsoleSixAxisSensorSamplingFrequency"},
             {142, nullptr, "DeactivateSevenSixAxisSensor"},
             {143, nullptr, "GetConsoleSixAxisSensorCountStates"},
+            {144, nullptr, "GetAccelerometerFsr"},
+            {145, nullptr, "SetAccelerometerFsr"},
+            {146, nullptr, "GetAccelerometerOdr"},
+            {147, nullptr, "SetAccelerometerOdr"},
+            {148, nullptr, "GetGyroscopeFsr"},
+            {149, nullptr, "SetGyroscopeFsr"},
+            {150, nullptr, "GetGyroscopeOdr"},
+            {151, nullptr, "SetGyroscopeOdr"},
+            {152, nullptr, "GetWhoAmI"},
             {201, nullptr, "ActivateFirmwareUpdate"},
             {202, nullptr, "DeactivateFirmwareUpdate"},
             {203, nullptr, "StartFirmwareUpdate"},
@@ -927,6 +951,17 @@ public:
             {233, nullptr, "ClearPairingInfo"},
             {234, nullptr, "GetUniquePadDeviceTypeSetInternal"},
             {235, nullptr, "EnableAnalogStickPower"},
+            {236, nullptr, "RequestKuinaUartClockCal"},
+            {237, nullptr, "GetKuinaUartClockCal"},
+            {238, nullptr, "SetKuinaUartClockTrim"},
+            {239, nullptr, "KuinaLoopbackTest"},
+            {240, nullptr, "RequestBatteryVoltage"},
+            {241, nullptr, "GetBatteryVoltage"},
+            {242, nullptr, "GetUniquePadPowerInfo"},
+            {243, nullptr, "RebootUniquePad"},
+            {244, nullptr, "RequestKuinaFirmwareVersion"},
+            {245, nullptr, "GetKuinaFirmwareVersion"},
+            {246, nullptr, "GetVidPid"},
             {301, nullptr, "GetAbstractedPadHandles"},
             {302, nullptr, "GetAbstractedPadState"},
             {303, nullptr, "GetAbstractedPadsState"},
@@ -945,6 +980,17 @@ public:
             {350, nullptr, "AddRegisteredDevice"},
             {400, nullptr, "DisableExternalMcuOnNxDevice"},
             {401, nullptr, "DisableRailDeviceFiltering"},
+            {402, nullptr, "EnableWiredPairing"},
+            {403, nullptr, "EnableShipmentModeAutoClear"},
+            {500, nullptr, "SetFactoryInt"},
+            {501, nullptr, "IsFactoryBootEnabled"},
+            {550, nullptr, "SetAnalogStickModelDataTemporarily"},
+            {551, nullptr, "GetAnalogStickModelData"},
+            {552, nullptr, "ResetAnalogStickModelData"},
+            {600, nullptr, "ConvertPadState"},
+            {2000, nullptr, "DeactivateDigitizer"},
+            {2001, nullptr, "SetDigitizerAutoPilotState"},
+            {2002, nullptr, "UnsetDigitizerAutoPilotState"},
         };
         // clang-format on
 

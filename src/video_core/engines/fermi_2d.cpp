@@ -34,7 +34,7 @@ void Fermi2D::CallMultiMethod(u32 method, const u32* base_start, u32 amount, u32
     }
 }
 
-std::pair<u32, u32> DelimitLine(u32 src_1, u32 src_2, u32 dst_1, u32 dst_2, u32 src_line) {
+static std::pair<u32, u32> DelimitLine(u32 src_1, u32 src_2, u32 dst_1, u32 dst_2, u32 src_line) {
     const u32 line_a = src_2 - src_1;
     const u32 line_b = dst_2 - dst_1;
     const u32 excess = std::max<s32>(0, line_a - src_line + src_1);

@@ -29,29 +29,29 @@ u32 ShaderIR::DecodeArithmeticHalf(NodeBlock& bb, u32 pc) {
         if (instr.alu_half.ftz == 0) {
             LOG_DEBUG(HW_GPU, "{} without FTZ is not implemented", opcode->get().GetName());
         }
-        negate_a = (instr.value >> 43) & 1;
-        negate_b = (instr.value >> 31) & 1;
-        absolute_a = (instr.value >> 44) & 1;
-        absolute_b = (instr.value >> 30) & 1;
+        negate_a = ((instr.value >> 43) & 1) != 0;
+        negate_b = ((instr.value >> 31) & 1) != 0;
+        absolute_a = ((instr.value >> 44) & 1) != 0;
+        absolute_b = ((instr.value >> 30) & 1) != 0;
         break;
     case OpCode::Id::HADD2_C:
         if (instr.alu_half.ftz == 0) {
             LOG_DEBUG(HW_GPU, "{} without FTZ is not implemented", opcode->get().GetName());
         }
-        negate_a = (instr.value >> 43) & 1;
-        negate_b = (instr.value >> 56) & 1;
-        absolute_a = (instr.value >> 44) & 1;
-        absolute_b = (instr.value >> 54) & 1;
+        negate_a = ((instr.value >> 43) & 1) != 0;
+        negate_b = ((instr.value >> 56) & 1) != 0;
+        absolute_a = ((instr.value >> 44) & 1) != 0;
+        absolute_b = ((instr.value >> 54) & 1) != 0;
         break;
     case OpCode::Id::HMUL2_R:
-        negate_a = (instr.value >> 43) & 1;
-        absolute_a = (instr.value >> 44) & 1;
-        absolute_b = (instr.value >> 30) & 1;
+        negate_a = ((instr.value >> 43) & 1) != 0;
+        absolute_a = ((instr.value >> 44) & 1) != 0;
+        absolute_b = ((instr.value >> 30) & 1) != 0;
         break;
     case OpCode::Id::HMUL2_C:
-        negate_b = (instr.value >> 31) & 1;
-        absolute_a = (instr.value >> 44) & 1;
-        absolute_b = (instr.value >> 54) & 1;
+        negate_b = ((instr.value >> 31) & 1) != 0;
+        absolute_a = ((instr.value >> 44) & 1) != 0;
+        absolute_b = ((instr.value >> 54) & 1) != 0;
         break;
     }
 
