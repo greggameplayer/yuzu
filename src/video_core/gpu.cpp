@@ -349,7 +349,7 @@ void GPU::ProcessBindMethod(const MethodCall& method_call) {
     // Bind the current subchannel to the desired engine id.
     LOG_DEBUG(HW_GPU, "Binding subchannel {} to engine {}", method_call.subchannel,
               method_call.argument);
-    auto engine_id = static_cast<EngineID>(method_call.argument);
+    const auto engine_id = static_cast<EngineID>(method_call.argument);
     bound_engines[method_call.subchannel] = static_cast<EngineID>(engine_id);
     switch (engine_id) {
     case EngineID::FERMI_TWOD_A:
@@ -368,7 +368,7 @@ void GPU::ProcessBindMethod(const MethodCall& method_call) {
         dma_pusher->BindSubchannel(kepler_memory.get(), method_call.subchannel);
         break;
     default:
-        UNIMPLEMENTED_MSG("Unimplemented engine");
+        UNIMPLEMENTED_MSG("Unimplemented engine {:04X}", static_cast<u32>(engine_id));
     }
 }
 

@@ -2,8 +2,8 @@
 // Licensed under GPLv2 or any later version
 // Refer to the license.txt file included.
 
-// This file references various implementation details from Atmosphère, an open-source firmware for
-// the Nintendo Switch. Copyright 2018-2020 Atmosphère-NX.
+// This file references various implementation details from Atmosphere, an open-source firmware for
+// the Nintendo Switch. Copyright 2018-2020 Atmosphere-NX.
 
 #include <array>
 
@@ -49,18 +49,18 @@ constexpr bool IsAllowedIndexForAddress(std::size_t index) {
     return index < std::size(AddressSpaceInfos) && AddressSpaceInfos[index].GetAddress() != Invalid;
 }
 
-constexpr std::size_t
-    AddressSpaceIndices32Bit[static_cast<std::size_t>(AddressSpaceInfo::Type::Count)]{
+constexpr std::array<std::size_t, static_cast<std::size_t>(AddressSpaceInfo::Type::Count)>
+    AddressSpaceIndices32Bit{
         0, 1, 0, 2, 0, 3,
     };
 
-constexpr std::size_t
-    AddressSpaceIndices36Bit[static_cast<std::size_t>(AddressSpaceInfo::Type::Count)]{
+constexpr std::array<std::size_t, static_cast<std::size_t>(AddressSpaceInfo::Type::Count)>
+    AddressSpaceIndices36Bit{
         4, 5, 4, 6, 4, 7,
     };
 
-constexpr std::size_t
-    AddressSpaceIndices39Bit[static_cast<std::size_t>(AddressSpaceInfo::Type::Count)]{
+constexpr std::array<std::size_t, static_cast<std::size_t>(AddressSpaceInfo::Type::Count)>
+    AddressSpaceIndices39Bit{
         9, 8, 8, 10, 12, 11,
     };
 

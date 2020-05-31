@@ -4,21 +4,9 @@ cd /yuzu
 
 ccache -s
 
-# Dirty hack to trick unicorn makefile into believing we are in a MINGW system
-mv /bin/uname /bin/uname1 && echo -e '#!/bin/sh\necho MINGW64' >> /bin/uname
-chmod +x /bin/uname
-
-# Dirty hack to trick unicorn makefile into believing we have cmd
-echo '' >> /bin/cmd
-chmod +x /bin/cmd
-
 mkdir build || true && cd build
-cmake .. -G Ninja -DDISPLAY_VERSION=$1 -DCMAKE_TOOLCHAIN_FILE="$(pwd)/../CMakeModules/MinGWCross.cmake" -DUSE_CCACHE=ON -DYUZU_USE_BUNDLED_UNICORN=ON -DENABLE_COMPATIBILITY_LIST_DOWNLOAD=ON -DCMAKE_BUILD_TYPE=Release -DENABLE_VULKAN=No
+cmake .. -G Ninja -DDISPLAY_VERSION=$1 -DCMAKE_TOOLCHAIN_FILE="$(pwd)/../CMakeModules/MinGWCross.cmake" -DUSE_CCACHE=ON -DYUZU_USE_BUNDLED_UNICORN=ON -DENABLE_COMPATIBILITY_LIST_DOWNLOAD=ON -DCMAKE_BUILD_TYPE=Release
 ninja
-
-# Clean up the dirty hacks
-rm /bin/uname && mv /bin/uname1 /bin/uname
-rm /bin/cmd
 
 ccache -s
 
@@ -29,7 +17,13 @@ echo 'Prepare binaries...'
 cd ..
 mkdir package
 
-QT_PLATFORM_DLL_PATH='/usr/x86_64-w64-mingw32/lib/qt5/plugins/platforms/'
+if [ -d "/usr/x86_64-w64-mingw32/lib/qt5/plugins/platforms/" ]; then
+  QT_PLATFORM_DLL_PATH='/usr/x86_64-w64-mingw32/lib/qt5/plugins/platforms/'
+else
+  #fallback to qt
+  QT_PLATFORM_DLL_PATH='/usr/x86_64-w64-mingw32/lib/qt/plugins/platforms/'
+fi
+
 find build/ -name "yuzu*.exe" -exec cp {} 'package' \;
 
 # copy Qt plugins

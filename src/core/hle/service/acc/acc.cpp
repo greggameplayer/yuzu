@@ -228,7 +228,8 @@ public:
 
 class IManagerForApplication final : public ServiceFramework<IManagerForApplication> {
 public:
-    IManagerForApplication() : ServiceFramework("IManagerForApplication") {
+    explicit IManagerForApplication(Common::UUID user_id)
+        : ServiceFramework("IManagerForApplication"), user_id(user_id) {
         // clang-format off
         static const FunctionInfo functions[] = {
             {0, &IManagerForApplication::CheckAvailability, "CheckAvailability"},
@@ -254,12 +255,14 @@ private:
     }
 
     void GetAccountId(Kernel::HLERequestContext& ctx) {
-        LOG_WARNING(Service_ACC, "(STUBBED) called");
-        // Should return a nintendo account ID
+        LOG_DEBUG(Service_ACC, "called");
+
         IPC::ResponseBuilder rb{ctx, 4};
         rb.Push(RESULT_SUCCESS);
-        rb.PushRaw<u64>(1);
+        rb.PushRaw<u64>(user_id.GetNintendoID());
     }
+
+    Common::UUID user_id;
 };
 
 void Module::Interface::GetUserCount(Kernel::HLERequestContext& ctx) {
@@ -319,25 +322,23 @@ void Module::Interface::IsUserRegistrationRequestPermitted(Kernel::HLERequestCon
 
 void Module::Interface::InitializeApplicationInfo(Kernel::HLERequestContext& ctx) {
     IPC::RequestParser rp{ctx};
-    auto pid = rp.Pop<u64>();
 
-    LOG_DEBUG(Service_ACC, "called, process_id={}", pid);
+    LOG_DEBUG(Service_ACC, "called");
     IPC::ResponseBuilder rb{ctx, 2};
-    rb.Push(InitializeApplicationInfoBase(pid));
+    rb.Push(InitializeApplicationInfoBase());
 }
 
 void Module::Interface::InitializeApplicationInfoRestricted(Kernel::HLERequestContext& ctx) {
     IPC::RequestParser rp{ctx};
-    auto pid = rp.Pop<u64>();
 
-    LOG_WARNING(Service_ACC, "(Partial implementation) called, process_id={}", pid);
+    LOG_WARNING(Service_ACC, "(Partial implementation) called");
 
     // TODO(ogniK): We require checking if the user actually owns the title and what not. As of
     // currently, we assume the user owns the title. InitializeApplicationInfoBase SHOULD be called
     // first then we do extra checks if the game is a digital copy.
 
     IPC::ResponseBuilder rb{ctx, 2};
-    rb.Push(InitializeApplicationInfoBase(pid));
+    rb.Push(InitializeApplicationInfoBase());
 }
 
 void Module::Interface::ListQualifiedUsers(Kernel::HLERequestContext& ctx) {
@@ -347,25 +348,18 @@ void Module::Interface::ListQualifiedUsers(Kernel::HLERequestContext& ctx) {
     rb.Push(RESULT_SUCCESS);
 }
 
-ResultCode Module::Interface::InitializeApplicationInfoBase(u64 process_id) {
+ResultCode Module::Interface::InitializeApplicationInfoBase() {
     if (application_info) {
         LOG_ERROR(Service_ACC, "Application already initialized");
         return ERR_ACCOUNTINFO_ALREADY_INITIALIZED;
     }
 
-    const auto& list = system.Kernel().GetProcessList();
-    const auto iter = std::find_if(list.begin(), list.end(), [&process_id](const auto& process) {
-        return process->GetProcessID() == process_id;
-    });
-
-    if (iter == list.end()) {
-        LOG_ERROR(Service_ACC, "Failed to find process ID");
-        application_info.application_type = ApplicationType::Unknown;
-
-        return ERR_ACCOUNTINFO_BAD_APPLICATION;
-    }
-
-    const auto launch_property = system.GetARPManager().GetLaunchProperty((*iter)->GetTitleID());
+    // TODO(ogniK): This should be changed to reflect the target process for when we have multiple
+    // processes emulated. As we don't actually have pid support we should assume we're just using
+    // our own process
+    const auto& current_process = system.Kernel().CurrentProcess();
+    const auto launch_property =
+        system.GetARPManager().GetLaunchProperty(current_process->GetTitleID());
 
     if (launch_property.Failed()) {
         LOG_ERROR(Service_ACC, "Failed to get launch property");
@@ -379,10 +373,12 @@ ResultCode Module::Interface::InitializeApplicationInfoBase(u64 process_id) {
     case FileSys::StorageId::Host:
     case FileSys::StorageId::NandUser:
     case FileSys::StorageId::SdCard:
+    case FileSys::StorageId::None: // Yuzu specific, differs from hardware
         application_info.application_type = ApplicationType::Digital;
         break;
     default:
-        LOG_ERROR(Service_ACC, "Invalid game storage ID");
+        LOG_ERROR(Service_ACC, "Invalid game storage ID! storage_id={}",
+                  launch_property->base_game_storage_id);
         return ERR_ACCOUNTINFO_BAD_APPLICATION;
     }
 
@@ -396,7 +392,7 @@ void Module::Interface::GetBaasAccountManagerForApplication(Kernel::HLERequestCo
     LOG_DEBUG(Service_ACC, "called");
     IPC::ResponseBuilder rb{ctx, 2, 0, 1};
     rb.Push(RESULT_SUCCESS);
-    rb.PushIpcInterface<IManagerForApplication>();
+    rb.PushIpcInterface<IManagerForApplication>(profile_manager->GetLastOpenedUser());
 }
 
 void Module::Interface::IsUserAccountSwitchLocked(Kernel::HLERequestContext& ctx) {

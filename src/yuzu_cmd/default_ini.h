@@ -134,6 +134,10 @@ max_anisotropy =
 # 0 (default): Off, 1: On
 use_vsync =
 
+# Whether to use OpenGL assembly shaders or not. NV_gpu_program5 is required.
+# 0 (default): Off, 1: On
+use_assembly_shaders =
+
 # Turns on the frame limiter, which will limit frames output to the target game speed
 # 0: Off, 1: On (default)
 use_frame_limit =
@@ -266,6 +270,10 @@ language_index =
 # The system region that yuzu will use during emulation
 # -1: Auto-select (default), 0: Japan, 1: USA, 2: Europe, 3: Australia, 4: China, 5: Korea, 6: Taiwan
 region_value =
+
+# The system time zone that yuzu will use during emulation
+# 0: Auto-select (default), 1: Default (system archive value), Others: Index for specified time zone
+time_zone_index =
 
 [Miscellaneous]
 # A filter which removes logs below a certain logging level.

@@ -22,7 +22,6 @@
 #include "video_core/renderer_vulkan/vk_pipeline_cache.h"
 #include "video_core/renderer_vulkan/vk_rasterizer.h"
 #include "video_core/renderer_vulkan/vk_renderpass_cache.h"
-#include "video_core/renderer_vulkan/vk_resource_manager.h"
 #include "video_core/renderer_vulkan/vk_scheduler.h"
 #include "video_core/renderer_vulkan/vk_update_descriptor.h"
 #include "video_core/renderer_vulkan/wrapper.h"
@@ -330,8 +329,7 @@ VKPipelineCache::DecompileShaders(const GraphicsPipelineCacheKey& key) {
 
         const GPUVAddr gpu_addr = GetShaderAddress(system, program_enum);
         const auto cpu_addr = memory_manager.GpuToCpuAddress(gpu_addr);
-        ASSERT(cpu_addr);
-        const auto shader = TryGet(*cpu_addr);
+        const auto shader = cpu_addr ? TryGet(*cpu_addr) : null_shader;
         ASSERT(shader);
 
         const std::size_t stage = index == 0 ? 0 : index - 1; // Stage indices are 0 - 5

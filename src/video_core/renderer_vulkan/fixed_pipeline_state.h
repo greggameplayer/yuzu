@@ -164,6 +164,7 @@ struct FixedPipelineState {
             BitField<23, 1, u32> tessellation_clockwise;
             BitField<24, 1, u32> logic_op_enable;
             BitField<25, 4, u32> logic_op;
+            BitField<29, 1, u32> rasterize_enable;
         };
 
         // TODO(Rodrigo): Move this to push constants
@@ -233,10 +234,17 @@ struct FixedPipelineState {
         void Fill(const Maxwell& regs) noexcept;
     };
 
+    struct ViewportSwizzles {
+        std::array<u16, Maxwell::NumViewports> swizzles;
+
+        void Fill(const Maxwell& regs) noexcept;
+    };
+
     VertexInput vertex_input;
     Rasterizer rasterizer;
     DepthStencil depth_stencil;
     ColorBlending color_blending;
+    ViewportSwizzles viewport_swizzles;
 
     void Fill(const Maxwell& regs);
 

@@ -2,12 +2,11 @@
 // Licensed under GPLv2 or any later version
 // Refer to the license.txt file included.
 
-// This file references various implementation details from Atmosphère, an open-source firmware for
-// the Nintendo Switch. Copyright 2018-2020 Atmosphère-NX.
+// This file references various implementation details from Atmosphere, an open-source firmware for
+// the Nintendo Switch. Copyright 2018-2020 Atmosphere-NX.
 
 #pragma once
 
-#include "common/common_funcs.h"
 #include "common/common_types.h"
 
 namespace Kernel::Memory {

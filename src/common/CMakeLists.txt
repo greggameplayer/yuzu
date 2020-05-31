@@ -123,6 +123,8 @@ add_library(common STATIC
     lz4_compression.cpp
     lz4_compression.h
     math_util.h
+    memory_detect.cpp
+    memory_detect.h
     memory_hook.cpp
     memory_hook.h
     microprofile.cpp
@@ -148,6 +150,8 @@ add_library(common STATIC
     thread.h
     thread_queue_list.h
     threadsafe_queue.h
+    time_zone.cpp
+    time_zone.h
     timer.cpp
     timer.h
     uint128.cpp
@@ -167,10 +171,12 @@ if(ARCHITECTURE_x86_64)
         PRIVATE
             x64/cpu_detect.cpp
             x64/cpu_detect.h
+            x64/xbyak_abi.h
+            x64/xbyak_util.h
     )
 endif()
 
 create_target_directory_groups(common)
 
-target_link_libraries(common PUBLIC Boost::boost fmt microprofile)
-target_link_libraries(common PRIVATE lz4_static libzstd_static)
+target_link_libraries(common PUBLIC Boost::boost fmt::fmt microprofile)
+target_link_libraries(common PRIVATE lz4::lz4 zstd::zstd xbyak)

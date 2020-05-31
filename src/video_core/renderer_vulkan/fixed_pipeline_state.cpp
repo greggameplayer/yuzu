@@ -2,6 +2,7 @@
 // Licensed under GPLv2 or any later version
 // Refer to the license.txt file included.
 
+#include <algorithm>
 #include <cstring>
 #include <tuple>
 
@@ -92,6 +93,7 @@ void FixedPipelineState::Rasterizer::Fill(const Maxwell& regs) noexcept {
     tessellation_clockwise.Assign(regs.tess_mode.cw.Value());
     logic_op_enable.Assign(regs.logic_op.enable != 0 ? 1 : 0);
     logic_op.Assign(PackLogicOp(regs.logic_op.operation));
+    rasterize_enable.Assign(regs.rasterize_enable != 0 ? 1 : 0);
     std::memcpy(&point_size, &regs.point_size, sizeof(point_size)); // TODO: C++20 std::bit_cast
 }
 
@@ -99,6 +101,12 @@ void FixedPipelineState::ColorBlending::Fill(const Maxwell& regs) noexcept {
     for (std::size_t index = 0; index < std::size(attachments); ++index) {
         attachments[index].Fill(regs, index);
     }
+}
+
+void FixedPipelineState::ViewportSwizzles::Fill(const Maxwell& regs) noexcept {
+    const auto& transform = regs.viewport_transform;
+    std::transform(transform.begin(), transform.end(), swizzles.begin(),
+                   [](const auto& viewport) { return static_cast<u16>(viewport.swizzle.raw); });
 }
 
 void FixedPipelineState::BlendingAttachment::Fill(const Maxwell& regs, std::size_t index) {
@@ -144,6 +152,7 @@ void FixedPipelineState::Fill(const Maxwell& regs) {
     rasterizer.Fill(regs);
     depth_stencil.Fill(regs);
     color_blending.Fill(regs);
+    viewport_swizzles.Fill(regs);
 }
 
 std::size_t FixedPipelineState::Hash() const noexcept {

@@ -106,6 +106,9 @@ public:
         format.setVersion(4, 3);
         format.setProfile(QSurfaceFormat::CompatibilityProfile);
         format.setOption(QSurfaceFormat::FormatOption::DeprecatedFunctions);
+        if (Settings::values.renderer_debug) {
+            format.setOption(QSurfaceFormat::FormatOption::DebugContext);
+        }
         // TODO: expose a setting for buffer value (ie default/single/double/triple)
         format.setSwapBehavior(QSurfaceFormat::DefaultSwapBehavior);
         format.setSwapInterval(0);
@@ -150,18 +153,19 @@ public:
     }
 
     void MakeCurrent() override {
-        if (is_current) {
-            return;
+        // We can't track the current state of the underlying context in this wrapper class because
+        // Qt may make the underlying context not current for one reason or another. In particular,
+        // the WebBrowser uses GL, so it seems to conflict if we aren't careful.
+        // Instead of always just making the context current (which does not have any caching to
+        // check if the underlying context is already current) we can check for the current context
+        // in the thread local data by calling `currentContext()` and checking if its ours.
+        if (QOpenGLContext::currentContext() != context.get()) {
+            context->makeCurrent(surface);
         }
-        is_current = context->makeCurrent(surface);
     }
 
     void DoneCurrent() override {
-        if (!is_current) {
-            return;
-        }
         context->doneCurrent();
-        is_current = false;
     }
 
     QOpenGLContext* GetShareContext() {
@@ -178,7 +182,6 @@ private:
     std::unique_ptr<QOpenGLContext> context;
     std::unique_ptr<QOffscreenSurface> offscreen_surface{};
     QSurface* surface;
-    bool is_current = false;
 };
 
 class DummyContext : public Core::Frontend::GraphicsContext {};
@@ -292,6 +295,8 @@ GRenderWindow::GRenderWindow(GMainWindow* parent_, EmuThread* emu_thread_)
     setLayout(layout);
     InputCommon::Init();
 
+    this->setMouseTracking(true);
+
     connect(this, &GRenderWindow::FirstFrameDisplayed, parent_, &GMainWindow::OnLoadComplete);
 }
 
@@ -385,6 +390,7 @@ void GRenderWindow::mousePressEvent(QMouseEvent* event) {
     } else if (event->button() == Qt::RightButton) {
         InputCommon::GetMotionEmu()->BeginTilt(pos.x(), pos.y());
     }
+    QWidget::mousePressEvent(event);
 }
 
 void GRenderWindow::mouseMoveEvent(QMouseEvent* event) {
@@ -397,6 +403,7 @@ void GRenderWindow::mouseMoveEvent(QMouseEvent* event) {
     const auto [x, y] = ScaleTouch(pos);
     this->TouchMoved(x, y);
     InputCommon::GetMotionEmu()->Tilt(pos.x(), pos.y());
+    QWidget::mouseMoveEvent(event);
 }
 
 void GRenderWindow::mouseReleaseEvent(QMouseEvent* event) {

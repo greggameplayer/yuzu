@@ -1538,7 +1538,9 @@ private:
         Expression target;
         if (const auto gpr = std::get_if<GprNode>(&*dest)) {
             if (gpr->GetIndex() == Register::ZeroIndex) {
-                // Writing to Register::ZeroIndex is a no op
+                // Writing to Register::ZeroIndex is a no op but we still have to visit the source
+                // as it might have side effects.
+                code.AddLine("{};", Visit(src).GetCode());
                 return {};
             }
             target = {GetRegister(gpr->GetIndex()), Type::Float};
@@ -1840,34 +1842,40 @@ private:
                 Type::HalfFloat};
     }
 
-    template <Type type>
-    Expression LogicalLessThan(Operation operation) {
-        return GenerateBinaryInfix(operation, "<", Type::Bool, type, type);
+    template <const std::string_view& op, Type type, bool unordered = false>
+    Expression Comparison(Operation operation) {
+        static_assert(!unordered || type == Type::Float);
+
+        const Expression expr = GenerateBinaryInfix(operation, op, Type::Bool, type, type);
+
+        if constexpr (op.compare("!=") == 0 && type == Type::Float && !unordered) {
+            // GLSL's operator!=(float, float) doesn't seem be ordered. This happens on both AMD's
+            // and Nvidia's proprietary stacks. Manually force an ordered comparison.
+            return {fmt::format("({} && !isnan({}) && !isnan({}))", expr.AsBool(),
+                                VisitOperand(operation, 0).AsFloat(),
+                                VisitOperand(operation, 1).AsFloat()),
+                    Type::Bool};
+        }
+        if constexpr (!unordered) {
+            return expr;
+        }
+        // Unordered comparisons are always true for NaN operands.
+        return {fmt::format("({} || isnan({}) || isnan({}))", expr.AsBool(),
+                            VisitOperand(operation, 0).AsFloat(),
+                            VisitOperand(operation, 1).AsFloat()),
+                Type::Bool};
     }
 
-    template <Type type>
-    Expression LogicalEqual(Operation operation) {
-        return GenerateBinaryInfix(operation, "==", Type::Bool, type, type);
+    Expression FOrdered(Operation operation) {
+        return {fmt::format("(!isnan({}) && !isnan({}))", VisitOperand(operation, 0).AsFloat(),
+                            VisitOperand(operation, 1).AsFloat()),
+                Type::Bool};
     }
 
-    template <Type type>
-    Expression LogicalLessEqual(Operation operation) {
-        return GenerateBinaryInfix(operation, "<=", Type::Bool, type, type);
-    }
-
-    template <Type type>
-    Expression LogicalGreaterThan(Operation operation) {
-        return GenerateBinaryInfix(operation, ">", Type::Bool, type, type);
-    }
-
-    template <Type type>
-    Expression LogicalNotEqual(Operation operation) {
-        return GenerateBinaryInfix(operation, "!=", Type::Bool, type, type);
-    }
-
-    template <Type type>
-    Expression LogicalGreaterEqual(Operation operation) {
-        return GenerateBinaryInfix(operation, ">=", Type::Bool, type, type);
+    Expression FUnordered(Operation operation) {
+        return {fmt::format("(isnan({}) || isnan({}))", VisitOperand(operation, 0).AsFloat(),
+                            VisitOperand(operation, 1).AsFloat()),
+                Type::Bool};
     }
 
     Expression LogicalAddCarry(Operation operation) {
@@ -2303,6 +2311,18 @@ private:
         return {"gl_SubGroupInvocationARB", Type::Uint};
     }
 
+    template <const std::string_view& comparison>
+    Expression ThreadMask(Operation) {
+        if (device.HasWarpIntrinsics()) {
+            return {fmt::format("gl_Thread{}MaskNV", comparison), Type::Uint};
+        }
+        if (device.HasShaderBallot()) {
+            return {fmt::format("uint(gl_SubGroup{}MaskARB)", comparison), Type::Uint};
+        }
+        LOG_ERROR(Render_OpenGL, "Thread mask intrinsics are required by the shader");
+        return {"0U", Type::Uint};
+    }
+
     Expression ShuffleIndexed(Operation operation) {
         std::string value = VisitOperand(operation, 0).AsFloat();
 
@@ -2315,7 +2335,21 @@ private:
         return {fmt::format("readInvocationARB({}, {})", value, index), Type::Float};
     }
 
-    Expression MemoryBarrierGL(Operation) {
+    Expression Barrier(Operation) {
+        if (!ir.IsDecompiled()) {
+            LOG_ERROR(Render_OpenGL, "barrier() used but shader is not decompiled");
+            return {};
+        }
+        code.AddLine("barrier();");
+        return {};
+    }
+
+    Expression MemoryBarrierGroup(Operation) {
+        code.AddLine("groupMemoryBarrier();");
+        return {};
+    }
+
+    Expression MemoryBarrierGlobal(Operation) {
         code.AddLine("memoryBarrier();");
         return {};
     }
@@ -2323,6 +2357,19 @@ private:
     struct Func final {
         Func() = delete;
         ~Func() = delete;
+
+        static constexpr std::string_view LessThan = "<";
+        static constexpr std::string_view Equal = "==";
+        static constexpr std::string_view LessEqual = "<=";
+        static constexpr std::string_view GreaterThan = ">";
+        static constexpr std::string_view NotEqual = "!=";
+        static constexpr std::string_view GreaterEqual = ">=";
+
+        static constexpr std::string_view Eq = "Eq";
+        static constexpr std::string_view Ge = "Ge";
+        static constexpr std::string_view Gt = "Gt";
+        static constexpr std::string_view Le = "Le";
+        static constexpr std::string_view Lt = "Lt";
 
         static constexpr std::string_view Add = "Add";
         static constexpr std::string_view Min = "Min";
@@ -2425,27 +2472,34 @@ private:
         &GLSLDecompiler::LogicalPick2,
         &GLSLDecompiler::LogicalAnd2,
 
-        &GLSLDecompiler::LogicalLessThan<Type::Float>,
-        &GLSLDecompiler::LogicalEqual<Type::Float>,
-        &GLSLDecompiler::LogicalLessEqual<Type::Float>,
-        &GLSLDecompiler::LogicalGreaterThan<Type::Float>,
-        &GLSLDecompiler::LogicalNotEqual<Type::Float>,
-        &GLSLDecompiler::LogicalGreaterEqual<Type::Float>,
-        &GLSLDecompiler::LogicalFIsNan,
+        &GLSLDecompiler::Comparison<Func::LessThan, Type::Float, false>,
+        &GLSLDecompiler::Comparison<Func::Equal, Type::Float, false>,
+        &GLSLDecompiler::Comparison<Func::LessEqual, Type::Float, false>,
+        &GLSLDecompiler::Comparison<Func::GreaterThan, Type::Float, false>,
+        &GLSLDecompiler::Comparison<Func::NotEqual, Type::Float, false>,
+        &GLSLDecompiler::Comparison<Func::GreaterEqual, Type::Float, false>,
+        &GLSLDecompiler::FOrdered,
+        &GLSLDecompiler::FUnordered,
+        &GLSLDecompiler::Comparison<Func::LessThan, Type::Float, true>,
+        &GLSLDecompiler::Comparison<Func::Equal, Type::Float, true>,
+        &GLSLDecompiler::Comparison<Func::LessEqual, Type::Float, true>,
+        &GLSLDecompiler::Comparison<Func::GreaterThan, Type::Float, true>,
+        &GLSLDecompiler::Comparison<Func::NotEqual, Type::Float, true>,
+        &GLSLDecompiler::Comparison<Func::GreaterEqual, Type::Float, true>,
 
-        &GLSLDecompiler::LogicalLessThan<Type::Int>,
-        &GLSLDecompiler::LogicalEqual<Type::Int>,
-        &GLSLDecompiler::LogicalLessEqual<Type::Int>,
-        &GLSLDecompiler::LogicalGreaterThan<Type::Int>,
-        &GLSLDecompiler::LogicalNotEqual<Type::Int>,
-        &GLSLDecompiler::LogicalGreaterEqual<Type::Int>,
+        &GLSLDecompiler::Comparison<Func::LessThan, Type::Int>,
+        &GLSLDecompiler::Comparison<Func::Equal, Type::Int>,
+        &GLSLDecompiler::Comparison<Func::LessEqual, Type::Int>,
+        &GLSLDecompiler::Comparison<Func::GreaterThan, Type::Int>,
+        &GLSLDecompiler::Comparison<Func::NotEqual, Type::Int>,
+        &GLSLDecompiler::Comparison<Func::GreaterEqual, Type::Int>,
 
-        &GLSLDecompiler::LogicalLessThan<Type::Uint>,
-        &GLSLDecompiler::LogicalEqual<Type::Uint>,
-        &GLSLDecompiler::LogicalLessEqual<Type::Uint>,
-        &GLSLDecompiler::LogicalGreaterThan<Type::Uint>,
-        &GLSLDecompiler::LogicalNotEqual<Type::Uint>,
-        &GLSLDecompiler::LogicalGreaterEqual<Type::Uint>,
+        &GLSLDecompiler::Comparison<Func::LessThan, Type::Uint>,
+        &GLSLDecompiler::Comparison<Func::Equal, Type::Uint>,
+        &GLSLDecompiler::Comparison<Func::LessEqual, Type::Uint>,
+        &GLSLDecompiler::Comparison<Func::GreaterThan, Type::Uint>,
+        &GLSLDecompiler::Comparison<Func::NotEqual, Type::Uint>,
+        &GLSLDecompiler::Comparison<Func::GreaterEqual, Type::Uint>,
 
         &GLSLDecompiler::LogicalAddCarry,
 
@@ -2534,9 +2588,16 @@ private:
         &GLSLDecompiler::VoteEqual,
 
         &GLSLDecompiler::ThreadId,
+        &GLSLDecompiler::ThreadMask<Func::Eq>,
+        &GLSLDecompiler::ThreadMask<Func::Ge>,
+        &GLSLDecompiler::ThreadMask<Func::Gt>,
+        &GLSLDecompiler::ThreadMask<Func::Le>,
+        &GLSLDecompiler::ThreadMask<Func::Lt>,
         &GLSLDecompiler::ShuffleIndexed,
 
-        &GLSLDecompiler::MemoryBarrierGL,
+        &GLSLDecompiler::Barrier,
+        &GLSLDecompiler::MemoryBarrierGroup,
+        &GLSLDecompiler::MemoryBarrierGlobal,
     };
     static_assert(operation_decompilers.size() == static_cast<std::size_t>(OperationCode::Amount));
 

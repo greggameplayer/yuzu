@@ -209,6 +209,7 @@ private slots:
     void ShowFullscreen();
     void HideFullscreen();
     void ToggleWindowMode();
+    void ResetWindowSize();
     void OnCaptureScreenshot();
     void OnCoreError(Core::System::ResultStatus, std::string);
     void OnReinitializeKeys(ReinitializeKeyBehavior behavior);
@@ -217,6 +218,8 @@ private:
     std::optional<u64> SelectRomFSDumpTarget(const FileSys::ContentProvider&, u64 program_id);
     void UpdateWindowTitle(const QString& title_name = {});
     void UpdateStatusBar();
+    void HideMouseCursor();
+    void ShowMouseCursor();
 
     Ui::MainWindow ui;
 
@@ -245,6 +248,7 @@ private:
     QString game_path;
 
     bool auto_paused = false;
+    QTimer mouse_hide_timer;
 
     // FS
     std::shared_ptr<FileSys::VfsFilesystem> vfs;
@@ -269,4 +273,6 @@ protected:
     void dropEvent(QDropEvent* event) override;
     void dragEnterEvent(QDragEnterEvent* event) override;
     void dragMoveEvent(QDragMoveEvent* event) override;
+    void mouseMoveEvent(QMouseEvent* event) override;
+    void mousePressEvent(QMouseEvent* event) override;
 };

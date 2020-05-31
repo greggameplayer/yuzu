@@ -109,6 +109,27 @@ u32 ShaderIR::DecodeOther(NodeBlock& bb, u32 pc) {
                 return Operation(OperationCode::WorkGroupIdY);
             case SystemVariable::CtaIdZ:
                 return Operation(OperationCode::WorkGroupIdZ);
+            case SystemVariable::EqMask:
+            case SystemVariable::LtMask:
+            case SystemVariable::LeMask:
+            case SystemVariable::GtMask:
+            case SystemVariable::GeMask:
+                uses_warps = true;
+                switch (instr.sys20) {
+                case SystemVariable::EqMask:
+                    return Operation(OperationCode::ThreadEqMask);
+                case SystemVariable::LtMask:
+                    return Operation(OperationCode::ThreadLtMask);
+                case SystemVariable::LeMask:
+                    return Operation(OperationCode::ThreadLeMask);
+                case SystemVariable::GtMask:
+                    return Operation(OperationCode::ThreadGtMask);
+                case SystemVariable::GeMask:
+                    return Operation(OperationCode::ThreadGeMask);
+                default:
+                    UNREACHABLE();
+                    return Immediate(0u);
+                }
             default:
                 UNIMPLEMENTED_MSG("Unhandled system move: {}",
                                   static_cast<u32>(instr.sys20.Value()));
@@ -272,10 +293,25 @@ u32 ShaderIR::DecodeOther(NodeBlock& bb, u32 pc) {
         SetRegister(bb, instr.gpr0, GetRegister(instr.gpr8));
         break;
     }
+    case OpCode::Id::BAR: {
+        UNIMPLEMENTED_IF_MSG(instr.value != 0xF0A81B8000070000ULL, "BAR is not BAR.SYNC 0x0");
+        bb.push_back(Operation(OperationCode::Barrier));
+        break;
+    }
     case OpCode::Id::MEMBAR: {
-        UNIMPLEMENTED_IF(instr.membar.type != Tegra::Shader::MembarType::GL);
         UNIMPLEMENTED_IF(instr.membar.unknown != Tegra::Shader::MembarUnknown::Default);
-        bb.push_back(Operation(OperationCode::MemoryBarrierGL));
+        const OperationCode type = [instr] {
+            switch (instr.membar.type) {
+            case Tegra::Shader::MembarType::CTA:
+                return OperationCode::MemoryBarrierGroup;
+            case Tegra::Shader::MembarType::GL:
+                return OperationCode::MemoryBarrierGlobal;
+            default:
+                UNIMPLEMENTED_MSG("MEMBAR type={}", static_cast<int>(instr.membar.type.Value()));
+                return OperationCode::MemoryBarrierGlobal;
+            }
+        }();
+        bb.push_back(Operation(type));
         break;
     }
     case OpCode::Id::DEPBAR: {

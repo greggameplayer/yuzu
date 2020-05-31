@@ -367,6 +367,9 @@ void Config::ReadValues() {
         Settings::values.custom_rtc = std::nullopt;
     }
 
+    Settings::values.language_index = sdl2_config->GetInteger("System", "language_index", 1);
+    Settings::values.time_zone_index = sdl2_config->GetInteger("System", "time_zone_index", 0);
+
     // Core
     Settings::values.use_multi_core = sdl2_config->GetBoolean("Core", "use_multi_core", false);
 
@@ -394,6 +397,8 @@ void Config::ReadValues() {
         sdl2_config->GetBoolean("Renderer", "use_asynchronous_gpu_emulation", false);
     Settings::values.use_vsync =
         static_cast<u16>(sdl2_config->GetInteger("Renderer", "use_vsync", 1));
+    Settings::values.use_assembly_shaders =
+        sdl2_config->GetBoolean("Renderer", "use_assembly_shaders", false);
     Settings::values.use_fast_gpu_time =
         sdl2_config->GetBoolean("Renderer", "use_fast_gpu_time", true);
 
@@ -410,8 +415,6 @@ void Config::ReadValues() {
         sdl2_config->GetBoolean("Audio", "enable_realtime_audio", false);
     Settings::values.audio_device_id = sdl2_config->Get("Audio", "output_device", "auto");
     Settings::values.volume = static_cast<float>(sdl2_config->GetReal("Audio", "volume", 1));
-
-    Settings::values.language_index = sdl2_config->GetInteger("System", "language_index", 1);
 
     // Miscellaneous
     Settings::values.log_filter = sdl2_config->Get("Miscellaneous", "log_filter", "*:Trace");

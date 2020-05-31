@@ -44,6 +44,12 @@ void Maxwell3D::InitializeRegisterDefaults() {
         viewport.depth_range_near = 0.0f;
         viewport.depth_range_far = 1.0f;
     }
+    for (auto& viewport : regs.viewport_transform) {
+        viewport.swizzle.x.Assign(Regs::ViewportSwizzle::PositiveX);
+        viewport.swizzle.y.Assign(Regs::ViewportSwizzle::PositiveY);
+        viewport.swizzle.z.Assign(Regs::ViewportSwizzle::PositiveZ);
+        viewport.swizzle.w.Assign(Regs::ViewportSwizzle::PositiveW);
+    }
 
     // Doom and Bomberman seems to use the uninitialized registers and just enable blend
     // so initialize blend registers with sane values
@@ -451,8 +457,9 @@ void Maxwell3D::StampQueryResult(u64 payload, bool long_query) {
 
 void Maxwell3D::ProcessQueryGet() {
     // TODO(Subv): Support the other query units.
-    ASSERT_MSG(regs.query.query_get.unit == Regs::QueryUnit::Crop,
-               "Units other than CROP are unimplemented");
+    if (regs.query.query_get.unit != Regs::QueryUnit::Crop) {
+        LOG_DEBUG(HW_GPU, "Units other than CROP are unimplemented");
+    }
 
     switch (regs.query.query_get.operation) {
     case Regs::QueryOperation::Release:
@@ -528,8 +535,8 @@ void Maxwell3D::ProcessCounterReset() {
         rasterizer.ResetCounter(QueryType::SamplesPassed);
         break;
     default:
-        LOG_WARNING(Render_OpenGL, "Unimplemented counter reset={}",
-                    static_cast<int>(regs.counter_reset));
+        LOG_DEBUG(Render_OpenGL, "Unimplemented counter reset={}",
+                  static_cast<int>(regs.counter_reset));
         break;
     }
 }
@@ -586,8 +593,8 @@ std::optional<u64> Maxwell3D::GetQueryResult() {
                          system.GPU().GetTicks());
         return {};
     default:
-        UNIMPLEMENTED_MSG("Unimplemented query select type {}",
-                          static_cast<u32>(regs.query.query_get.select.Value()));
+        LOG_DEBUG(HW_GPU, "Unimplemented query select type {}",
+                  static_cast<u32>(regs.query.query_get.select.Value()));
         return 1;
     }
 }

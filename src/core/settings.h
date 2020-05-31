@@ -394,6 +394,7 @@ struct Values {
     s32 current_user;
     s32 language_index;
     s32 region_index;
+    s32 time_zone_index;
     s32 sound_index;
 
     // Controls
@@ -445,6 +446,7 @@ struct Values {
     GPUAccuracy gpu_accuracy;
     bool use_asynchronous_gpu_emulation;
     bool use_vsync;
+    bool use_assembly_shaders;
     bool force_30fps_mode;
     bool use_fast_gpu_time;
 
@@ -491,6 +493,9 @@ struct Values {
 bool IsGPULevelExtreme();
 bool IsGPULevelHigh();
 
+std::string GetTimeZoneString();
+
 void Apply();
 void LogSettings();
+
 } // namespace Settings

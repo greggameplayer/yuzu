@@ -65,6 +65,7 @@ static FileSys::VirtualFile VfsDirectoryCreateFileWrapper(const FileSys::Virtual
 #include "common/logging/backend.h"
 #include "common/logging/filter.h"
 #include "common/logging/log.h"
+#include "common/memory_detect.h"
 #include "common/microprofile.h"
 #include "common/scm_rev.h"
 #include "common/scope_exit.h"
@@ -135,6 +136,8 @@ __declspec(dllexport) unsigned long NvOptimusEnablement = 0x00000001;
 __declspec(dllexport) int AmdPowerXpressRequestHighPerformance = 1;
 }
 #endif
+
+constexpr int default_mouse_timeout = 2500;
 
 constexpr u64 DLC_BASE_TITLE_ID_MASK = 0xFFFFFFFFFFFFE000;
 
@@ -218,6 +221,10 @@ GMainWindow::GMainWindow()
     LOG_INFO(Frontend, "Host CPU: {}", Common::GetCPUCaps().cpu_string);
 #endif
     LOG_INFO(Frontend, "Host OS: {}", QSysInfo::prettyProductName().toStdString());
+    LOG_INFO(Frontend, "Host RAM: {:.2f} GB",
+             Common::GetMemInfo().TotalPhysicalMemory / 1024.0f / 1024 / 1024);
+    LOG_INFO(Frontend, "Host Swap: {:.2f} GB",
+             Common::GetMemInfo().TotalSwapMemory / 1024.0f / 1024 / 1024);
     UpdateWindowTitle();
 
     show();
@@ -236,6 +243,14 @@ GMainWindow::GMainWindow()
 
     // Show one-time "callout" messages to the user
     ShowTelemetryCallout();
+
+    // make sure menubar has the arrow cursor instead of inheriting from this
+    ui.menubar->setCursor(QCursor());
+    statusBar()->setCursor(QCursor());
+
+    mouse_hide_timer.setInterval(default_mouse_timeout);
+    connect(&mouse_hide_timer, &QTimer::timeout, this, &GMainWindow::HideMouseCursor);
+    connect(ui.menubar, &QMenuBar::hovered, this, &GMainWindow::ShowMouseCursor);
 
     QStringList args = QApplication::arguments();
     if (args.length() >= 2) {
@@ -715,13 +730,13 @@ void GMainWindow::InitializeHotkeys() {
 }
 
 void GMainWindow::SetDefaultUIGeometry() {
-    // geometry: 55% of the window contents are in the upper screen half, 45% in the lower half
+    // geometry: 53% of the window contents are in the upper screen half, 47% in the lower half
     const QRect screenRect = QApplication::desktop()->screenGeometry(this);
 
     const int w = screenRect.width() * 2 / 3;
-    const int h = screenRect.height() / 2;
+    const int h = screenRect.height() * 2 / 3;
     const int x = (screenRect.x() + screenRect.width()) / 2 - w / 2;
-    const int y = (screenRect.y() + screenRect.height()) / 2 - h * 55 / 100;
+    const int y = (screenRect.y() + screenRect.height()) / 2 - h * 53 / 100;
 
     setGeometry(x, y, w, h);
 }
@@ -822,6 +837,7 @@ void GMainWindow::ConnectMenuEvents() {
             &GMainWindow::OnDisplayTitleBars);
     connect(ui.action_Show_Filter_Bar, &QAction::triggered, this, &GMainWindow::OnToggleFilterBar);
     connect(ui.action_Show_Status_Bar, &QAction::triggered, statusBar(), &QStatusBar::setVisible);
+    connect(ui.action_Reset_Window_Size, &QAction::triggered, this, &GMainWindow::ResetWindowSize);
 
     // Fullscreen
     ui.action_Fullscreen->setShortcut(
@@ -1013,6 +1029,12 @@ void GMainWindow::BootGame(const QString& filename) {
     async_status_button->setDisabled(true);
     renderer_status_button->setDisabled(true);
 
+    if (UISettings::values.hide_mouse) {
+        mouse_hide_timer.start();
+        setMouseTracking(true);
+        ui.centralwidget->setMouseTracking(true);
+    }
+
     const u64 title_id = Core::System::GetInstance().CurrentProcess()->GetTitleID();
 
     std::string title_name;
@@ -1080,6 +1102,9 @@ void GMainWindow::ShutdownGame() {
     else
         game_list->show();
     game_list->setFilterFocus();
+
+    setMouseTracking(false);
+    ui.centralwidget->setMouseTracking(false);
 
     UpdateWindowTitle();
 
@@ -1327,7 +1352,9 @@ void GMainWindow::OnGameListDumpRomFS(u64 program_id, const std::string& game_pa
     FileSys::VirtualFile romfs;
 
     if (*romfs_title_id == program_id) {
-        romfs = file;
+        const u64 ivfc_offset = loader->ReadRomFSIVFCOffset();
+        FileSys::PatchManager pm{program_id};
+        romfs = pm.PatchRomFS(file, ivfc_offset, FileSys::ContentRecordType::Program);
     } else {
         romfs = installed.GetEntry(*romfs_title_id, FileSys::ContentRecordType::Data)->GetRomFS();
     }
@@ -1883,6 +1910,20 @@ void GMainWindow::ToggleWindowMode() {
     }
 }
 
+void GMainWindow::ResetWindowSize() {
+    const auto aspect_ratio = Layout::EmulationAspectRatio(
+        static_cast<Layout::AspectRatio>(Settings::values.aspect_ratio),
+        static_cast<float>(Layout::ScreenUndocked::Height) / Layout::ScreenUndocked::Width);
+    if (!ui.action_Single_Window_Mode->isChecked()) {
+        render_window->resize(Layout::ScreenUndocked::Height / aspect_ratio,
+                              Layout::ScreenUndocked::Height);
+    } else {
+        resize(Layout::ScreenUndocked::Height / aspect_ratio,
+               Layout::ScreenUndocked::Height + menuBar()->height() +
+                   (ui.action_Show_Status_Bar->isChecked() ? statusBar()->height() : 0));
+    }
+}
+
 void GMainWindow::OnConfigure() {
     const auto old_theme = UISettings::values.theme;
     const bool old_discord_presence = UISettings::values.enable_discord_presence;
@@ -1909,6 +1950,15 @@ void GMainWindow::OnConfigure() {
     }
 
     config->Save();
+
+    if (UISettings::values.hide_mouse && emulation_running) {
+        setMouseTracking(true);
+        ui.centralwidget->setMouseTracking(true);
+        mouse_hide_timer.start();
+    } else {
+        setMouseTracking(false);
+        ui.centralwidget->setMouseTracking(false);
+    }
 
     dock_status_button->setChecked(Settings::values.use_docked_mode);
     async_status_button->setChecked(Settings::values.use_asynchronous_gpu_emulation);
@@ -2041,6 +2091,30 @@ void GMainWindow::UpdateStatusBar() {
     emu_speed_label->setVisible(true);
     game_fps_label->setVisible(true);
     emu_frametime_label->setVisible(true);
+}
+
+void GMainWindow::HideMouseCursor() {
+    if (emu_thread == nullptr || UISettings::values.hide_mouse == false) {
+        mouse_hide_timer.stop();
+        ShowMouseCursor();
+        return;
+    }
+    setCursor(QCursor(Qt::BlankCursor));
+}
+
+void GMainWindow::ShowMouseCursor() {
+    unsetCursor();
+    if (emu_thread != nullptr && UISettings::values.hide_mouse) {
+        mouse_hide_timer.start();
+    }
+}
+
+void GMainWindow::mouseMoveEvent(QMouseEvent* event) {
+    ShowMouseCursor();
+}
+
+void GMainWindow::mousePressEvent(QMouseEvent* event) {
+    ShowMouseCursor();
 }
 
 void GMainWindow::OnCoreError(Core::System::ResultStatus result, std::string details) {

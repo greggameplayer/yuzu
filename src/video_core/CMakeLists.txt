@@ -1,6 +1,7 @@
 add_library(video_core STATIC
     buffer_cache/buffer_block.h
     buffer_cache/buffer_cache.h
+    buffer_cache/map_interval.cpp
     buffer_cache/map_interval.h
     dirty_flags.cpp
     dirty_flags.h
@@ -228,7 +229,7 @@ endif()
 create_target_directory_groups(video_core)
 
 target_link_libraries(video_core PUBLIC common core)
-target_link_libraries(video_core PRIVATE glad)
+target_link_libraries(video_core PRIVATE glad xbyak)
 
 if (ENABLE_VULKAN)
     target_include_directories(video_core PRIVATE sirit ../../externals/Vulkan-Headers/include)
