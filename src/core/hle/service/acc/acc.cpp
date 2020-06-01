@@ -341,13 +341,6 @@ void Module::Interface::InitializeApplicationInfoRestricted(Kernel::HLERequestCo
     rb.Push(InitializeApplicationInfoBase());
 }
 
-void Module::Interface::ListQualifiedUsers(Kernel::HLERequestContext& ctx) {
-    LOG_WARNING(Service_ACC, "(STUBBED) called");
-    ctx.WriteBuffer(profile_manager->GetAllUsers());
-    IPC::ResponseBuilder rb{ctx, 2};
-    rb.Push(RESULT_SUCCESS);
-}
-
 ResultCode Module::Interface::InitializeApplicationInfoBase() {
     if (application_info) {
         LOG_ERROR(Service_ACC, "Application already initialized");
