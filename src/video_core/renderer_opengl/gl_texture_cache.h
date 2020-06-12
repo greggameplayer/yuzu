@@ -129,7 +129,9 @@ private:
 
 class TextureCacheOpenGL final : public TextureCacheBase {
 public:
-    explicit TextureCacheOpenGL(Core::System& system, VideoCore::RasterizerInterface& rasterizer,
+    explicit TextureCacheOpenGL(VideoCore::RasterizerInterface& rasterizer,
+                                Tegra::Engines::Maxwell3D& maxwell3d,
+                                Tegra::MemoryManager& gpu_memory,
                                 const Device& device, StateTracker& state_tracker);
     ~TextureCacheOpenGL();
 

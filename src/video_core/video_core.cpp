@@ -19,14 +19,17 @@
 namespace {
 
 std::unique_ptr<VideoCore::RendererBase> CreateRenderer(
-    Core::Frontend::EmuWindow& emu_window, Core::System& system,
+    Core::TelemetrySession& telemetry_session, Core::Frontend::EmuWindow& emu_window,
+    Core::Memory::Memory& cpu_memory, Tegra::GPU& gpu,
     std::unique_ptr<Core::Frontend::GraphicsContext> context) {
     switch (Settings::values.renderer_backend) {
     case Settings::RendererBackend::OpenGL:
-        return std::make_unique<OpenGL::RendererOpenGL>(emu_window, system, std::move(context));
+        return std::make_unique<OpenGL::RendererOpenGL>(telemetry_session, emu_window, cpu_memory,
+                                                        gpu, std::move(context));
 #ifdef HAS_VULKAN
     case Settings::RendererBackend::Vulkan:
-        return std::make_unique<Vulkan::RendererVulkan>(emu_window, system, std::move(context));
+        return std::make_unique<Vulkan::RendererVulkan>(telemetry_session, emu_window, cpu_memory,
+                                                        gpu, std::move(context));
 #endif
     default:
         return nullptr;
@@ -48,7 +51,8 @@ std::unique_ptr<Tegra::GPU> CreateGPU(Core::Frontend::EmuWindow& emu_window, Cor
     auto context = emu_window.CreateSharedContext();
     const auto scope = context->Acquire();
 
-    auto renderer = CreateRenderer(emu_window, system, std::move(context));
+    auto renderer = CreateRenderer(system.TelemetrySession(), emu_window, system.Memory(), *gpu,
+                                   std::move(context));
     if (!renderer->Init()) {
         return nullptr;
     }

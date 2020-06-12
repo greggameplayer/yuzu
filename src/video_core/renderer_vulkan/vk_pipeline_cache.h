@@ -102,7 +102,8 @@ namespace Vulkan {
 
 class Shader {
 public:
-    explicit Shader(Core::System& system, Tegra::Engines::ShaderType stage, GPUVAddr gpu_addr,
+    explicit Shader(Tegra::Engines::ConstBufferEngineInterface& engine,
+                    Tegra::Engines::ShaderType stage, GPUVAddr gpu_addr, VAddr cpu_addr,
                     VideoCommon::Shader::ProgramCode program_code, u32 main_offset);
     ~Shader();
 
@@ -114,12 +115,12 @@ public:
         return shader_ir;
     }
 
-    const VideoCommon::Shader::Registry& GetRegistry() const {
-        return registry;
-    }
-
     const VideoCommon::Shader::ShaderIR& GetIR() const {
         return shader_ir;
+    }
+
+    const VideoCommon::Shader::Registry& GetRegistry() const {
+        return registry;
     }
 
     const ShaderEntries& GetEntries() const {
@@ -127,9 +128,6 @@ public:
     }
 
 private:
-    static Tegra::Engines::ConstBufferEngineInterface& GetEngine(Core::System& system,
-                                                                 Tegra::Engines::ShaderType stage);
-
     GPUVAddr gpu_addr{};
     VideoCommon::Shader::ProgramCode program_code;
     VideoCommon::Shader::Registry registry;
@@ -139,9 +137,10 @@ private:
 
 class VKPipelineCache final : public VideoCommon::ShaderCache<Shader> {
 public:
-    explicit VKPipelineCache(Core::System& system, RasterizerVulkan& rasterizer,
-                             const VKDevice& device, VKScheduler& scheduler,
-                             VKDescriptorPool& descriptor_pool,
+    explicit VKPipelineCache(RasterizerVulkan& rasterizer, Tegra::Engines::Maxwell3D& maxwell3d,
+                             Tegra::Engines::KeplerCompute& kepler_compute,
+                             Tegra::MemoryManager& gpu_memory, const VKDevice& device,
+                             VKScheduler& scheduler, VKDescriptorPool& descriptor_pool,
                              VKUpdateDescriptorQueue& update_descriptor_queue,
                              VKRenderPassCache& renderpass_cache);
     ~VKPipelineCache() override;
@@ -159,7 +158,10 @@ private:
     std::pair<SPIRVProgram, std::vector<VkDescriptorSetLayoutBinding>> DecompileShaders(
         const GraphicsPipelineCacheKey& key);
 
-    Core::System& system;
+    Tegra::Engines::Maxwell3D& maxwell3d;
+    Tegra::Engines::KeplerCompute& kepler_compute;
+    Tegra::MemoryManager& gpu_memory;
+
     const VKDevice& device;
     VKScheduler& scheduler;
     VKDescriptorPool& descriptor_pool;
