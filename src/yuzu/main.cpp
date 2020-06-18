@@ -1035,6 +1035,13 @@ void GMainWindow::BootGame(const QString& filename) {
     LOG_INFO(Frontend, "yuzu starting...");
     StoreRecentFile(filename); // Put the filename on top of the list
 
+    // Swap settings to use game configuration if need be
+    Settings::SwapValues(Settings::ValuesSwapTarget::ToGame);
+    Config per_game_config(filename.toUtf8().constData(), false);
+    if (Settings::game_values.use_global_values) {
+        Settings::SwapValues(Settings::ValuesSwapTarget::ToGlobal);
+    }
+
     if (UISettings::values.select_user_on_boot) {
         SelectAndSetCurrentUser();
     }
@@ -1811,6 +1818,8 @@ void GMainWindow::OnStopGame() {
     if (system.GetExitLock() && !ConfirmForceLockedExit()) {
         return;
     }
+
+    Settings::SwapValues(Settings::ValuesSwapTarget::ToGlobal);
 
     ShutdownGame();
 }
