@@ -267,7 +267,7 @@ bool RendererVulkan::TryPresent(int /*timeout_ms*/) {
 bool RendererVulkan::Init() {
     library = OpenVulkanLibrary();
     instance = CreateInstance(library, dld, render_window.GetWindowInfo().type,
-                              Settings::values->renderer_debug);
+                              Settings::values.renderer_debug);
     if (!instance || !CreateDebugCallback() || !CreateSurface() || !PickDevices()) {
         return false;
     }
@@ -315,7 +315,7 @@ void RendererVulkan::ShutDown() {
 }
 
 bool RendererVulkan::CreateDebugCallback() {
-    if (!Settings::values->renderer_debug) {
+    if (!Settings::values.renderer_debug) {
         return true;
     }
     debug_callback = instance.TryCreateDebugCallback(DebugCallback);
@@ -389,7 +389,7 @@ bool RendererVulkan::PickDevices() {
         return false;
     }
 
-    const s32 device_index = Settings::values->vulkan_device;
+    const s32 device_index = Settings::values.vulkan_device;
     if (device_index < 0 || device_index >= static_cast<s32>(devices->size())) {
         LOG_ERROR(Render_Vulkan, "Invalid device index {}!", device_index);
         return false;
