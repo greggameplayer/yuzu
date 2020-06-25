@@ -1546,6 +1546,11 @@ void GMainWindow::OnGameListOpenPerGameProperties(const std::string& file) {
 
         config->Save();
     }
+
+    // If a game is running, DO NOT restore the global settings state
+    if (!Core::System::GetInstance().IsPoweredOn()) {
+        Settings::RestoreGlobalState();
+    }
 }
 
 void GMainWindow::OnMenuLoadFile() {
