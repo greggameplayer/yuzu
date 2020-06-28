@@ -68,6 +68,14 @@ public:
         return has_image_load_formatted;
     }
 
+    bool HasTextureShadowLod() const {
+        return has_texture_shadow_lod;
+    }
+
+    bool HasVertexBufferUnifiedMemory() const {
+        return has_vertex_buffer_unified_memory;
+    }
+
     bool HasASTC() const {
         return has_astc;
     }
@@ -88,6 +96,10 @@ public:
         return has_fast_buffer_sub_data;
     }
 
+    bool HasNvViewportArray2() const {
+        return has_nv_viewport_array2;
+    }
+
     bool UseAssemblyShaders() const {
         return use_assembly_shaders;
     }
@@ -106,11 +118,14 @@ private:
     bool has_shader_ballot{};
     bool has_vertex_viewport_layer{};
     bool has_image_load_formatted{};
+    bool has_texture_shadow_lod{};
+    bool has_vertex_buffer_unified_memory{};
     bool has_astc{};
     bool has_variable_aoffi{};
     bool has_component_indexing_bug{};
     bool has_precise_bug{};
     bool has_fast_buffer_sub_data{};
+    bool has_nv_viewport_array2{};
     bool use_assembly_shaders{};
 };
 

@@ -123,16 +123,24 @@ std::array<Device::BaseBindings, Tegra::Engines::MaxShaderTypes> BuildBaseBindin
     u32 num_images = GetInteger<u32>(GL_MAX_IMAGE_UNITS);
     u32 base_images = 0;
 
-    // Reserve more image bindings on fragment and vertex stages.
+    // GL_MAX_IMAGE_UNITS is guaranteed by the spec to have a minimum value of 8.
+    // Due to the limitation of GL_MAX_IMAGE_UNITS, reserve at least 4 image bindings on the
+    // fragment stage, and at least 1 for the rest of the stages.
+    // So far games are observed to use 1 image binding on vertex and 4 on fragment stages.
+
+    // Reserve at least 4 image bindings on the fragment stage.
     bindings[4].image =
-        Extract(base_images, num_images, num_images / NumStages + 2, LimitImages[4]);
-    bindings[0].image =
-        Extract(base_images, num_images, num_images / NumStages + 1, LimitImages[0]);
+        Extract(base_images, num_images, std::max(4U, num_images / NumStages), LimitImages[4]);
+
+    // This is guaranteed to be at least 1.
+    const u32 total_extracted_images = num_images / (NumStages - 1);
 
     // Reserve the other image bindings.
-    const u32 total_extracted_images = num_images / (NumStages - 2);
-    for (std::size_t i = 2; i < NumStages; ++i) {
+    for (std::size_t i = 0; i < NumStages; ++i) {
         const std::size_t stage = stage_swizzle[i];
+        if (stage == 4) {
+            continue;
+        }
         bindings[stage].image =
             Extract(base_images, num_images, total_extracted_images, LimitImages[stage]);
     }
@@ -170,7 +178,7 @@ bool IsASTCSupported() {
         for (const GLenum format : formats) {
             for (const GLenum support : required_support) {
                 GLint value;
-                glGetInternalformativ(GL_TEXTURE_2D, format, support, 1, &value);
+                glGetInternalformativ(target, format, support, 1, &value);
                 if (value != GL_FULL_SUPPORT) {
                     return false;
                 }
@@ -180,16 +188,40 @@ bool IsASTCSupported() {
     return true;
 }
 
+/// @brief Returns true when a GL_RENDERER is a Turing GPU
+/// @param renderer GL_RENDERER string
+bool IsTuring(std::string_view renderer) {
+    static constexpr std::array<std::string_view, 12> TURING_GPUS = {
+        "GTX 1650",        "GTX 1660",        "RTX 2060",        "RTX 2070",
+        "RTX 2080",        "TITAN RTX",       "Quadro RTX 3000", "Quadro RTX 4000",
+        "Quadro RTX 5000", "Quadro RTX 6000", "Quadro RTX 8000", "Tesla T4",
+    };
+    return std::any_of(TURING_GPUS.begin(), TURING_GPUS.end(),
+                       [renderer](std::string_view candidate) {
+                           return renderer.find(candidate) != std::string_view::npos;
+                       });
+}
+
 } // Anonymous namespace
 
 Device::Device()
     : max_uniform_buffers{BuildMaxUniformBuffers()}, base_bindings{BuildBaseBindings()} {
     const std::string_view vendor = reinterpret_cast<const char*>(glGetString(GL_VENDOR));
-    const auto renderer = reinterpret_cast<const char*>(glGetString(GL_RENDERER));
+    const std::string_view renderer = reinterpret_cast<const char*>(glGetString(GL_RENDERER));
+    const std::string_view version = reinterpret_cast<const char*>(glGetString(GL_VERSION));
     const std::vector extensions = GetExtensions();
 
     const bool is_nvidia = vendor == "NVIDIA Corporation";
     const bool is_amd = vendor == "ATI Technologies Inc.";
+    const bool is_turing = is_nvidia && IsTuring(renderer);
+
+    bool disable_fast_buffer_sub_data = false;
+    if (is_nvidia && version == "4.6.0 NVIDIA 443.24") {
+        LOG_WARNING(
+            Render_OpenGL,
+            "Beta driver 443.24 is known to have issues. There might be performance issues.");
+        disable_fast_buffer_sub_data = true;
+    }
 
     uniform_buffer_alignment = GetInteger<std::size_t>(GL_UNIFORM_BUFFER_OFFSET_ALIGNMENT);
     shader_storage_alignment = GetInteger<std::size_t>(GL_SHADER_STORAGE_BUFFER_OFFSET_ALIGNMENT);
@@ -200,13 +232,24 @@ Device::Device()
     has_shader_ballot = GLAD_GL_ARB_shader_ballot;
     has_vertex_viewport_layer = GLAD_GL_ARB_shader_viewport_layer_array;
     has_image_load_formatted = HasExtension(extensions, "GL_EXT_shader_image_load_formatted");
+    has_texture_shadow_lod = HasExtension(extensions, "GL_EXT_texture_shadow_lod");
     has_astc = IsASTCSupported();
     has_variable_aoffi = TestVariableAoffi();
     has_component_indexing_bug = is_amd;
     has_precise_bug = TestPreciseBug();
-    has_fast_buffer_sub_data = is_nvidia;
+    has_nv_viewport_array2 = GLAD_GL_NV_viewport_array2;
+
+    // At the moment of writing this, only Nvidia's driver optimizes BufferSubData on exclusive
+    // uniform buffers as "push constants"
+    has_fast_buffer_sub_data = is_nvidia && !disable_fast_buffer_sub_data;
+
+    // Nvidia's driver on Turing GPUs randomly crashes when the buffer is made resident, or on
+    // DeleteBuffers. Disable unified memory on these devices.
+    has_vertex_buffer_unified_memory = GLAD_GL_NV_vertex_buffer_unified_memory && !is_turing;
+
     use_assembly_shaders = Settings::values.use_assembly_shaders && GLAD_GL_NV_gpu_program5 &&
-                           GLAD_GL_NV_compute_program5;
+                           GLAD_GL_NV_compute_program5 && GLAD_GL_NV_transform_feedback &&
+                           GLAD_GL_NV_transform_feedback2;
 
     LOG_INFO(Render_OpenGL, "Renderer_VariableAOFFI: {}", has_variable_aoffi);
     LOG_INFO(Render_OpenGL, "Renderer_ComponentIndexingBug: {}", has_component_indexing_bug);
@@ -227,6 +270,7 @@ Device::Device(std::nullptr_t) {
     has_shader_ballot = true;
     has_vertex_viewport_layer = true;
     has_image_load_formatted = true;
+    has_texture_shadow_lod = true;
     has_variable_aoffi = true;
 }
 

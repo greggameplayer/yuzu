@@ -159,7 +159,10 @@ private:
 
     void FlushWork();
 
-    Texceptions UpdateAttachments();
+    /// @brief Updates the currently bound attachments
+    /// @param is_clear True when the framebuffer is updated as a clear
+    /// @return Bitfield of attachments being used as sampled textures
+    Texceptions UpdateAttachments(bool is_clear);
 
     std::tuple<VkFramebuffer, VkExtent2D> ConfigureFramebuffers(VkRenderPass renderpass);
 
@@ -168,7 +171,7 @@ private:
                                  bool is_indexed, bool is_instanced);
 
     /// Setup descriptors in the graphics pipeline.
-    void SetupShaderDescriptors(const std::array<Shader, Maxwell::MaxShaderProgram>& shaders);
+    void SetupShaderDescriptors(const std::array<Shader*, Maxwell::MaxShaderProgram>& shaders);
 
     void SetupImageTransitions(Texceptions texceptions,
                                const std::array<View, Maxwell::NumRenderTargets>& color_attachments,

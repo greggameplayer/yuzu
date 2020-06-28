@@ -248,6 +248,8 @@ SurfaceParams SurfaceParams::CreateForFermiCopySurface(
     params.pitch = config.pitch;
     // TODO(Rodrigo): Try to guess texture arrays from parameters
     params.target = params.block_depth > 0 ? SurfaceTarget::Texture3D : SurfaceTarget::Texture2D;
+    // TODO(Rodrigo): Try to guess texture arrays from parameters
+    params.target = SurfaceTarget::Texture2D;
     params.depth = 1;
     params.num_levels = 1;
     params.emulated_levels = 1;

@@ -1404,6 +1404,8 @@ public:
     SamplerDescriptor AccessBindlessSampler(ShaderType stage, u64 const_buffer,
                                             u64 offset) const override;
 
+    SamplerDescriptor AccessSampler(u32 handle) const override;
+
     u32 GetBoundBuffer() const override {
         return regs.tex_cb_index;
     }
@@ -1414,6 +1416,14 @@ public:
 
     bool ShouldExecute() const {
         return execute_on;
+    }
+
+    VideoCore::RasterizerInterface& GetRasterizer() {
+        return rasterizer;
+    }
+
+    const VideoCore::RasterizerInterface& GetRasterizer() const {
+        return rasterizer;
     }
 
     /// Notify a memory write has happened.

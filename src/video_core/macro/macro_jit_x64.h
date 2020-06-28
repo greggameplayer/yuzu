@@ -55,8 +55,6 @@ private:
 
     Xbyak::Reg32 Compile_FetchParameter();
     Xbyak::Reg32 Compile_GetRegister(u32 index, Xbyak::Reg32 dst);
-    Xbyak::Reg64 Compile_GetRegister(u32 index, Xbyak::Reg64 dst);
-    void Compile_WriteCarry(Xbyak::Reg64 dst);
 
     void Compile_ProcessResult(Macro::ResultOperation operation, u32 reg);
     void Compile_Send(Xbyak::Reg32 value);
@@ -67,11 +65,10 @@ private:
     struct JITState {
         Engines::Maxwell3D* maxwell3d{};
         std::array<u32, Macro::NUM_MACRO_REGISTERS> registers{};
-        const u32* parameters{};
         u32 carry_flag{};
     };
     static_assert(offsetof(JITState, maxwell3d) == 0, "Maxwell3D is not at 0x0");
-    using ProgramType = void (*)(JITState*);
+    using ProgramType = void (*)(JITState*, const u32*);
 
     struct OptimizerState {
         bool can_skip_carry{};
@@ -79,6 +76,7 @@ private:
         bool zero_reg_skip{};
         bool skip_dummy_addimmediate{};
         bool optimize_for_method_move{};
+        bool enable_asserts{};
     };
     OptimizerState optimizer{};
 
@@ -86,7 +84,7 @@ private:
     ProgramType program{nullptr};
 
     std::array<Xbyak::Label, MAX_CODE_SIZE> labels;
-    std::array<Xbyak::Label, MAX_CODE_SIZE> delay_skip{};
+    std::array<Xbyak::Label, MAX_CODE_SIZE> delay_skip;
     Xbyak::Label end_of_code{};
 
     bool is_delay_slot{};
