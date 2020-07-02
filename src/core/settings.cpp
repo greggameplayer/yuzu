@@ -62,6 +62,7 @@ const std::array<const char*, NumMouseButtons> mapping = {{
 }
 
 Values values = {};
+bool configuring_global = true;
 
 std::string GetTimeZoneString() {
     static constexpr std::array<const char*, 46> timezones{{
@@ -97,8 +98,8 @@ void LogSetting(const std::string& name, const T& value) {
 
 void LogSettings() {
     LOG_INFO(Config, "yuzu Configuration:");
-    LogSetting("System_UseDockedMode", Settings::values.use_docked_mode);
-    LogSetting("System_RngSeed", Settings::values.rng_seed.value_or(0));
+    LogSetting("Controls_UseDockedMode", Settings::values.use_docked_mode);
+    LogSetting("System_RngSeed", Settings::values.rng_seed.GetValue().value_or(0));
     LogSetting("System_CurrentUser", Settings::values.current_user);
     LogSetting("System_LanguageIndex", Settings::values.language_index);
     LogSetting("System_RegionIndex", Settings::values.region_index);
@@ -108,7 +109,7 @@ void LogSettings() {
     LogSetting("Renderer_UseFrameLimit", Settings::values.use_frame_limit);
     LogSetting("Renderer_FrameLimit", Settings::values.frame_limit);
     LogSetting("Renderer_UseDiskShaderCache", Settings::values.use_disk_shader_cache);
-    LogSetting("Renderer_GPUAccuracyLevel", Settings::values.gpu_accuracy);
+    LogSetting("Renderer_GPUAccuracyLevel", Settings::values.gpu_accuracy.GetValue());
     LogSetting("Renderer_UseAsynchronousGpuEmulation",
                Settings::values.use_asynchronous_gpu_emulation);
     LogSetting("Renderer_UseVsync", Settings::values.use_vsync);
@@ -140,6 +141,48 @@ bool IsGPULevelExtreme() {
 
 bool IsGPULevelHigh() {
     return values.gpu_accuracy == GPUAccuracy::Extreme || values.gpu_accuracy == GPUAccuracy::High;
+}
+
+void RestoreGlobalState() {
+    // If a game is running, DO NOT restore the global settings state
+    if (Core::System::GetInstance().IsPoweredOn()) {
+        return;
+    }
+
+    // Audio
+    values.enable_audio_stretching.SetGlobal(true);
+    values.volume.SetGlobal(true);
+
+    // Core
+    values.use_multi_core.SetGlobal(true);
+
+    // Renderer
+    values.renderer_backend.SetGlobal(true);
+    values.renderer_debug.SetGlobal(true);
+    values.vulkan_device.SetGlobal(true);
+    values.aspect_ratio.SetGlobal(true);
+    values.max_anisotropy.SetGlobal(true);
+    values.use_frame_limit.SetGlobal(true);
+    values.frame_limit.SetGlobal(true);
+    values.use_disk_shader_cache.SetGlobal(true);
+    values.gpu_accuracy.SetGlobal(true);
+    values.use_asynchronous_gpu_emulation.SetGlobal(true);
+    values.use_vsync.SetGlobal(true);
+    values.use_assembly_shaders.SetGlobal(true);
+    values.use_fast_gpu_time.SetGlobal(true);
+    values.force_30fps_mode.SetGlobal(true);
+    values.bg_red.SetGlobal(true);
+    values.bg_green.SetGlobal(true);
+    values.bg_blue.SetGlobal(true);
+
+    // System
+    values.current_user.SetGlobal(true);
+    values.language_index.SetGlobal(true);
+    values.region_index.SetGlobal(true);
+    values.time_zone_index.SetGlobal(true);
+    values.rng_seed.SetGlobal(true);
+    values.custom_rtc.SetGlobal(true);
+    values.sound_index.SetGlobal(true);
 }
 
 } // namespace Settings

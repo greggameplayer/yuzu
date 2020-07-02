@@ -105,11 +105,11 @@ void SET::GetQuestFlag(Kernel::HLERequestContext& ctx) {
 }
 
 void SET::GetLanguageCode(Kernel::HLERequestContext& ctx) {
-    LOG_DEBUG(Service_SET, "called {}", Settings::values.language_index);
+    LOG_DEBUG(Service_SET, "called {}", Settings::values.language_index.GetValue());
 
     IPC::ResponseBuilder rb{ctx, 4};
     rb.Push(RESULT_SUCCESS);
-    rb.PushEnum(available_language_codes[Settings::values.language_index]);
+    rb.PushEnum(available_language_codes[Settings::values.language_index.GetValue()]);
 }
 
 void SET::GetRegionCode(Kernel::HLERequestContext& ctx) {
@@ -117,7 +117,7 @@ void SET::GetRegionCode(Kernel::HLERequestContext& ctx) {
 
     IPC::ResponseBuilder rb{ctx, 3};
     rb.Push(RESULT_SUCCESS);
-    rb.Push(Settings::values.region_index);
+    rb.Push(Settings::values.region_index.GetValue());
 }
 
 SET::SET() : ServiceFramework("set") {

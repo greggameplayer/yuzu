@@ -81,6 +81,9 @@ void Config::ReadValues() {
     Settings::values.touchscreen.diameter_x = 15;
     Settings::values.touchscreen.diameter_y = 15;
 
+    Settings::values.use_docked_mode =
+        sdl2_config->GetBoolean("Controls", "use_docked_mode", false);
+
     // Data Storage
     Settings::values.use_virtual_sd =
         sdl2_config->GetBoolean("Data Storage", "use_virtual_sd", true);
@@ -92,8 +95,6 @@ void Config::ReadValues() {
                                            FileUtil::GetUserPath(FileUtil::UserPath::SDMCDir)));
 
     // System
-    Settings::values.use_docked_mode = sdl2_config->GetBoolean("System", "use_docked_mode", false);
-
     Settings::values.current_user = std::clamp<int>(
         sdl2_config->GetInteger("System", "current_user", 0), 0, Service::Account::MAX_USERS - 1);
 

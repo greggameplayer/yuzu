@@ -16,7 +16,7 @@
 #include "applets/software_keyboard.h"
 #include "applets/web_browser.h"
 #include "configuration/configure_input.h"
-#include "configuration/configure_per_general.h"
+#include "configuration/configure_per_game.h"
 #include "core/file_sys/vfs.h"
 #include "core/file_sys/vfs_real.h"
 #include "core/frontend/applets/general_frontend.h"
@@ -735,14 +735,14 @@ void GMainWindow::InitializeHotkeys() {
     connect(hotkey_registry.GetHotkey(main_window, QStringLiteral("Increase Speed Limit"), this),
             &QShortcut::activated, this, [&] {
                 if (Settings::values.frame_limit < 9999 - SPEED_LIMIT_STEP) {
-                    Settings::values.frame_limit += SPEED_LIMIT_STEP;
+                    Settings::values.frame_limit = SPEED_LIMIT_STEP + Settings::values.frame_limit;
                     UpdateStatusBar();
                 }
             });
     connect(hotkey_registry.GetHotkey(main_window, QStringLiteral("Decrease Speed Limit"), this),
             &QShortcut::activated, this, [&] {
                 if (Settings::values.frame_limit > SPEED_LIMIT_STEP) {
-                    Settings::values.frame_limit -= SPEED_LIMIT_STEP;
+                    Settings::values.frame_limit = Settings::values.frame_limit - SPEED_LIMIT_STEP;
                     UpdateStatusBar();
                 }
             });
@@ -1040,6 +1040,19 @@ void GMainWindow::BootGame(const QString& filename) {
     LOG_INFO(Frontend, "yuzu starting...");
     StoreRecentFile(filename); // Put the filename on top of the list
 
+    u64 title_id{0};
+
+    const auto v_file = Core::GetGameFileFromPath(vfs, filename.toUtf8().constData());
+    const auto loader = Loader::GetLoader(v_file);
+    if (!(loader == nullptr || loader->ReadProgramId(title_id) != Loader::ResultStatus::Success)) {
+        // Load per game settings
+        Config per_game_config(fmt::format("{:016X}", title_id) + ".ini", false);
+    }
+
+    UpdateStatusButtons();
+
+    Settings::LogSettings();
+
     if (UISettings::values.select_user_on_boot) {
         SelectAndSetCurrentUser();
     }
@@ -1078,8 +1091,6 @@ void GMainWindow::BootGame(const QString& filename) {
         setMouseTracking(true);
         ui.centralwidget->setMouseTracking(true);
     }
-
-    const u64 title_id = Core::System::GetInstance().CurrentProcess()->GetTitleID();
 
     std::string title_name;
     std::string title_version;
@@ -1130,6 +1141,11 @@ void GMainWindow::ShutdownGame() {
 
     // The emulation is stopped, so closing the window or not does not matter anymore
     disconnect(render_window, &GRenderWindow::Closed, this, &GMainWindow::OnStopGame);
+
+    // If any settings are set to use their per-game counterparts, switch back to global
+    Settings::RestoreGlobalState();
+
+    UpdateStatusButtons();
 
     // Update the GUI
     ui.action_Start->setEnabled(false);
@@ -1522,7 +1538,7 @@ void GMainWindow::OnGameListOpenPerGameProperties(const std::string& file) {
         return;
     }
 
-    ConfigurePerGameGeneral dialog(this, title_id);
+    ConfigurePerGame dialog(this, title_id);
     dialog.LoadFromFile(v_file);
     auto result = dialog.exec();
     if (result == QDialog::Accepted) {
@@ -1533,7 +1549,14 @@ void GMainWindow::OnGameListOpenPerGameProperties(const std::string& file) {
             game_list->PopulateAsync(UISettings::values.game_dirs);
         }
 
-        config->Save();
+        // Do not cause the global config to write local settings into the config file
+        Settings::RestoreGlobalState();
+
+        if (!Core::System::GetInstance().IsPoweredOn()) {
+            config->Save();
+        }
+    } else {
+        Settings::RestoreGlobalState();
     }
 }
 
@@ -2011,7 +2034,7 @@ void GMainWindow::ToggleWindowMode() {
 
 void GMainWindow::ResetWindowSize() {
     const auto aspect_ratio = Layout::EmulationAspectRatio(
-        static_cast<Layout::AspectRatio>(Settings::values.aspect_ratio),
+        static_cast<Layout::AspectRatio>(Settings::values.aspect_ratio.GetValue()),
         static_cast<float>(Layout::ScreenUndocked::Height) / Layout::ScreenUndocked::Width);
     if (!ui.action_Single_Window_Mode->isChecked()) {
         render_window->resize(Layout::ScreenUndocked::Height / aspect_ratio,
@@ -2059,16 +2082,7 @@ void GMainWindow::OnConfigure() {
         ui.centralwidget->setMouseTracking(false);
     }
 
-    dock_status_button->setChecked(Settings::values.use_docked_mode);
-    multicore_status_button->setChecked(Settings::values.use_multi_core);
-    Settings::values.use_asynchronous_gpu_emulation =
-        Settings::values.use_asynchronous_gpu_emulation || Settings::values.use_multi_core;
-    async_status_button->setChecked(Settings::values.use_asynchronous_gpu_emulation);
-
-#ifdef HAS_VULKAN
-    renderer_status_button->setChecked(Settings::values.renderer_backend ==
-                                       Settings::RendererBackend::Vulkan);
-#endif
+    UpdateStatusButtons();
 }
 
 void GMainWindow::OnLoadAmiibo() {
@@ -2195,6 +2209,18 @@ void GMainWindow::UpdateStatusBar() {
     emu_speed_label->setVisible(!Settings::values.use_multi_core);
     game_fps_label->setVisible(true);
     emu_frametime_label->setVisible(true);
+}
+
+void GMainWindow::UpdateStatusButtons() {
+    dock_status_button->setChecked(Settings::values.use_docked_mode);
+    multicore_status_button->setChecked(Settings::values.use_multi_core);
+    Settings::values.use_asynchronous_gpu_emulation =
+        Settings::values.use_asynchronous_gpu_emulation || Settings::values.use_multi_core;
+    async_status_button->setChecked(Settings::values.use_asynchronous_gpu_emulation);
+#ifdef HAS_VULKAN
+    renderer_status_button->setChecked(Settings::values.renderer_backend ==
+                                       Settings::RendererBackend::Vulkan);
+#endif
 }
 
 void GMainWindow::HideMouseCursor() {
@@ -2623,8 +2649,6 @@ int main(int argc, char* argv[]) {
 
     QObject::connect(&app, &QGuiApplication::applicationStateChanged, &main_window,
                      &GMainWindow::OnAppFocusStateChanged);
-
-    Settings::LogSettings();
 
     int result = app.exec();
     detached_tasks.WaitForAllTasks();
