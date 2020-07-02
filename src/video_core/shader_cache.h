@@ -155,7 +155,8 @@ private:
     /// @param addr_end        Non-inclusive end address of the invalidation
     /// @pre invalidation_mutex is locked
     void InvalidatePageEntries(std::vector<Entry*>& entries, VAddr addr, VAddr addr_end) {
-        for (std::size_t index = 0; index < entries.size(); ++index) {
+        std::size_t index = 0;
+        while (index < entries.size()) {
             Entry* const entry = entries[index];
             if (!entry->Overlaps(addr, addr_end)) {
                 ++index;
