@@ -237,12 +237,8 @@ std::string BuildCommaSeparatedExtensions(std::vector<std::string> available_ext
 
 } // Anonymous namespace
 
-RendererVulkan::RendererVulkan(Core::TelemetrySession& telemetry_session_,
-                               Core::Frontend::EmuWindow& emu_window,
-                               Core::Memory::Memory& cpu_memory_, Tegra::GPU& gpu_,
-                               std::unique_ptr<Core::Frontend::GraphicsContext> context)
-    : RendererBase{emu_window, std::move(context)}, telemetry_session{telemetry_session_},
-      cpu_memory{cpu_memory_}, gpu{gpu_} {}
+RendererVulkan::RendererVulkan(Core::Frontend::EmuWindow& window, Core::System& system)
+    : RendererBase(window), system{system} {}
 
 RendererVulkan::~RendererVulkan() {
     ShutDown();
@@ -306,15 +302,15 @@ bool RendererVulkan::Init() {
     swapchain = std::make_unique<VKSwapchain>(*surface, *device);
     swapchain->Create(framebuffer.width, framebuffer.height, false);
 
-    state_tracker = std::make_unique<StateTracker>(gpu);
+    state_tracker = std::make_unique<StateTracker>(system);
 
     scheduler = std::make_unique<VKScheduler>(*device, *resource_manager, *state_tracker);
 
-    rasterizer = std::make_unique<RasterizerVulkan>(gpu, gpu.MemoryManager(), cpu_memory,
-                                                    screen_info, *device, *resource_manager,
-                                                    *memory_manager, *state_tracker, *scheduler);
+    rasterizer = std::make_unique<RasterizerVulkan>(system, render_window, screen_info, *device,
+                                                    *resource_manager, *memory_manager,
+                                                    *state_tracker, *scheduler);
 
-    blit_screen = std::make_unique<VKBlitScreen>(cpu_memory, render_window, *rasterizer, *device,
+    blit_screen = std::make_unique<VKBlitScreen>(system, render_window, *rasterizer, *device,
                                                  *resource_manager, *memory_manager, *swapchain,
                                                  *scheduler, screen_info);
 
@@ -442,7 +438,8 @@ void RendererVulkan::Report() const {
     LOG_INFO(Render_Vulkan, "Device: {}", model_name);
     LOG_INFO(Render_Vulkan, "Vulkan: {}", api_version);
 
-    static constexpr auto field = Telemetry::FieldType::UserSystem;
+    auto& telemetry_session = system.TelemetrySession();
+    constexpr auto field = Telemetry::FieldType::UserSystem;
     telemetry_session.AddField(field, "GPU_Vendor", vendor_name);
     telemetry_session.AddField(field, "GPU_Model", model_name);
     telemetry_session.AddField(field, "GPU_Vulkan_Driver", driver_name);

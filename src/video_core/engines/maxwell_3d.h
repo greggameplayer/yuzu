@@ -51,11 +51,9 @@ namespace Tegra::Engines {
 
 class Maxwell3D final : public ConstBufferEngineInterface, public EngineInterface {
 public:
-    explicit Maxwell3D(Core::System& system, MemoryManager& memory_manager);
-    ~Maxwell3D();
-
-    /// Binds a rasterizer to this engine.
-    void BindRasterizer(VideoCore::RasterizerInterface& rasterizer);
+    explicit Maxwell3D(Core::System& system, VideoCore::RasterizerInterface& rasterizer,
+                       MemoryManager& memory_manager);
+    ~Maxwell3D() = default;
 
     /// Register structure of the Maxwell3D engine.
     /// TODO(Subv): This structure will need to be made bigger as more registers are discovered.
@@ -1420,12 +1418,12 @@ public:
         return execute_on;
     }
 
-    VideoCore::RasterizerInterface& Rasterizer() {
-        return *rasterizer;
+    VideoCore::RasterizerInterface& GetRasterizer() {
+        return rasterizer;
     }
 
-    const VideoCore::RasterizerInterface& Rasterizer() const {
-        return *rasterizer;
+    const VideoCore::RasterizerInterface& GetRasterizer() const {
+        return rasterizer;
     }
 
     /// Notify a memory write has happened.
@@ -1462,9 +1460,10 @@ private:
     void InitializeRegisterDefaults();
 
     Core::System& system;
-    MemoryManager& memory_manager;
 
-    VideoCore::RasterizerInterface* rasterizer = nullptr;
+    VideoCore::RasterizerInterface& rasterizer;
+
+    MemoryManager& memory_manager;
 
     /// Start offsets of each macro in macro_memory
     std::array<u32, 0x80> macro_positions = {};

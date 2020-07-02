@@ -34,11 +34,11 @@ static_assert(Last <= std::numeric_limits<u8>::max());
 
 class StateTracker {
 public:
-    explicit StateTracker(Tegra::GPU& gpu);
+    explicit StateTracker(Core::System& system);
 
-    void InvalidateCommandBufferState() {
-        flags |= invalidation_flags;
-    }
+    void Initialize();
+
+    void InvalidateCommandBufferState();
 
     bool TouchViewports() {
         return Exchange(Dirty::Viewports, false);
@@ -66,12 +66,13 @@ public:
 
 private:
     bool Exchange(std::size_t id, bool new_value) const noexcept {
+        auto& flags = system.GPU().Maxwell3D().dirty.flags;
         const bool is_dirty = flags[id];
         flags[id] = new_value;
         return is_dirty;
     }
 
-    Tegra::Engines::Maxwell3D::DirtyState::Flags& flags;
+    Core::System& system;
     Tegra::Engines::Maxwell3D::DirtyState::Flags invalidation_flags;
 };
 

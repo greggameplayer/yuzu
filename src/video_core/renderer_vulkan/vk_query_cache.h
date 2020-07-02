@@ -56,8 +56,7 @@ class VKQueryCache final
     : public VideoCommon::QueryCacheBase<VKQueryCache, CachedQuery, CounterStream, HostCounter,
                                          QueryPool> {
 public:
-    explicit VKQueryCache(VideoCore::RasterizerInterface& rasterizer,
-                          Tegra::Engines::Maxwell3D& maxwell3d, Tegra::MemoryManager& gpu_memory,
+    explicit VKQueryCache(Core::System& system, VideoCore::RasterizerInterface& rasterizer,
                           const VKDevice& device, VKScheduler& scheduler);
     ~VKQueryCache();
 

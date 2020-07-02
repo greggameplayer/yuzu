@@ -135,7 +135,8 @@ public:
             return GetNullSurface(SurfaceParams::ExpectedTarget(entry));
         }
 
-        const std::optional<VAddr> cpu_addr = gpu_memory.GpuToCpuAddress(gpu_addr);
+        const std::optional<VAddr> cpu_addr =
+            system.GPU().MemoryManager().GpuToCpuAddress(gpu_addr);
         if (!cpu_addr) {
             return GetNullSurface(SurfaceParams::ExpectedTarget(entry));
         }
@@ -159,7 +160,8 @@ public:
         if (!gpu_addr) {
             return GetNullSurface(SurfaceParams::ExpectedTarget(entry));
         }
-        const std::optional<VAddr> cpu_addr = gpu_memory.GpuToCpuAddress(gpu_addr);
+        const std::optional<VAddr> cpu_addr =
+            system.GPU().MemoryManager().GpuToCpuAddress(gpu_addr);
         if (!cpu_addr) {
             return GetNullSurface(SurfaceParams::ExpectedTarget(entry));
         }
@@ -181,11 +183,11 @@ public:
 
     TView GetDepthBufferSurface(bool preserve_contents) {
         std::lock_guard lock{mutex};
-        auto& dirty = maxwell3d.dirty;
-        if (!dirty.flags[VideoCommon::Dirty::ZetaBuffer]) {
+        auto& maxwell3d = system.GPU().Maxwell3D();
+        if (!maxwell3d.dirty.flags[VideoCommon::Dirty::ZetaBuffer]) {
             return depth_buffer.view;
         }
-        dirty.flags[VideoCommon::Dirty::ZetaBuffer] = false;
+        maxwell3d.dirty.flags[VideoCommon::Dirty::ZetaBuffer] = false;
 
         const auto& regs{maxwell3d.regs};
         const auto gpu_addr{regs.zeta.Address()};
@@ -193,12 +195,13 @@ public:
             SetEmptyDepthBuffer();
             return {};
         }
-        const std::optional<VAddr> cpu_addr = gpu_memory.GpuToCpuAddress(gpu_addr);
+        const std::optional<VAddr> cpu_addr =
+            system.GPU().MemoryManager().GpuToCpuAddress(gpu_addr);
         if (!cpu_addr) {
             SetEmptyDepthBuffer();
             return {};
         }
-        const auto depth_params{SurfaceParams::CreateForDepthBuffer(maxwell3d)};
+        const auto depth_params{SurfaceParams::CreateForDepthBuffer(system)};
         auto surface_view = GetSurface(gpu_addr, *cpu_addr, depth_params, preserve_contents, true);
         if (depth_buffer.target)
             depth_buffer.target->MarkAsRenderTarget(false, NO_RT);
@@ -212,6 +215,7 @@ public:
     TView GetColorBufferSurface(std::size_t index, bool preserve_contents) {
         std::lock_guard lock{mutex};
         ASSERT(index < Tegra::Engines::Maxwell3D::Regs::NumRenderTargets);
+        auto& maxwell3d = system.GPU().Maxwell3D();
         if (!maxwell3d.dirty.flags[VideoCommon::Dirty::ColorBuffer0 + index]) {
             return render_targets[index].view;
         }
@@ -231,14 +235,15 @@ public:
             return {};
         }
 
-        const std::optional<VAddr> cpu_addr = gpu_memory.GpuToCpuAddress(gpu_addr);
+        const std::optional<VAddr> cpu_addr =
+            system.GPU().MemoryManager().GpuToCpuAddress(gpu_addr);
         if (!cpu_addr) {
             SetEmptyColorBuffer(index);
             return {};
         }
 
         auto surface_view =
-            GetSurface(gpu_addr, *cpu_addr, SurfaceParams::CreateForFramebuffer(maxwell3d, index),
+            GetSurface(gpu_addr, *cpu_addr, SurfaceParams::CreateForFramebuffer(system, index),
                        preserve_contents, true);
         if (render_targets[index].target) {
             auto& surface = render_targets[index].target;
@@ -295,8 +300,9 @@ public:
         const GPUVAddr dst_gpu_addr = dst_config.Address();
         DeduceBestBlit(src_params, dst_params, src_gpu_addr, dst_gpu_addr);
 
-        const std::optional<VAddr> dst_cpu_addr = gpu_memory.GpuToCpuAddress(dst_gpu_addr);
-        const std::optional<VAddr> src_cpu_addr = gpu_memory.GpuToCpuAddress(src_gpu_addr);
+        const auto& memory_manager = system.GPU().MemoryManager();
+        const std::optional<VAddr> dst_cpu_addr = memory_manager.GpuToCpuAddress(dst_gpu_addr);
+        const std::optional<VAddr> src_cpu_addr = memory_manager.GpuToCpuAddress(src_gpu_addr);
         std::pair dst_surface = GetSurface(dst_gpu_addr, *dst_cpu_addr, dst_params, true, false);
         TView src_surface = GetSurface(src_gpu_addr, *src_cpu_addr, src_params, true, false).second;
         ImageBlit(src_surface, dst_surface.second, copy_config);
@@ -352,11 +358,9 @@ public:
     }
 
 protected:
-    explicit TextureCache(VideoCore::RasterizerInterface& rasterizer_,
-                          Tegra::Engines::Maxwell3D& maxwell3d_, Tegra::MemoryManager& gpu_memory_,
-                          bool is_astc_supported_)
-        : is_astc_supported{is_astc_supported_}, rasterizer{rasterizer_}, maxwell3d{maxwell3d_},
-          gpu_memory{gpu_memory_} {
+    explicit TextureCache(Core::System& system, VideoCore::RasterizerInterface& rasterizer,
+                          bool is_astc_supported)
+        : system{system}, is_astc_supported{is_astc_supported}, rasterizer{rasterizer} {
         for (std::size_t i = 0; i < Tegra::Engines::Maxwell3D::Regs::NumRenderTargets; i++) {
             SetEmptyColorBuffer(i);
         }
@@ -391,7 +395,7 @@ protected:
     virtual void BufferCopy(TSurface& src_surface, TSurface& dst_surface) = 0;
 
     void ManageRenderTargetUnregister(TSurface& surface) {
-        auto& dirty = maxwell3d.dirty;
+        auto& dirty = system.GPU().Maxwell3D().dirty;
         const u32 index = surface->GetRenderTarget();
         if (index == DEPTH_RT) {
             dirty.flags[VideoCommon::Dirty::ZetaBuffer] = true;
@@ -404,7 +408,8 @@ protected:
     void Register(TSurface surface) {
         const GPUVAddr gpu_addr = surface->GetGpuAddr();
         const std::size_t size = surface->GetSizeInBytes();
-        const std::optional<VAddr> cpu_addr = gpu_memory.GpuToCpuAddress(gpu_addr);
+        const std::optional<VAddr> cpu_addr =
+            system.GPU().MemoryManager().GpuToCpuAddress(gpu_addr);
         if (!cpu_addr) {
             LOG_CRITICAL(HW_GPU, "Failed to register surface with unmapped gpu_address 0x{:016x}",
                          gpu_addr);
@@ -454,6 +459,7 @@ protected:
         return new_surface;
     }
 
+    Core::System& system;
     const bool is_astc_supported;
 
 private:
@@ -948,7 +954,8 @@ private:
      * @param params   The parameters on the candidate surface.
      **/
     Deduction DeduceSurface(const GPUVAddr gpu_addr, const SurfaceParams& params) {
-        const std::optional<VAddr> cpu_addr = gpu_memory.GpuToCpuAddress(gpu_addr);
+        const std::optional<VAddr> cpu_addr =
+            system.GPU().MemoryManager().GpuToCpuAddress(gpu_addr);
 
         if (!cpu_addr) {
             Deduction result{};
@@ -1105,7 +1112,7 @@ private:
 
     void LoadSurface(const TSurface& surface) {
         staging_cache.GetBuffer(0).resize(surface->GetHostSizeInBytes());
-        surface->LoadBuffer(gpu_memory, staging_cache);
+        surface->LoadBuffer(system.GPU().MemoryManager(), staging_cache);
         surface->UploadTexture(staging_cache.GetBuffer(0));
         surface->MarkAsModified(false, Tick());
     }
@@ -1116,7 +1123,7 @@ private:
         }
         staging_cache.GetBuffer(0).resize(surface->GetHostSizeInBytes());
         surface->DownloadTexture(staging_cache.GetBuffer(0));
-        surface->FlushBuffer(gpu_memory, staging_cache);
+        surface->FlushBuffer(system.GPU().MemoryManager(), staging_cache);
         surface->MarkAsModified(false, Tick());
     }
 
@@ -1246,8 +1253,6 @@ private:
     }
 
     VideoCore::RasterizerInterface& rasterizer;
-    Tegra::Engines::Maxwell3D& maxwell3d;
-    Tegra::MemoryManager& gpu_memory;
 
     FormatLookupTable format_lookup_table;
     FormatCompatibility format_compatibility;

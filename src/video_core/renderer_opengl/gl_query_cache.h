@@ -29,8 +29,7 @@ using CounterStream = VideoCommon::CounterStreamBase<QueryCache, HostCounter>;
 class QueryCache final : public VideoCommon::QueryCacheBase<QueryCache, CachedQuery, CounterStream,
                                                             HostCounter, std::vector<OGLQuery>> {
 public:
-    explicit QueryCache(RasterizerOpenGL& rasterizer, Tegra::Engines::Maxwell3D& maxwell3d,
-                        Tegra::MemoryManager& gpu_memory);
+    explicit QueryCache(Core::System& system, RasterizerOpenGL& rasterizer);
     ~QueryCache();
 
     OGLQuery AllocateQuery(VideoCore::QueryType type);

@@ -77,9 +77,12 @@ void SetupDirtyStencilProperties(Tables& tables) {
 
 } // Anonymous namespace
 
-StateTracker::StateTracker(Tegra::GPU& gpu)
-    : flags{gpu.Maxwell3D().dirty.flags}, invalidation_flags{MakeInvalidationFlags()} {
-    auto& tables = gpu.Maxwell3D().dirty.tables;
+StateTracker::StateTracker(Core::System& system)
+    : system{system}, invalidation_flags{MakeInvalidationFlags()} {}
+
+void StateTracker::Initialize() {
+    auto& dirty = system.GPU().Maxwell3D().dirty;
+    auto& tables = dirty.tables;
     SetupDirtyRenderTargets(tables);
     SetupDirtyViewports(tables);
     SetupDirtyScissors(tables);
@@ -87,6 +90,10 @@ StateTracker::StateTracker(Tegra::GPU& gpu)
     SetupDirtyBlendConstants(tables);
     SetupDirtyDepthBounds(tables);
     SetupDirtyStencilProperties(tables);
+}
+
+void StateTracker::InvalidateCommandBufferState() {
+    system.GPU().Maxwell3D().dirty.flags |= invalidation_flags;
 }
 
 } // namespace Vulkan

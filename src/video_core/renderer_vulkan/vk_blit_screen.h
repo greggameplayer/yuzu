@@ -15,10 +15,6 @@ namespace Core {
 class System;
 }
 
-namespace Core::Memory {
-class Memory;
-}
-
 namespace Core::Frontend {
 class EmuWindow;
 }
@@ -43,7 +39,7 @@ class VKSwapchain;
 
 class VKBlitScreen final {
 public:
-    explicit VKBlitScreen(Core::Memory::Memory& cpu_memory, Core::Frontend::EmuWindow& render_window,
+    explicit VKBlitScreen(Core::System& system, Core::Frontend::EmuWindow& render_window,
                           VideoCore::RasterizerInterface& rasterizer, const VKDevice& device,
                           VKResourceManager& resource_manager, VKMemoryManager& memory_manager,
                           VKSwapchain& swapchain, VKScheduler& scheduler,
@@ -85,7 +81,7 @@ private:
     u64 GetRawImageOffset(const Tegra::FramebufferConfig& framebuffer,
                           std::size_t image_index) const;
 
-    Core::Memory::Memory& cpu_memory;
+    Core::System& system;
     Core::Frontend::EmuWindow& render_window;
     VideoCore::RasterizerInterface& rasterizer;
     const VKDevice& device;

@@ -14,15 +14,7 @@
 #include "video_core/renderer_vulkan/wrapper.h"
 
 namespace Core {
-class TelemetrySession;
-}
-
-namespace Core::Memory {
-class Memory;
-}
-
-namespace Tegra {
-class GPU;
+class System;
 }
 
 namespace Vulkan {
@@ -46,10 +38,7 @@ struct VKScreenInfo {
 
 class RendererVulkan final : public VideoCore::RendererBase {
 public:
-    explicit RendererVulkan(Core::TelemetrySession& telemtry_session,
-                            Core::Frontend::EmuWindow& emu_window, Core::Memory::Memory& cpu_memory,
-                            Tegra::GPU& gpu,
-                            std::unique_ptr<Core::Frontend::GraphicsContext> context);
+    explicit RendererVulkan(Core::Frontend::EmuWindow& window, Core::System& system);
     ~RendererVulkan() override;
 
     bool Init() override;
@@ -68,9 +57,7 @@ private:
 
     void Report() const;
 
-    Core::TelemetrySession& telemetry_session;
-    Core::Memory::Memory& cpu_memory;
-    Tegra::GPU& gpu;
+    Core::System& system;
 
     Common::DynamicLibrary library;
     vk::InstanceDispatch dld;

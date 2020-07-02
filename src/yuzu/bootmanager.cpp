@@ -30,7 +30,6 @@
 #include "common/scope_exit.h"
 #include "core/core.h"
 #include "core/frontend/framebuffer_layout.h"
-#include "core/hle/kernel/process.h"
 #include "core/settings.h"
 #include "input_common/keyboard.h"
 #include "input_common/main.h"
@@ -64,8 +63,7 @@ void EmuThread::run() {
     emit LoadProgress(VideoCore::LoadCallbackStage::Prepare, 0, 0);
 
     system.Renderer().Rasterizer().LoadDiskResources(
-        system.CurrentProcess()->GetTitleID(), stop_run,
-        [this](VideoCore::LoadCallbackStage stage, std::size_t value, std::size_t total) {
+        stop_run, [this](VideoCore::LoadCallbackStage stage, std::size_t value, std::size_t total) {
             emit LoadProgress(stage, value, total);
         });
 
