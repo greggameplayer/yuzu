@@ -234,6 +234,13 @@ const std::array<UISettings::Shortcut, 16> Config::default_hotkeys{{
 }};
 // clang-format on
 
+const std::array<std::pair<bool, const char*>, 2> Config::default_motion_devices{{
+    {false, "engine:cemuhookudp,address:127.0.0.1,port:26760,pad_index:0,cx:0.0,cy:0.0,"
+            "cz:0.0,sensitivity:1.0"},
+    {false, "engine:cemuhookudp,address:127.0.0.1,port:26760,pad_index:0,cx:0.0,cy:0.0,"
+            "cz:0.0,sensitivity:1.0"},
+}};
+
 void Config::ReadPlayerValues() {
     for (std::size_t p = 0; p < Settings::values.players.size(); ++p) {
         auto& player = Settings::values.players[p];
@@ -295,6 +302,26 @@ void Config::ReadPlayerValues() {
                                  .toStdString();
             if (player_analogs.empty()) {
                 player_analogs = default_param;
+            }
+        }
+
+        for (std::size_t i = 0; i < player.motion_devices.size(); ++i) {
+            const auto& default_param = default_motion_devices[i];
+            auto& player_motion_device = player.motion_devices[i];
+
+            player_motion_device.config =
+                qt_config
+                    ->value(QStringLiteral("player_%1_motion_device%2").arg(p).arg(i),
+                            QString::fromLocal8Bit(std::get<1>(default_param)))
+                    .toString()
+                    .toStdString();
+            player_motion_device.enabled =
+                qt_config
+                    ->value(QStringLiteral("player_%1_motion_device%2/enabled").arg(p).arg(i),
+                            std::get<0>(default_param))
+                    .toBool();
+            if (player_motion_device.config.empty()) {
+                player_motion_device.config = std::get<1>(default_param);
             }
         }
     }
@@ -864,6 +891,16 @@ void Config::SavePlayerValues() {
                              QString::fromStdString(Settings::NativeAnalog::mapping[i]),
                          QString::fromStdString(player.analogs[i]),
                          QString::fromStdString(default_param));
+        }
+
+        for (std::size_t i = 0; i < player.motion_devices.size(); ++i) {
+            const auto& default_param = default_motion_devices[i];
+            const Settings::MotionRaw& player_motion_device = player.motion_devices[i];
+            WriteSetting(QStringLiteral("player_%1_motion_device%2").arg(p).arg(i),
+                         QString::fromStdString(player_motion_device.config),
+                         QString::fromLocal8Bit(std::get<1>(default_param)));
+            WriteSetting(QStringLiteral("player_%1_motion_device%2/enabled").arg(p).arg(i),
+                         player_motion_device.enabled);
         }
     }
 }
